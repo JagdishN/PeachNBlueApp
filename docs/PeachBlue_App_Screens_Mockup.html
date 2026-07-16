@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Peach & Blue — App Screens Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,500;0,600;0,700;1,600&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --peach-bg:#FBE9D9;
+    --peach-card:#FFF6EC;
+    --peach-primary:#F2764A;
+    --peach-primary-dark:#D65E36;
+    --navy:#17315E;
+    --navy-text:#16305C;
+    --navy-deep:#0E2142;
+    --cream:#FFFAF4;
+    --success:#3F8F6B;
+    --success-bg:#E4F3EC;
+    --warning:#C97A2B;
+    --warning-bg:#FBEBD8;
+    --danger:#C24545;
+    --border:#E9CDAC;
+    --shadow: 0 18px 40px -18px rgba(14,33,66,0.35);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background: linear-gradient(180deg,#F4EFE6 0%, #EFE7DA 100%);
+    font-family:'Inter',sans-serif;
+    color:var(--navy-text);
+    padding:48px 40px 80px;
+  }
+  .page-head{
+    max-width:1200px;
+    margin:0 auto 44px;
+  }
+  .brand-row{display:flex; align-items:baseline; gap:14px; flex-wrap:wrap;}
+  .brand-row h1{
+    font-family:'Lora',serif;
+    font-weight:700;
+    font-size:34px;
+    margin:0;
+    color:var(--navy-deep);
+  }
+  .brand-row h1 span{color:var(--peach-primary-dark);}
+  .subtitle{font-size:14px; color:#7A6A57; margin-top:6px; max-width:640px; line-height:1.5;}
+  .note{
+    margin-top:18px;
+    font-size:12.5px;
+    background:var(--cream);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:12px 16px;
+    color:#8A6A4A;
+    max-width:640px;
+    line-height:1.6;
+  }
+
+  .gallery{
+    max-width:1200px;
+    margin:0 auto;
+    display:flex;
+    flex-wrap:wrap;
+    gap:36px;
+    justify-content:flex-start;
+  }
+  .screen-block{width:272px;}
+  .screen-label{
+    font-size:11.5px;
+    font-weight:700;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    color:var(--peach-primary-dark);
+    margin-bottom:8px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .role-tag{
+    font-size:9.5px;
+    font-weight:800;
+    padding:2px 8px;
+    border-radius:100px;
+    letter-spacing:.04em;
+  }
+  .role-staff{background:var(--navy-deep); color:var(--peach-bg);}
+  .role-admin{background:var(--peach-primary); color:#fff;}
+
+  .phone{
+    width:272px;
+    height:560px;
+    background:var(--peach-bg);
+    border-radius:34px;
+    box-shadow:var(--shadow);
+    border:6px solid var(--navy-deep);
+    overflow:hidden;
+    position:relative;
+    display:flex;
+    flex-direction:column;
+  }
+  .statusbar{
+    height:26px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:0 16px;
+    font-size:10px;
+    font-weight:700;
+    color:var(--navy-deep);
+    flex-shrink:0;
+  }
+  .content{flex:1; overflow:hidden; position:relative;}
+  .powered-footer{
+    height:22px;
+    flex-shrink:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:var(--navy-deep);
+    color:#E9CDAC;
+    font-size:8.5px;
+    font-weight:600;
+    letter-spacing:.04em;
+  }
+
+  /* ---- Splash ---- */
+  .splash{
+    height:100%;
+    background: radial-gradient(circle at 50% 30%, #FDDFC0 0%, var(--peach-bg) 70%);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+  }
+  .splash-logo{font-family:'Lora',serif; font-weight:700; font-size:30px; line-height:1.1;}
+  .splash-logo .peach{color:var(--peach-primary-dark);}
+  .splash-logo .amp{color:var(--navy-deep); font-style:italic; font-size:22px; display:block; margin:2px 0;}
+  .splash-logo .blue{color:var(--navy-deep);}
+  .splash-tag{margin-top:10px; font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:#B4794C;}
+  .splash-powered{
+    position:absolute; bottom:34px; left:0; right:0;
+    text-align:center; font-size:9px; color:#A9855F; letter-spacing:.05em;
+  }
+
+  /* ---- Generic app chrome ---- */
+  .appbar{
+    background:var(--navy-deep);
+    color:var(--cream);
+    padding:16px 18px 14px;
+  }
+  .appbar-title{font-family:'Lora',serif; font-weight:600; font-size:16px;}
+  .appbar-sub{font-size:10px; color:#C8A67B; margin-top:2px;}
+  .scroll{height:calc(100% - 0px); overflow-y:auto; padding:14px;}
+
+  .card{
+    background:var(--peach-card);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:12px 13px;
+    margin-bottom:10px;
+  }
+  .card-title{font-size:12.5px; font-weight:700; color:var(--navy-text);}
+  .card-sub{font-size:10.5px; color:#8A7355; margin-top:2px;}
+  .row-between{display:flex; justify-content:space-between; align-items:center;}
+
+  .price-chip{
+    background:var(--peach-primary);
+    color:#fff;
+    font-weight:800;
+    font-size:11.5px;
+    padding:4px 10px;
+    border-radius:100px;
+    white-space:nowrap;
+  }
+  .price-chip.navy{
+    background:var(--peach-bg);
+    color:var(--navy-deep);
+    border:1.5px solid var(--peach-primary);
+  }
+
+  .btn{
+    display:inline-block;
+    background:var(--peach-primary);
+    color:#fff;
+    font-size:11.5px;
+    font-weight:700;
+    padding:9px 14px;
+    border-radius:9px;
+    text-align:center;
+    border:none;
+  }
+  .btn.outline{
+    background:transparent;
+    color:var(--navy-deep);
+    border:1.5px solid var(--navy-deep);
+  }
+  .btn.block{display:block; width:100%;}
+
+  .field{
+    background:#fff;
+    border:1px solid var(--border);
+    border-radius:9px;
+    padding:9px 11px;
+    font-size:11px;
+    color:#8A7355;
+    margin-bottom:8px;
+  }
+  .field-label{font-size:9.5px; font-weight:700; color:var(--navy-text); margin-bottom:4px; display:block;}
+
+  .toggle-row{display:flex; gap:6px; margin-bottom:14px;}
+  .toggle{
+    flex:1; text-align:center; font-size:10.5px; font-weight:700;
+    padding:8px 0; border-radius:8px; border:1.5px solid var(--navy-deep);
+    color:var(--navy-deep);
+  }
+  .toggle.active{background:var(--navy-deep); color:var(--peach-bg);}
+
+  .garment-item{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:9px 0; border-bottom:1px dashed var(--border);
+  }
+  .garment-item:last-child{border-bottom:none;}
+  .garment-name{font-size:11.5px; font-weight:600;}
+  .qty-stepper{display:flex; align-items:center; gap:8px;}
+  .qty-btn{
+    width:20px; height:20px; border-radius:6px; background:var(--peach-bg);
+    border:1px solid var(--peach-primary); color:var(--navy-deep);
+    font-weight:800; font-size:12px; display:flex; align-items:center; justify-content:center;
+  }
+  .qty-num{font-size:11.5px; font-weight:700; width:14px; text-align:center;}
+
+  .total-bar{
+    background:var(--navy-deep);
+    border-radius:12px;
+    padding:12px 14px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-top:8px;
+  }
+  .total-label{font-size:10px; color:#C8A67B; font-weight:600;}
+  .total-value{font-size:16px; font-weight:800; color:var(--peach-bg); font-family:'Lora',serif;}
+
+  .status-track{display:flex; align-items:center; margin:6px 0 14px;}
+  .status-dot{width:9px; height:9px; border-radius:50%; background:var(--border);}
+  .status-dot.done{background:var(--success);}
+  .status-dot.now{background:var(--peach-primary); box-shadow:0 0 0 3px #FBD9C4;}
+  .status-line{flex:1; height:2px; background:var(--border);}
+  .status-line.done{background:var(--success);}
+  .status-labels{display:flex; justify-content:space-between; font-size:7.3px; font-weight:700; color:#8A7355; margin-top:-10px;}
+
+  .stat-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:10px;}
+  .stat-card{
+    background:var(--peach-card); border:1px solid var(--border); border-radius:12px; padding:10px 11px;
+  }
+  .stat-num{font-family:'Lora',serif; font-size:18px; font-weight:700; color:var(--navy-deep);}
+  .stat-label{font-size:9px; color:#8A7355; font-weight:600; margin-top:2px;}
+
+  .tab-bar{
+    display:flex; background:var(--navy-deep); padding:8px 6px; gap:4px;
+  }
+  .tab{
+    flex:1; text-align:center; font-size:8.5px; font-weight:700; color:#8FA0BE; padding:5px 0; border-radius:8px;
+  }
+  .tab.active{background:var(--peach-primary); color:#fff;}
+
+  .badge-overdue{
+    background:var(--warning-bg); color:var(--warning); font-size:8.5px; font-weight:800;
+    padding:2px 7px; border-radius:100px;
+  }
+  .badge-paid{
+    background:var(--success-bg); color:var(--success); font-size:8.5px; font-weight:800;
+    padding:2px 7px; border-radius:100px;
+  }
+
+  .branch-chip{
+    display:inline-flex; align-items:center; gap:5px;
+    background:rgba(255,255,255,0.12); border:1px solid rgba(255,255,255,0.25);
+    border-radius:100px; padding:3px 9px; font-size:8.5px; font-weight:700; color:var(--peach-bg);
+    margin-top:6px;
+  }
+  .service-tag{
+    font-size:7.5px; font-weight:800; letter-spacing:.02em; text-transform:uppercase;
+    padding:2px 6px; border-radius:5px; margin-left:6px;
+  }
+  .service-tag.wash{background:#DCEAE3; color:var(--success);}
+  .service-tag.iron{background:#E1E9F5; color:var(--navy);}
+  .service-tag.dry{background:var(--warning-bg); color:var(--warning);}
+
+    max-width:1200px; margin:56px auto 0; font-size:12px; color:#8A7355; line-height:1.7;
+    border-top:1px solid #DCC9AE; padding-top:20px;
+  }
+  footer.legend b{color:var(--navy-deep);}
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <div class="brand-row">
+    <h1><span>Peach</span> & <span style="color:var(--navy-deep)">Blue</span></h1>
+    <span style="font-size:13px;color:#8A7355;">— App Screens</span>
+  </div>
+  <div class="subtitle">Staff and Admin screens for Peach &amp; Blue. Peach background with navy-blue text, used prominently for all pricing.</div>
+</div>
+
+<div class="gallery">
+
+  <!-- 0. Splash -->
+  <div class="screen-block">
+    <div class="screen-label">0 · Splash <span class="role-tag role-staff">ALL USERS</span></div>
+    <div class="phone">
+      <div class="statusbar"><span>9:41</span><span>●●●●</span></div>
+      <div class="content">
+        <div class="splash">
+          <div class="splash-logo">
+            <span class="peach">Peach</span>
+            <span class="amp">&amp;</span>
+            <span class="blue">Blue</span>
+          </div>
+          <div class="splash-tag">Fresh. Clean. Perfectly cared for.</div>
+          <div class="splash-powered">Powered by NIVENXA</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 1. Login -->
+  <div class="screen-block">
+    <div class="screen-label">1 · Login <span class="role-tag role-staff">ALL USERS</span></div>
+    <div class="phone">
+      <div class="statusbar"><span>9:41</span><span>●●●●</span></div>
+      <div class="content">
+        <div class="scroll">
+          <div style="text-align:center; margin:10px 0 20px;">
+            <div style="font-family:'Lora',serif; font-weight:700; font-size:19px;"><span style="color:var(--peach-primary-dark)">Peach</span> &amp; <span style="color:var(--navy-deep)">Blue</span></div>
+            <div style="font-size:9.5px; color:#B4794C; letter-spacing:.1em; text-transform:uppercase; margin-top:4px;">Team Login</div>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle active">Staff</div>
+            <div class="toggle">Admin</div>
+          </div>
+          <span class="field-label">Phone Number</span>
+          <div class="field">+91 98xxxxxx21</div>
+          <span class="field-label">OTP</span>
+          <div class="field">• • • • • •</div>
+          <button class="btn block" style="margin-top:6px;">Sign In</button>
+        </div>
+      </div>
+      <div class="powered-footer">POWERED BY NIVENXA</div>
+    </div>
+  </div>
+
+  <!-- 2. Staff Home -->
+  <div class="screen-block">
+    <div class="screen-label">2 · Staff Home <span class="role-tag role-staff">STAFF</span></div>
+    <div class="phone">
+      <div class="statusbar"><span>9:41</span><span>●●●●</span></div>
+      <div class="content">
+        <div class="appbar">
+          <div class="appbar-title">Today's Pickups</div>
+          <div class="appbar-sub">Ravi Kumar · 3 collected today</div>
+          <div class="branch-chip">🏢 Green Valley Apartments · +91 93981 25151</div>
+        </div>
+        <div class="scroll" style="height:calc(100% - 82px);">
+          <div class="card">
+            <div class="row-between">
+              <div>
+                <div class="card-title">A-304 · Priya Menon</div>
+                <div class="card-sub">Requested via WhatsApp · 11:20 AM</div>
+              </div>
+              <span class="badge-overdue">New</span>
+            </div>
+          </div>
+          <div class="card">
+            <div class="row-between">
+              <div>
+                <div class="card-title">B-112 · Arjun Rao</div>
+                <div class="card-sub">Requested via Call · 10:05 AM</div>
+              </div>
+              <span class="price-chip navy">Picked</span>
+            </div>
+          </div>
+          <div class="card">
+            <div class="row-between">
+              <div>
+                <div class="card-title">A-501 · Deepa Iyer</div>
+                <div class="card-sub">Scheduled 5:00 PM today</div>
+              </div>
+              <span class="badge-paid">Delivered</span>
+            </div>
+          </div>
+          <button class="btn block" style="margin-top:4px;">+ New Order (After Pickup)</button>
+        </div>
+      </div>
+      <div class="powered-footer">POWERED BY NIVENXA</div>
+    </div>
+  </div>
+
+  <!-- 3. Staff New Order Entry -->
+  <div class="screen-block">
+    <div class="screen-label">3 · New Order Entry <span class="role-tag role-staff">STAFF</span></div>
+    <div class="phone">
+      <div class="statusbar"><span>9:41</span><span>●●●●</span></div>
+      <div class="content">
+        <div class="appbar">
+          <div class="appbar-title">New Order · A-304</div>
+          <div class="appbar-sub">Priya Menon · +91 98xxxxxx45</div>
+        </div>
+        <div class="scroll" style="height:calc(100% - 62px);">
+          <div class="card-title" style="margin-bottom:6px;">Garments Collected</div>
+          <div class="card">
+            <div class="garment-item">
+              <div><div class="garment-name">Shirt <span class="service-tag wash">Wash &amp; Fold</span></div><span class="card-sub">₹25 / piece</span></div>
+              <div class="qty-stepper"><div class="qty-btn">–</div><div class="qty-num">3</div><div class="qty-btn">+</div></div>
+            </div>
+            <div class="garment-item">
+              <div><div class="garment-name">Saree <span class="service-tag dry">Dry Clean</span></div><span class="card-sub">₹60 / piece</span></div>
+              <div class="qty-stepper"><div class="qty-btn">–</div><div class="qty-num">1</div><div class="qty-btn">+</div></div>
+            </div>
+            <div class="garment-item">
+              <div><div class="garment-name">Bedsheet <span class="service-tag iron">Ironing</span></div><span class="card-sub">₹40 / piece</span></div>
+              <div class="qty-stepper"><div class="qty-btn">–</div><div class="qty-num">2</div><div class="qty-btn">+</div></div>
+            </div>
+          </div>
+          <div class="total-bar">
+            <span class="total-label">ESTIMATED TOTAL</span>
+            <span class="total-value">₹215</span>
+          </div>
+          <button class="btn block" style="margin-top:10px;">Confirm Pickup</button>
+        </div>
+      </div>
+      <div class="powered-footer">POWERED BY NIVENXA</div>
+    </div>
+  </div>
+
+  <!-- 4. Order Status / Amount Revision -->
+  <div class="screen-block">
+    <div class="screen-label">4 · Order Status <span class="role-tag role-admin">ADMIN</span></div>
+    <div class="phone">
+      <div class="statusbar"><span>9:41</span><span>●●●●</span></div>
+      <div class="content">
+        <div class="appbar">
+          <div class="appbar-title">Order #PB-1042</div>
+          <div class="appbar-sub">A-304 · Priya Menon</div>
+        </div>
+        <div class="scroll" style="height:calc(100% - 62px);">
+          <div class="card-title" style="margin-bottom:8px;">Internal Progress</div>
+          <div class="status-track">
+            <div class="status-dot done"></div><div class="status-line done"></div>
+            <div class="status-dot now"></div><div class="status-line"></div>
+            <div class="status-dot"></div><div class="status-line"></div>
+            <div class="status-dot"></div>
+          </div>
+          <div class="status-labels"><span>Picked</span><span>Processing</span><span>Ready</span><span>Delivered</span></div>
+
+          <div class="card" style="margin-top:16px;">
+            <div class="card-title">Revise Final Amount</div>
+            <span class="field-label" style="margin-top:8px;">Estimated (at pickup)</span>
+            <div class="field">₹215</div>
+            <span class="field-label">Revised Amount</span>
+            <div class="field" style="color:var(--navy-deep); font-weight:700;">₹245</div>
+            <span class="field-label">Reason (sent to customer)</span>
+            <div class="field">Saree needed stain treatment</div>
+            <button class="btn block" style="margin-top:4px;">Save &amp; Notify via WhatsApp</button>
+          </div>
+        </div>
+      </div>
+      <div class="powered-footer">POWERED BY NIVENXA</div>
+    </div>
+  </div>
+
+  <!-- 5. Admin Dashboard -->
+  <div class="screen-block">
+    <div class="screen-label">5 · Admin Dashboard <span class="role-tag role-admin">ADMIN</span></div>
+    <div class="phone">
+      <div class="statusbar"><span>9:41</span><span>●●●●</span></div>
+      <div class="content">
+        <div class="appbar">
+          <div class="appbar-title">Overview</div>
+          <div class="appbar-sub">Today, 13 Jul 2026</div>
+          <div class="branch-chip">All Branches ▾</div>
+        </div>
+        <div class="scroll" style="height:calc(100% - 112px);">
+          <div class="stat-grid">
+            <div class="stat-card"><div class="stat-num">18</div><div class="stat-label">Orders Today</div></div>
+            <div class="stat-card"><div class="stat-num">₹6,240</div><div class="stat-label">Revenue Today</div></div>
+            <div class="stat-card"><div class="stat-num">₹18,900</div><div class="stat-label">Outstanding Dues</div></div>
+            <div class="stat-card"><div class="stat-num">3</div><div class="stat-label">Branches Active</div></div>
+          </div>
+          <div class="card-title" style="margin:6px 0 8px;">Needs Attention</div>
+          <div class="card row-between">
+            <div class="card-title" style="font-size:11px;">B-208 overdue 12 days</div>
+            <span class="badge-overdue">₹1,450</span>
+          </div>
+          <div class="card row-between">
+            <div class="card-title" style="font-size:11px;">Order #1039 amount pending</div>
+            <span class="price-chip">Review</span>
+          </div>
+        </div>
+        <div class="tab-bar">
+          <div class="tab active">Orders</div>
+          <div class="tab">Catalogue</div>
+          <div class="tab">Ledger</div>
+          <div class="tab">Branches</div>
+        </div>
+      </div>
+      <div class="powered-footer">POWERED BY NIVENXA</div>
+    </div>
+  </div>
+
+  <!-- 6. Admin Branches -->
+  <div class="screen-block">
+    <div class="screen-label">6 · Branches <span class="role-tag role-admin">ADMIN</span></div>
+    <div class="phone">
+      <div class="statusbar"><span>9:41</span><span>●●●●</span></div>
+      <div class="content">
+        <div class="appbar">
+          <div class="appbar-title">Branches</div>
+          <div class="appbar-sub">3 active · Apartment or Area</div>
+        </div>
+        <div class="scroll" style="height:calc(100% - 96px);">
+          <div class="card">
+            <div class="row-between">
+              <div>
+                <div class="card-title">Green Valley Apartments <span class="service-tag iron" style="background:var(--peach-bg);color:var(--peach-primary-dark);">Apartment</span></div>
+                <div class="card-sub">+91 93981 25151</div>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="row-between">
+              <div>
+                <div class="card-title">Kondapur Area <span class="service-tag iron" style="background:var(--success-bg);color:var(--success);">Area</span></div>
+                <div class="card-sub">+91 98765 43210</div>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="row-between">
+              <div>
+                <div class="card-title">Lakeview Residency <span class="service-tag iron" style="background:var(--peach-bg);color:var(--peach-primary-dark);">Apartment</span></div>
+                <div class="card-sub">+91 90000 11122</div>
+              </div>
+            </div>
+          </div>
+          <button class="btn block" style="margin-top:4px;">+ Add Branch</button>
+        </div>
+        <div class="tab-bar">
+          <div class="tab">Orders</div>
+          <div class="tab">Catalogue</div>
+          <div class="tab">Ledger</div>
+          <div class="tab active">Branches</div>
+        </div>
+      </div>
+      <div class="powered-footer">POWERED BY NIVENXA</div>
+    </div>
+  </div>
+
+  <!-- 7. Admin Garment Catalogue -->
+  <div class="screen-block">
+    <div class="screen-label">7 · Garment Catalogue <span class="role-tag role-admin">ADMIN</span></div>
+    <div class="phone">
+      <div class="statusbar"><span>9:41</span><span>●●●●</span></div>
+      <div class="content">
+        <div class="appbar">
+          <div class="appbar-title">Garment Catalogue</div>
+          <div class="appbar-sub">12 items · Editable by Admin only</div>
+        </div>
+        <div class="scroll" style="height:calc(100% - 96px);">
+          <div class="card">
+            <div class="row-between"><span class="garment-name">Shirt <span class="service-tag wash">Wash &amp; Fold</span></span><span class="price-chip navy">₹25</span></div>
+          </div>
+          <div class="card">
+            <div class="row-between"><span class="garment-name">Trouser <span class="service-tag wash">Wash &amp; Fold</span></span><span class="price-chip navy">₹30</span></div>
+          </div>
+          <div class="card">
+            <div class="row-between"><span class="garment-name">Saree <span class="service-tag dry">Dry Clean</span></span><span class="price-chip navy">₹60</span></div>
+          </div>
+          <div class="card">
+            <div class="row-between"><span class="garment-name">Bedsheet <span class="service-tag iron">Ironing</span></span><span class="price-chip navy">₹40</span></div>
+          </div>
+          <div class="card">
+            <div class="row-between"><span class="garment-name">Kurta <span class="service-tag iron">Ironing</span></span><span class="price-chip navy">₹35</span></div>
+          </div>
+        </div>
+        <div class="tab-bar">
+          <div class="tab">Orders</div>
+          <div class="tab active">Catalogue</div>
+          <div class="tab">Ledger</div>
+          <div class="tab">Branches</div>
+        </div>
+      </div>
+      <div class="powered-footer">POWERED BY NIVENXA</div>
+    </div>
+  </div>
+
+  <!-- 7. Admin Ledger / Aging -->
+  <div class="screen-block">
+    <div class="screen-label">8 · Ledger &amp; Aging <span class="role-tag role-admin">ADMIN</span></div>
+    <div class="phone">
+      <div class="statusbar"><span>9:41</span><span>●●●●</span></div>
+      <div class="content">
+        <div class="appbar">
+          <div class="appbar-title">Monthly Billing Ledger</div>
+          <div class="appbar-sub">Sorted by days overdue</div>
+        </div>
+        <div class="scroll" style="height:calc(100% - 96px);">
+          <div class="card">
+            <div class="row-between">
+              <div><div class="card-title">B-208 · Ramesh N.</div><div class="card-sub">14 days overdue</div></div>
+              <span class="price-chip">₹1,450</span>
+            </div>
+            <button class="btn outline block" style="margin-top:8px;">Send WhatsApp Reminder</button>
+          </div>
+          <div class="card">
+            <div class="row-between">
+              <div><div class="card-title">A-112 · Meena S.</div><div class="card-sub">5 days overdue</div></div>
+              <span class="price-chip">₹620</span>
+            </div>
+          </div>
+          <div class="card">
+            <div class="row-between">
+              <div><div class="card-title">C-004 · Vikram T.</div><div class="card-sub">Paid in full</div></div>
+              <span class="badge-paid">₹0</span>
+            </div>
+          </div>
+        </div>
+        <div class="tab-bar">
+          <div class="tab">Orders</div>
+          <div class="tab">Catalogue</div>
+          <div class="tab active">Ledger</div>
+          <div class="tab">Branches</div>
+        </div>
+      </div>
+      <div class="powered-footer">POWERED BY NIVENXA</div>
+    </div>
+  </div>
+
+</div>
+
+<footer class="legend">
+  Colors and logo shown here are a first pass based on the Peach &amp; Blue branding shared so far, and will be refined once the final logo files are confirmed.
+</footer>
+
+</body>
+</html>

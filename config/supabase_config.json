@@ -1,0 +1,8 @@
+{
+  "host": "db.pbntpdlvaikwmqagqnyi.supabase.co",
+  "port": 5432,
+  "database": "postgres",
+  "user": "postgres",
+  "password_encrypted": "gAAAAABqWHrrMJpG_INxZtGhh0I9qQbOH0aEax2IQ9RSLRf0SVmlThm446Q-OX3d1cjFxbNQU85rL8aVXMHhSxxBTCqqV6_T5m5XV6R1qIf_Uub0ahQ3s5Y=",
+  "password_key": "f3FAw90B0v1zogqODBA8J0T7U8M3mJKXxm2EDLkjfug="
+}

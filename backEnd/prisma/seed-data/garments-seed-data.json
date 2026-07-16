@@ -1,0 +1,80 @@
+{
+  "_comment": "Transcribed from client-provided price list (PeachAndBlue.pdf / .pptx). branchId is null for all items = applies to all branches, matching garment_catalogue's existing null-means-global convention. Prices in INR. Two items flagged _needsConfirmation — see CLAUDE.md Services section before treating as final.",
+
+  "garments": [
+    { "category": "Women's Wear", "itemName": "Kurti", "serviceType": "wash_fold", "price": 15 },
+    { "category": "Women's Wear", "itemName": "Leggings", "serviceType": "wash_fold", "price": 12 },
+    { "category": "Women's Wear", "itemName": "Palazzo", "serviceType": "wash_fold", "price": 18 },
+    { "category": "Women's Wear", "itemName": "Top", "serviceType": "wash_fold", "price": 15 },
+    { "category": "Women's Wear", "itemName": "Cotton Saree", "serviceType": "wash_fold", "price": 40 },
+    { "category": "Women's Wear", "itemName": "Silk Saree", "serviceType": "dry_clean", "price": 80 },
+    { "category": "Women's Wear", "itemName": "Designer Saree", "serviceType": "dry_clean", "price": 100 },
+    { "category": "Women's Wear", "itemName": "Salwar Suit (Complete Set)", "serviceType": "wash_fold", "price": 40 },
+    { "category": "Women's Wear", "itemName": "Dupatta", "serviceType": "wash_fold", "price": 12 },
+    { "category": "Women's Wear", "itemName": "Gown", "serviceType": "dry_clean", "price": 50 },
+    { "category": "Women's Wear", "itemName": "Lehenga", "serviceType": "dry_clean", "price": 120 },
+
+    { "category": "Home Linen", "itemName": "Hand Towel", "serviceType": "wash_fold", "price": 10 },
+    { "category": "Home Linen", "itemName": "Bath Towel", "serviceType": "wash_fold", "price": 20 },
+    { "category": "Home Linen", "itemName": "Pillow Cover", "serviceType": "wash_fold", "price": 10 },
+    { "category": "Home Linen", "itemName": "Bed Sheet (Single)", "serviceType": "wash_fold", "price": 25 },
+    { "category": "Home Linen", "itemName": "Bed Sheet (Double)", "serviceType": "wash_fold", "price": 35 },
+    { "category": "Home Linen", "itemName": "Blanket", "serviceType": "ironing", "price": 80, "note": "Ironing only if suitable, per client note" },
+    { "category": "Home Linen", "itemName": "Curtain (Per Panel)", "serviceType": "specialty_care", "price": 40 },
+
+    { "category": "Men's Wear", "itemName": "T-Shirt", "serviceType": "ironing", "price": 14 },
+    { "category": "Men's Wear", "itemName": "Shirt", "serviceType": "ironing", "price": 14 },
+    { "category": "Men's Wear", "itemName": "Polo T-Shirt", "serviceType": "ironing", "price": 16 },
+    { "category": "Men's Wear", "itemName": "Jeans", "serviceType": "ironing", "price": 18 },
+    { "category": "Men's Wear", "itemName": "Cotton Pants", "serviceType": "ironing", "price": 18 },
+    { "category": "Men's Wear", "itemName": "Trousers/Formals", "serviceType": "ironing", "price": 18 },
+    { "category": "Men's Wear", "itemName": "Shorts", "serviceType": "ironing", "price": 12 },
+    { "category": "Men's Wear", "itemName": "Kurta", "serviceType": "ironing", "price": 20 },
+    { "category": "Men's Wear", "itemName": "Blazer", "serviceType": "dry_clean", "price": 80 },
+    {
+      "category": "Men's Wear", "itemName": "Suit (2-Piece)", "serviceType": "dry_clean", "price": 120,
+      "_needsConfirmation": "Client price list lists 'Suit (2-Piece)' twice at ₹120 and ₹150 — this entry kept as-is, next one assumed to be a typo for 3-Piece. Confirm with client."
+    },
+    {
+      "category": "Men's Wear", "itemName": "Suit (3-Piece)", "serviceType": "dry_clean", "price": 150,
+      "_needsConfirmation": "Assumed typo correction from client's duplicate 'Suit (2-Piece)' listing — confirm this should actually read 3-Piece."
+    },
+    { "category": "Men's Wear", "itemName": "Waistcoat", "serviceType": "dry_clean", "price": 35 },
+
+    { "category": "Kids Wear", "itemName": "T-Shirt (Kids)", "serviceType": "wash_fold", "price": 10 },
+    { "category": "Kids Wear", "itemName": "Shirt (Kids)", "serviceType": "ironing", "price": 10 },
+    { "category": "Kids Wear", "itemName": "Shorts (Kids)", "serviceType": "wash_fold", "price": 10 },
+    { "category": "Kids Wear", "itemName": "Pants (Kids)", "serviceType": "wash_fold", "price": 10 },
+    { "category": "Kids Wear", "itemName": "Frock", "serviceType": "wash_fold", "price": 15 },
+    { "category": "Kids Wear", "itemName": "School Uniform (Shirt + Pant/Skirt)", "serviceType": "ironing", "price": 20 },
+
+    { "category": "Delicate & Premium Wear", "itemName": "Silk Shirt", "serviceType": "dry_clean", "price": 30 },
+    { "category": "Delicate & Premium Wear", "itemName": "Linen Shirt", "serviceType": "ironing", "price": 25 },
+    { "category": "Delicate & Premium Wear", "itemName": "Khadi Kurta", "serviceType": "ironing", "price": 25 },
+    { "category": "Delicate & Premium Wear", "itemName": "Wool Coat", "serviceType": "dry_clean", "price": 100 },
+    { "category": "Delicate & Premium Wear", "itemName": "Sherwani", "serviceType": "dry_clean", "price": 150 },
+    { "category": "Delicate & Premium Wear", "itemName": "Bridal Dupatta", "serviceType": "specialty_care", "price": 80 },
+    {
+      "category": "Delicate & Premium Wear", "itemName": "Designer Dress", "serviceType": "specialty_care",
+      "price": 80, "priceMax": 150,
+      "_needsConfirmation": "Client lists this as a price RANGE (₹80-₹150), not a fixed price like every other item. Requires schema support for priceMax and a staff-side decision at pickup. Confirm this is the intended handling before treating as final."
+    }
+  ],
+
+  "branch": {
+    "branchName": "Attapur",
+    "branchType": "area",
+    "_note": "Marked 'area' not 'apartment' since Attapur is the business's base locality/office address from their marketing materials, not one specific apartment complex. Reconsider if this branch record is meant to represent something else.",
+    "phoneNumber": "+919398125151",
+    "whatsappNumber": "+919398125151",
+    "address": "Attapur, Hyderabad",
+    "city": "Hyderabad – 500048"
+  },
+
+  "businessInfo": {
+    "email": "info.peachandblue@gmail.com",
+    "turnaroundTimeHours": "24-48",
+    "tagline": "Fresh. Clean. Perfectly cared for.",
+    "secondaryTagline": "Your Clothes, Our Responsibility."
+  }
+}
