@@ -27,6 +27,10 @@ const generateOrderNumber = (): string => {
 interface CreateOrderItemInput {
   garmentId: string;
   quantity: number;
+  // Required when the garment has a priceMax (a price-range item, e.g.
+  // Designer Dress ₹80–₹150) — staff pick the final price at pickup.
+  // Ignored for fixed-price garments, which always use garment.price.
+  chosenPrice?: number;
 }
 
 interface CreateOrderInput {
@@ -60,12 +64,34 @@ export const createOrder = async (input: CreateOrderInput) => {
       (err as any).status = 400;
       throw err;
     }
-    const lineTotal = Number(garment.price) * item.quantity;
+
+    const priceMax = garment.priceMax !== null ? Number(garment.priceMax) : null;
+    let unitPrice = Number(garment.price);
+
+    if (priceMax !== null) {
+      if (item.chosenPrice === undefined) {
+        const err = new Error(
+          `${garment.itemName} is priced as a range (₹${garment.price}–₹${garment.priceMax}); chosenPrice is required.`
+        );
+        (err as any).status = 400;
+        throw err;
+      }
+      if (item.chosenPrice < unitPrice || item.chosenPrice > priceMax) {
+        const err = new Error(
+          `chosenPrice for ${garment.itemName} must be between ₹${garment.price} and ₹${garment.priceMax}.`
+        );
+        (err as any).status = 400;
+        throw err;
+      }
+      unitPrice = item.chosenPrice;
+    }
+
+    const lineTotal = unitPrice * item.quantity;
     return {
       garmentId: garment.id,
       itemName: garment.itemName,
       quantity: item.quantity,
-      unitPrice: garment.price,
+      unitPrice,
       lineTotal,
     };
   });
@@ -106,6 +132,16 @@ export const createOrder = async (input: CreateOrderInput) => {
       include: { orderItems: true, customer: true },
     });
   });
+
+  // Pickup confirmation — WhatsApp + SMS, always both (CLAUDE.md). Turnaround
+  // time (24–48 hours, businessInfo.turnaroundTimeHours in the garment seed
+  // data) is informational here only; it's not repeated on delivery.
+  await sendNotification(
+    order.customer,
+    'pickup_confirmation',
+    `Your Peach & Blue order ${order.orderNumber} has been picked up. Estimated amount: ₹${estimatedAmount}. Turnaround time is typically 24–48 hours. We'll notify you before delivery if the amount changes.`,
+    order.id
+  );
 
   // "New order assigned" push — only fires when an admin logs an order on
   // behalf of a specific staff member other than themselves; a staff member

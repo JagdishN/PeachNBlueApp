@@ -4,7 +4,13 @@ dotenv.config();
 
 const getEnv = (key: string, fallback = ''): string => process.env[key] ?? fallback;
 
+export const NODE_ENV = getEnv('NODE_ENV', 'development');
 export const PORT = Number(getEnv('PORT', '4000'));
+
+// Bypasses the DB user lookup and Redis-backed OTP storage with an in-memory
+// mock, for local testing without a provisioned Postgres/Redis. Hard-disabled
+// in production regardless of the env var value.
+export const MOCK_AUTH = NODE_ENV !== 'production' && getEnv('MOCK_AUTH', 'false') === 'true';
 export const DATABASE_URL = getEnv('DATABASE_URL');
 export const JWT_SECRET = getEnv('JWT_SECRET', 'replace-with-secret');
 export const JWT_EXPIRES_IN = getEnv('JWT_EXPIRES_IN', '30m');

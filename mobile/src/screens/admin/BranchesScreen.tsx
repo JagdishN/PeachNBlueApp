@@ -12,6 +12,11 @@ const BRANCH_TAG: Record<BranchType, { label: string; bg: string; color: string 
   area: { label: 'Area', bg: colors.successBg, color: colors.success },
 };
 
+const ADDRESS_PLACEHOLDER: Record<BranchType, string> = {
+  apartment: 'Apartment complex name, street',
+  area: 'Locality / area name, nearby landmark',
+};
+
 interface FormState {
   branchName: string;
   branchType: BranchType;
@@ -169,7 +174,13 @@ export const BranchesScreen: React.FC = () => {
             />
 
             <Text style={styles.fieldLabel}>Address</Text>
-            <TextInput style={styles.field} value={form.address} onChangeText={(v) => setForm({ ...form, address: v })} />
+            <TextInput
+              style={styles.field}
+              value={form.address}
+              onChangeText={(v) => setForm({ ...form, address: v })}
+              placeholder={ADDRESS_PLACEHOLDER[form.branchType]}
+              placeholderTextColor={colors.muted}
+            />
 
             <Text style={styles.fieldLabel}>City</Text>
             <TextInput style={styles.field} value={form.city} onChangeText={(v) => setForm({ ...form, city: v })} />
