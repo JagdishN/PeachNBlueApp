@@ -13,8 +13,10 @@ export interface OrderItem {
   id: string;
   garmentId: string;
   itemName: string;
-  quantity: number;
-  unitPrice: string;
+  quantity: number | null;
+  unitPrice: string | null;
+  weightKg: string | null;
+  pricePerKg: string | null;
   lineTotal: string;
 }
 
@@ -46,7 +48,7 @@ export interface CreateOrderInput {
   locationLabel: string;
   branchId: string;
   pickupDate: string;
-  items: { garmentId: string; quantity: number; chosenPrice?: number }[];
+  items: { garmentId: string; quantity?: number; weightKg?: number; chosenPrice?: number }[];
 }
 
 export const createOrder = (input: CreateOrderInput) =>

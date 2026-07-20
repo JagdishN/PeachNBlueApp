@@ -7,113 +7,45 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum BranchType {
-  apartment
-  area
-}
-
-enum UserRole {
-  staff
-  admin
-}
-
-enum BillingMode {
-  daily
-  monthly_billing
-}
-
-enum ChargeType {
-  bag_replacement
-}
-
-enum OrderInternalStatus {
-  picked_up
-  washing
-  ironing
-  ready
-  out_for_delivery
-  delivered
-  cancelled
-}
-
-enum OrderPaymentStatus {
-  pending
-  paid
-  partially_paid
-  due
-}
-
-enum PaymentMethod {
-  qr_online
-  cash
-}
-
-enum PaymentType {
-  order_payment
-  monthly_settlement
-  partial_settlement
-}
-
-enum PaymentStatus {
-  pending
-  success
-  failed
-  refunded
-}
-
-enum LedgerEntryType {
-  charge
-  payment
-  adjustment
-}
-
-enum CommunicationMessageType {
-  pickup_confirmation
-  amount_revision
-  delivery_confirmation
-  payment_receipt
-  monthly_statement
-  payment_reminder
-}
-
-enum CommunicationChannel {
-  whatsapp
-  sms
-}
-
-enum CommunicationStatus {
-  sent
-  failed
-}
+// NOTE on enums: the live database (docs/database_schema_v3.sql) implements
+// all of these as plain VARCHAR columns with a CHECK constraint, not native
+// Postgres enum types — Prisma's `enum` keyword always creates a native
+// enum type on push/migrate, which would diverge from that design. So every
+// field below that's conceptually an enum is modeled as `String @db.VarChar`
+// with the allowed values documented in a comment; validation happens in
+// application code (see src/types/enums.ts for the corresponding TS unions).
 
 model Branch {
   id               String             @id @default(uuid()) @db.Uuid
-  branchName       String             @db.VarChar(150)
-  branchType       BranchType
-  phoneNumber      String             @db.VarChar(15)
-  whatsappNumber   String?            @db.VarChar(15)
+  branchName       String             @map("branch_name") @db.VarChar(150)
+  // Values: apartment | area
+  branchType       String             @map("branch_type") @db.VarChar(20)
+  phoneNumber      String             @map("phone_number") @db.VarChar(15)
+  whatsappNumber   String?            @map("whatsapp_number") @db.VarChar(15)
   address          String
   city             String             @db.VarChar(100)
-  isActive         Boolean            @default(true)
-  createdAt        DateTime           @default(now())
+  isActive         Boolean            @default(true) @map("is_active")
+  createdAt        DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
   users            User[]             @relation("BranchUsers")
   customers        Customer[]
   garmentCatalogue GarmentCatalogue[]
 
   @@index([phoneNumber])
+  @@map("branches")
 }
 
 model User {
   id           String   @id @default(uuid()) @db.Uuid
-  role         UserRole
+  // Values: staff | admin
+  role         String   @db.VarChar(20)
   branch       Branch?  @relation("BranchUsers", fields: [branchId], references: [id])
-  branchId     String?  @db.Uuid
-  fullName     String   @db.VarChar(150)
-  phoneNumber  String   @unique @db.VarChar(15)
-  passwordHash String?
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  branchId     String?  @map("branch_id") @db.Uuid
+  fullName     String   @map("full_name") @db.VarChar(150)
+  phoneNumber  String   @unique @map("phone_number") @db.VarChar(15)
+  passwordHash String?  @map("password_hash")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
   createdOrders Order[] @relation("CreatedOrders")
   assignedOrders Order[] @relation("StaffOrders")
   payments     Payment[]
@@ -122,6 +54,9 @@ model User {
   amountRevisions OrderAmountRevision[]
   deviceTokens DeviceToken[]
   additionalChargesCreated AdditionalCharge[]
+
+  @@index([branchId], map: "idx_users_branch")
+  @@map("users")
 }
 
 // Not present in database_schema_v3.sql — new for FCM/Expo push support.
@@ -132,29 +67,31 @@ model User {
 model DeviceToken {
   id            String   @id @default(uuid()) @db.Uuid
   user          User     @relation(fields: [userId], references: [id])
-  userId        String   @db.Uuid
-  expoPushToken String   @unique
+  userId        String   @map("user_id") @db.Uuid
+  expoPushToken String   @unique @map("expo_push_token")
   platform      String   @db.VarChar(20)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@index([userId])
+  @@map("device_tokens")
 }
 
 model Customer {
   id             String    @id @default(uuid()) @db.Uuid
-  fullName       String    @db.VarChar(150)
-  phoneNumber    String    @db.VarChar(15)
-  whatsappNumber String?   @db.VarChar(15)
+  fullName       String    @map("full_name") @db.VarChar(150)
+  phoneNumber    String    @map("phone_number") @db.VarChar(15)
+  whatsappNumber String?   @map("whatsapp_number") @db.VarChar(15)
   branch         Branch    @relation(fields: [branchId], references: [id])
-  branchId       String    @db.Uuid
-  locationLabel  String    @db.VarChar(100)
-  billingMode    BillingMode @default(daily)
-  creditLimit    Decimal   @default("0") @db.Decimal(10, 2)
-  bagIssued      Boolean   @default(false)
-  bagIssuedAt    DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  branchId       String    @map("branch_id") @db.Uuid
+  locationLabel  String    @map("location_label") @db.VarChar(100)
+  // Values: daily | monthly_billing
+  billingMode    String    @default("daily") @map("billing_mode") @db.VarChar(20)
+  creditLimit    Decimal   @default("0") @map("credit_limit") @db.Decimal(10, 2)
+  bagIssued      Boolean   @default(false) @map("bag_issued")
+  bagIssuedAt    DateTime? @map("bag_issued_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
   orders         Order[]
   payments       Payment[]
   ledgerEntries  LedgerEntry[]
@@ -163,51 +100,66 @@ model Customer {
   additionalCharges AdditionalCharge[]
 
   @@unique([phoneNumber, branchId, locationLabel])
-  @@index([phoneNumber])
-  @@index([branchId, locationLabel])
+  @@index([phoneNumber], map: "idx_customers_phone")
+  @@index([branchId, locationLabel], map: "idx_customers_branch")
+  @@map("customers")
 }
 
 model GarmentCatalogue {
   id           String   @id @default(uuid()) @db.Uuid
   branch       Branch?  @relation(fields: [branchId], references: [id])
-  branchId     String?  @db.Uuid
-  itemName     String   @db.VarChar(100)
+  branchId     String?  @map("branch_id") @db.Uuid
+  itemName     String   @map("item_name") @db.VarChar(100)
   // Deliberately a plain string, not a hard DB enum — see CLAUDE.md "Services —
-  // RESOLVED". Seed values: wash_fold, ironing, dry_clean, specialty_care.
-  serviceType  String   @default("wash_fold") @db.VarChar(30)
+  // RESOLVED". Seed values: wash_fold, ironing, dry_clean.
+  serviceType  String   @default("wash_fold") @map("service_type") @db.VarChar(30)
+  // UI grouping only (e.g. "Women's Wear (Dry Cleaning)", "Accessories") —
+  // distinct from serviceType, which is the operational service bucket.
+  category     String?  @db.VarChar(60)
+  // "per_piece" (quantity × price) or "per_kg" (weightKg × price, 5kg order
+  // minimum — see CLAUDE.md "Major pricing model update").
+  pricingUnit  String   @default("per_piece") @map("pricing_unit") @db.VarChar(20)
   price        Decimal  @db.Decimal(8, 2)
   // Set alongside `price` only for items priced as a range (e.g. Designer
   // Dress ₹80–₹150) — staff choose the final price within [price, priceMax]
   // at order creation instead of using `price` directly.
-  priceMax     Decimal? @db.Decimal(8, 2)
-  isActive     Boolean  @default(true)
-  displayOrder Int      @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  priceMax     Decimal? @map("price_max") @db.Decimal(8, 2)
+  // When true, `price` is a floor, not a fixed amount — staff enter the
+  // actual price at order creation (validated as >= price, no upper bound).
+  // Distinct from the priceMax range case above: no ceiling here.
+  isStartingPrice Boolean @default(false) @map("is_starting_price")
+  isActive     Boolean  @default(true) @map("is_active")
+  displayOrder Int      @default(0) @map("display_order")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
   orderItems   OrderItem[]
 
-  @@index([branchId])
+  @@index([branchId], map: "idx_catalogue_branch")
+  @@map("garment_catalogue")
 }
 
 model Order {
   id              String             @id @default(uuid()) @db.Uuid
-  orderNumber     String             @unique @db.VarChar(20)
+  orderNumber     String             @unique @map("order_number") @db.VarChar(20)
   customer        Customer           @relation(fields: [customerId], references: [id])
-  customerId      String             @db.Uuid
+  customerId      String             @map("customer_id") @db.Uuid
   createdBy       User               @relation("CreatedOrders", fields: [createdById], references: [id])
-  createdById     String             @db.Uuid
+  createdById     String             @map("created_by") @db.Uuid
   staff           User?              @relation("StaffOrders", fields: [staffId], references: [id])
-  staffId         String?            @db.Uuid
-  internalStatus  OrderInternalStatus @default(picked_up)
-  pickupDate      DateTime
-  deliveryDate    DateTime?
-  estimatedAmount Decimal            @default("0") @db.Decimal(10, 2)
-  finalAmount     Decimal            @default("0") @db.Decimal(10, 2)
-  amountWasRevised Boolean           @default(false)
-  paymentMethod   PaymentMethod?
-  paymentStatus   OrderPaymentStatus @default(pending)
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
+  staffId         String?            @map("staff_id") @db.Uuid
+  // Values: picked_up | washing | ironing | ready | out_for_delivery | delivered | cancelled
+  internalStatus  String             @default("picked_up") @map("internal_status") @db.VarChar(30)
+  pickupDate      DateTime           @map("pickup_date") @db.Date
+  deliveryDate    DateTime?          @map("delivery_date") @db.Date
+  estimatedAmount Decimal            @default("0") @map("estimated_amount") @db.Decimal(10, 2)
+  finalAmount     Decimal            @default("0") @map("final_amount") @db.Decimal(10, 2)
+  amountWasRevised Boolean           @default(false) @map("amount_was_revised")
+  // Values: cash | upi | net_banking | credit_card (see CLAUDE.md order workflow)
+  paymentMethod   String?            @map("payment_method") @db.VarChar(20)
+  // Values: pending | paid | partially_paid | due
+  paymentStatus   String             @default("pending") @map("payment_status") @db.VarChar(20)
+  createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
   statusHistory   OrderStatusHistory[]
   amountRevisions OrderAmountRevision[]
   orderItems      OrderItem[]
@@ -217,33 +169,37 @@ model Order {
   communications  CommunicationLog[]
   additionalCharges AdditionalCharge[]
 
-  @@index([customerId])
-  @@index([staffId])
-  @@index([internalStatus])
+  @@index([customerId], map: "idx_orders_customer")
+  @@index([staffId], map: "idx_orders_staff")
+  @@index([internalStatus], map: "idx_orders_status")
+  @@map("orders")
 }
 
 model OrderStatusHistory {
   id        String   @id @default(uuid()) @db.Uuid
   order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  orderId   String   @db.Uuid
+  orderId   String   @map("order_id") @db.Uuid
   status    String   @db.VarChar(30)
   changedBy User?    @relation(fields: [changedById], references: [id])
-  changedById String? @db.Uuid
-  changedAt DateTime @default(now())
+  changedById String? @map("changed_by") @db.Uuid
+  changedAt DateTime @default(now()) @map("changed_at") @db.Timestamptz(6)
+
+  @@map("order_status_history")
 }
 
 model OrderAmountRevision {
   id         String   @id @default(uuid()) @db.Uuid
   order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  orderId    String   @db.Uuid
-  oldAmount  Decimal  @db.Decimal(10, 2)
-  newAmount  Decimal  @db.Decimal(10, 2)
+  orderId    String   @map("order_id") @db.Uuid
+  oldAmount  Decimal  @map("old_amount") @db.Decimal(10, 2)
+  newAmount  Decimal  @map("new_amount") @db.Decimal(10, 2)
   reason     String
   revisedBy  User     @relation(fields: [revisedById], references: [id])
-  revisedById String  @db.Uuid
-  revisedAt  DateTime @default(now())
+  revisedById String  @map("revised_by") @db.Uuid
+  revisedAt  DateTime @default(now()) @map("revised_at") @db.Timestamptz(6)
 
-  @@index([orderId])
+  @@index([orderId], map: "idx_revisions_order")
+  @@map("order_amount_revisions")
 }
 
 // Non-garment, order-independent charges (e.g. the ₹350 bag replacement
@@ -253,120 +209,143 @@ model OrderAmountRevision {
 model AdditionalCharge {
   id          String     @id @default(uuid()) @db.Uuid
   customer    Customer   @relation(fields: [customerId], references: [id])
-  customerId  String     @db.Uuid
+  customerId  String     @map("customer_id") @db.Uuid
   order       Order?     @relation(fields: [orderId], references: [id])
-  orderId     String?    @db.Uuid
-  chargeType  ChargeType
+  orderId     String?    @map("order_id") @db.Uuid
+  // Values: bag_replacement
+  chargeType  String     @map("charge_type") @db.VarChar(30)
   amount      Decimal    @db.Decimal(8, 2)
   description String?
   createdBy   User       @relation(fields: [createdById], references: [id])
-  createdById String     @db.Uuid
-  createdAt   DateTime   @default(now())
+  createdById String     @map("created_by") @db.Uuid
+  createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@index([customerId])
   @@index([orderId])
+  @@map("additional_charges")
 }
 
 model OrderItem {
   id         String   @id @default(uuid()) @db.Uuid
   order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  orderId    String   @db.Uuid
+  orderId    String   @map("order_id") @db.Uuid
   garment    GarmentCatalogue @relation(fields: [garmentId], references: [id])
-  garmentId  String   @db.Uuid
-  itemName   String   @db.VarChar(100)
-  quantity   Int
-  unitPrice  Decimal  @db.Decimal(8, 2)
-  lineTotal  Decimal  @db.Decimal(10, 2)
+  garmentId  String   @map("garment_id") @db.Uuid
+  itemName   String   @map("item_name") @db.VarChar(100)
+  // Piece-based line (garment.pricingUnit "per_piece"): quantity + unitPrice.
+  quantity   Int?
+  unitPrice  Decimal? @map("unit_price") @db.Decimal(8, 2)
+  // Weight-based line (garment.pricingUnit "per_kg"): weightKg + pricePerKg.
+  // An item uses EITHER this pair OR quantity+unitPrice, never both — which
+  // pair depends on the linked garment's pricingUnit.
+  weightKg   Decimal? @map("weight_kg") @db.Decimal(6, 2)
+  pricePerKg Decimal? @map("price_per_kg") @db.Decimal(8, 2)
+  lineTotal  Decimal  @map("line_total") @db.Decimal(10, 2)
 
-  @@index([orderId])
+  @@index([orderId], map: "idx_order_items_order")
+  @@map("order_items")
 }
 
 model Payment {
   id              String   @id @default(uuid()) @db.Uuid
   order           Order?   @relation(fields: [orderId], references: [id])
-  orderId         String?  @db.Uuid
+  orderId         String?  @map("order_id") @db.Uuid
   customer        Customer @relation(fields: [customerId], references: [id])
-  customerId      String   @db.Uuid
+  customerId      String   @map("customer_id") @db.Uuid
   amount          Decimal  @db.Decimal(10, 2)
-  paymentType     PaymentType
-  paymentMethod   PaymentMethod
-  razorpayPaymentId String? @db.VarChar(100)
-  razorpayOrderId  String? @db.VarChar(100)
-  status          PaymentStatus @default(pending)
+  // Values: order_payment | monthly_settlement | partial_settlement
+  paymentType     String   @map("payment_type") @db.VarChar(20)
+  // Values: cash | upi | net_banking | credit_card
+  paymentMethod   String   @map("payment_method") @db.VarChar(20)
+  razorpayPaymentId String? @map("razorpay_payment_id") @db.VarChar(100)
+  razorpayOrderId  String? @map("razorpay_order_id") @db.VarChar(100)
+  // Values: pending | success | failed | refunded
+  status          String   @default("pending") @db.VarChar(20)
   recordedBy      User     @relation(fields: [recordedById], references: [id])
-  recordedById    String   @db.Uuid
+  recordedById    String   @map("recorded_by") @db.Uuid
   notes           String?
-  createdAt       DateTime @default(now())
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  @@index([customerId])
-  @@index([orderId])
+  @@index([customerId], map: "idx_payments_customer")
+  @@index([orderId], map: "idx_payments_order")
+  @@map("payments")
 }
 
 model LedgerEntry {
   id           String   @id @default(uuid()) @db.Uuid
   customer     Customer @relation(fields: [customerId], references: [id])
-  customerId   String   @db.Uuid
+  customerId   String   @map("customer_id") @db.Uuid
   order        Order?   @relation(fields: [orderId], references: [id])
-  orderId      String?  @db.Uuid
-  entryType    LedgerEntryType
+  orderId      String?  @map("order_id") @db.Uuid
+  // Values: charge | payment | adjustment
+  entryType    String   @map("entry_type") @db.VarChar(20)
   amount       Decimal  @db.Decimal(10, 2)
-  balanceAfter Decimal  @db.Decimal(10, 2)
+  balanceAfter Decimal  @map("balance_after") @db.Decimal(10, 2)
   description  String?
-  createdAt    DateTime @default(now())
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  @@index([customerId, createdAt])
+  @@index([customerId, createdAt], map: "idx_ledger_customer")
+  @@map("ledger_entries")
 }
 
 model MonthlyStatement {
   id             String   @id @default(uuid()) @db.Uuid
   customer       Customer @relation(fields: [customerId], references: [id])
-  customerId     String   @db.Uuid
-  statementMonth DateTime
-  openingBalance Decimal  @default("0") @db.Decimal(10, 2)
-  totalCharges   Decimal  @default("0") @db.Decimal(10, 2)
-  totalPaid      Decimal  @default("0") @db.Decimal(10, 2)
-  closingBalance Decimal  @default("0") @db.Decimal(10, 2)
-  pdfUrl         String?
-  whatsappSentAt DateTime?
-  reminderSentAt DateTime?
-  generatedAt    DateTime @default(now())
+  customerId     String   @map("customer_id") @db.Uuid
+  statementMonth DateTime @map("statement_month") @db.Date
+  openingBalance Decimal  @default("0") @map("opening_balance") @db.Decimal(10, 2)
+  totalCharges   Decimal  @default("0") @map("total_charges") @db.Decimal(10, 2)
+  totalPaid      Decimal  @default("0") @map("total_paid") @db.Decimal(10, 2)
+  closingBalance Decimal  @default("0") @map("closing_balance") @db.Decimal(10, 2)
+  pdfUrl         String?  @map("pdf_url")
+  whatsappSentAt DateTime? @map("whatsapp_sent_at") @db.Timestamptz(6)
+  reminderSentAt DateTime? @map("reminder_sent_at") @db.Timestamptz(6)
+  generatedAt    DateTime @default(now()) @map("generated_at") @db.Timestamptz(6)
 
   @@unique([customerId, statementMonth])
-  @@index([customerId])
+  @@index([customerId], map: "idx_statements_customer")
+  @@map("monthly_statements")
 }
 
 model Invoice {
   id          String   @id @default(uuid()) @db.Uuid
   order       Order    @relation(fields: [orderId], references: [id])
-  orderId     String   @db.Uuid @unique
-  invoiceNumber String @unique @db.VarChar(30)
-  pdfUrl      String?
-  qrCodeUrl   String?
-  createdAt   DateTime @default(now())
+  orderId     String   @unique @map("order_id") @db.Uuid
+  invoiceNumber String @unique @map("invoice_number") @db.VarChar(30)
+  pdfUrl      String?  @map("pdf_url")
+  qrCodeUrl   String?  @map("qr_code_url")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("invoices")
 }
 
 model CommunicationLog {
   id           String                      @id @default(uuid()) @db.Uuid
   customer     Customer                    @relation(fields: [customerId], references: [id])
-  customerId   String                      @db.Uuid
+  customerId   String                      @map("customer_id") @db.Uuid
   order        Order?                      @relation(fields: [orderId], references: [id])
-  orderId      String?                     @db.Uuid
-  messageType  CommunicationMessageType
-  channel      CommunicationChannel
-  status       CommunicationStatus        @default(sent)
-  sentAt       DateTime                   @default(now())
+  orderId      String?                     @map("order_id") @db.Uuid
+  // Values: pickup_confirmation | amount_revision | delivery_confirmation | payment_receipt | monthly_statement | payment_reminder
+  messageType  String                      @map("message_type") @db.VarChar(30)
+  // Values: whatsapp | sms
+  channel      String                      @db.VarChar(20)
+  // Values: sent | failed
+  status       String                      @default("sent") @db.VarChar(20)
+  sentAt       DateTime                    @default(now()) @map("sent_at") @db.Timestamptz(6)
 
-  @@index([customerId, sentAt])
+  @@index([customerId, sentAt], map: "idx_comms_customer")
+  @@map("communications_log")
 }
 
 model StaffEarning {
   id             String   @id @default(uuid()) @db.Uuid
   staff          User     @relation(fields: [staffId], references: [id])
-  staffId        String   @db.Uuid
-  earningDate    DateTime
-  ordersCompleted Int     @default(0)
-  totalCollected Decimal  @default("0") @db.Decimal(10, 2)
-  createdAt      DateTime @default(now())
+  staffId        String   @map("staff_id") @db.Uuid
+  earningDate    DateTime @map("earning_date") @db.Date
+  ordersCompleted Int     @default(0) @map("orders_completed")
+  totalCollected Decimal  @default("0") @map("total_collected") @db.Decimal(10, 2)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@unique([staffId, earningDate])
+  @@map("staff_earnings")
 }

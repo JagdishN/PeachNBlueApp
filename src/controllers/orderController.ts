@@ -5,9 +5,32 @@ import * as orderService from '../services/orderService';
 export const createOrderHandler = async (req: AuthRequest, res: Response): Promise<void> => {
   const { customerName, customerPhoneNumber, locationLabel, branchId, pickupDate, items, staffId } = req.body;
 
-  if (!customerName || !customerPhoneNumber || !locationLabel || !branchId || !pickupDate || !Array.isArray(items)) {
-    res.status(400).json({ error: 'customerName, customerPhoneNumber, locationLabel, branchId, pickupDate, and items are required' });
+  if (!customerName || !customerPhoneNumber || !locationLabel || !branchId || !pickupDate || !Array.isArray(items) || items.length === 0) {
+    res.status(400).json({ error: 'customerName, customerPhoneNumber, locationLabel, branchId, pickupDate, and a non-empty items array are required' });
     return;
+  }
+
+  // Per-item shape check only — which of quantity/weightKg/chosenPrice is
+  // actually required depends on the linked garment's pricingUnit and
+  // isStartingPrice/priceMax, so that validation happens in orderService
+  // once the garment rows are loaded.
+  for (const item of items) {
+    if (!item.garmentId || typeof item.garmentId !== 'string') {
+      res.status(400).json({ error: 'Each item requires a garmentId' });
+      return;
+    }
+    if (item.quantity !== undefined && (typeof item.quantity !== 'number' || item.quantity <= 0)) {
+      res.status(400).json({ error: `Invalid quantity for garment ${item.garmentId}` });
+      return;
+    }
+    if (item.weightKg !== undefined && (typeof item.weightKg !== 'number' || item.weightKg <= 0)) {
+      res.status(400).json({ error: `Invalid weightKg for garment ${item.garmentId}` });
+      return;
+    }
+    if (item.chosenPrice !== undefined && (typeof item.chosenPrice !== 'number' || item.chosenPrice <= 0)) {
+      res.status(400).json({ error: `Invalid chosenPrice for garment ${item.garmentId}` });
+      return;
+    }
   }
 
   const order = await orderService.createOrder({

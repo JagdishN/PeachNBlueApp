@@ -3,6 +3,7 @@ import jwt, { SignOptions } from 'jsonwebtoken';
 import prisma from '../prisma/client';
 import { JWT_EXPIRES_IN, JWT_SECRET, MOCK_AUTH, NODE_ENV, OTP_EXPIRY_MINUTES } from '../config';
 import { checkOtpRateLimit, generateOtp, saveOtpAttempt, sendOtpViaChannels, verifyOtpCode } from '../services/otpService';
+import { UserRole } from '../types/enums';
 
 // MOCK_AUTH-only stand-in for a users row — any phone number logs in as an
 // unscoped admin, no DB required. See config.MOCK_AUTH.
@@ -87,7 +88,7 @@ export const verifyOtp = async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  const token = createToken({ id: user.id, role: user.role, branchId: user.branchId });
+  const token = createToken({ id: user.id, role: user.role as UserRole, branchId: user.branchId });
 
   res.status(200).json({ token, user: { id: user.id, role: user.role, branchId: user.branchId, fullName: user.fullName } });
 };

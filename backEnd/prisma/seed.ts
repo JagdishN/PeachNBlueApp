@@ -8,93 +8,112 @@ interface SeedGarment {
   category: string;
   itemName: string;
   serviceType: string;
+  pricingUnit: string;
   price: number;
   priceMax?: number;
-  note?: string;
-  _needsConfirmation?: string;
+  isStartingPrice?: boolean;
+  _note?: string;
 }
 
 interface SeedData {
   garments: SeedGarment[];
-  branch: {
-    branchName: string;
-    branchType: 'apartment' | 'area';
-    phoneNumber: string;
-    whatsappNumber?: string;
-    address: string;
-    city: string;
-  };
 }
 
-const seedDataPath = path.join(__dirname, 'seed-data', 'garments-seed-data.json');
+// v2 superseded the earlier ~40-item catalogue entirely (see CLAUDE.md
+// "Major pricing model update") and doesn't carry branch data — branches
+// are created/managed separately via the branch admin API, not seeded here.
+const seedDataPath = path.join(__dirname, 'seed-data', 'garments-seed-data-v2.json');
 const seedData: SeedData = JSON.parse(fs.readFileSync(seedDataPath, 'utf-8'));
 
+// The same itemName can legitimately appear more than once (e.g. "Shirt
+// (Cotton)" at ₹199 under Women's Wear and ₹129 under Men's Wear) — these
+// are distinct catalogue entries, not duplicates. itemName alone is NOT a
+// unique key; (itemName, category) is.
+const identityKey = (g: { itemName: string; category: string }) => `${g.itemName}::${g.category}`;
+
 async function main() {
-  const existingBranch = await prisma.branch.findFirst({
-    where: { branchName: seedData.branch.branchName },
+  const newKeys = new Set(seedData.garments.map(identityKey));
+
+  // Deactivate (not delete — past orders reference these rows) global
+  // catalogue items the v2 rate card no longer includes.
+  const existingGlobal = await prisma.garmentCatalogue.findMany({
+    where: { branchId: null, isActive: true },
   });
+  const staleItems = existingGlobal.filter((g) => !newKeys.has(identityKey({ itemName: g.itemName, category: g.category ?? '' })));
 
-  const branch =
-    existingBranch ??
-    (await prisma.branch.create({
-      data: {
-        branchName: seedData.branch.branchName,
-        branchType: seedData.branch.branchType,
-        phoneNumber: seedData.branch.phoneNumber,
-        whatsappNumber: seedData.branch.whatsappNumber,
-        address: seedData.branch.address,
-        city: seedData.branch.city,
-      },
-    }));
-
-  console.log(existingBranch ? `Branch "${branch.branchName}" already exists — reusing it.` : `Created branch "${branch.branchName}".`);
-
-  const needsConfirmation = seedData.garments.filter((g) => g._needsConfirmation);
+  if (staleItems.length > 0) {
+    await prisma.garmentCatalogue.updateMany({
+      where: { id: { in: staleItems.map((g) => g.id) } },
+      data: { isActive: false },
+    });
+  }
 
   let created = 0;
-  let skipped = 0;
+  let updated = 0;
 
   for (const garment of seedData.garments) {
     const existing = await prisma.garmentCatalogue.findFirst({
-      where: { itemName: garment.itemName, branchId: null },
+      where: { itemName: garment.itemName, category: garment.category, branchId: null },
     });
-
-    if (existing) {
-      skipped += 1;
-      continue;
-    }
 
     // branchId left null — matches garment_catalogue's null-means-global
     // convention (CLAUDE.md / seed-data _comment), so these apply to every
-    // branch, not just Attapur.
-    await prisma.garmentCatalogue.create({
-      data: {
-        itemName: garment.itemName,
-        serviceType: garment.serviceType,
-        price: garment.price,
-        priceMax: garment.priceMax ?? null,
-        branchId: null,
-      },
-    });
-    created += 1;
+    // branch, not just one.
+    const data = {
+      itemName: garment.itemName,
+      category: garment.category,
+      serviceType: garment.serviceType,
+      pricingUnit: garment.pricingUnit,
+      price: garment.price,
+      priceMax: garment.priceMax ?? null,
+      isStartingPrice: garment.isStartingPrice ?? false,
+      isActive: true,
+      branchId: null,
+    };
+
+    if (existing) {
+      await prisma.garmentCatalogue.update({ where: { id: existing.id }, data });
+      updated += 1;
+    } else {
+      await prisma.garmentCatalogue.create({ data });
+      created += 1;
+    }
   }
 
   const totalGarments = await prisma.garmentCatalogue.count();
+  const activeGarments = await prisma.garmentCatalogue.count({ where: { isActive: true } });
 
-  console.log(`Garments: ${created} created, ${skipped} already present, ${totalGarments} total in catalogue.`);
+  console.log(
+    `Garments: ${created} created, ${updated} updated, ${staleItems.length} deactivated (not deleted), ` +
+      `${activeGarments} active / ${totalGarments} total in catalogue.`
+  );
 
-  if (needsConfirmation.length > 0) {
-    console.warn('\n⚠ Seeded items that need client confirmation before treating as final:');
-    for (const item of needsConfirmation) {
-      console.warn(`  - ${item.itemName} (₹${item.price}${item.priceMax ? `–₹${item.priceMax}` : ''}): ${item._needsConfirmation}`);
+  const flagged = seedData.garments.filter((g) => g._note);
+  if (flagged.length > 0) {
+    console.warn(`\n⚠ ${flagged.length} seeded items have unresolved _note flags — see CLAUDE.md "Major pricing model update":`);
+    for (const item of flagged) {
+      console.warn(`  - ${item.itemName} [${item.category}]: ${item._note}`);
     }
-    console.warn('See CLAUDE.md "Services — RESOLVED" and "Still open" sections.\n');
+    console.warn('');
   }
 
-  const sample = await prisma.garmentCatalogue.findMany({ take: 5, orderBy: { createdAt: 'asc' } });
-  console.log('\nSample of 5 seeded items:');
-  for (const item of sample) {
-    console.log(`  - ${item.itemName} [${item.serviceType}] ₹${item.price}${item.priceMax ? `–₹${item.priceMax}` : ''}`);
+  const perKgSample = await prisma.garmentCatalogue.findMany({
+    where: { pricingUnit: 'per_kg' },
+    orderBy: { itemName: 'asc' },
+  });
+  console.log('\nPer-KG items:');
+  for (const item of perKgSample) {
+    console.log(`  - ${item.itemName} [${item.category}] ₹${item.price}/kg`);
+  }
+
+  const startingPriceSample = await prisma.garmentCatalogue.findMany({
+    where: { isStartingPrice: true },
+    orderBy: { itemName: 'asc' },
+    take: 2,
+  });
+  console.log('\nStarting-price ("onwards") items (sample of 2):');
+  for (const item of startingPriceSample) {
+    console.log(`  - ${item.itemName} [${item.category}] ₹${item.price} onwards`);
   }
 }
 

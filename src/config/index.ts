@@ -23,6 +23,15 @@ export const TWILIO_AUTH_TOKEN = getEnv('TWILIO_AUTH_TOKEN');
 export const TWILIO_WHATSAPP_FROM = getEnv('TWILIO_WHATSAPP_FROM');
 export const TWILIO_SMS_FROM = getEnv('TWILIO_SMS_FROM');
 
+// New-style Supabase API keys (sb_publishable_… / sb_secret_…) for
+// @supabase/server — no hardcoded fallback here on purpose: these are live
+// secrets, so they must come from environment variables only (CLAUDE.md
+// security baseline), never a source-committed default.
+export const SUPABASE_URL = getEnv('SUPABASE_URL');
+export const SUPABASE_PUBLISHABLE_KEY = getEnv('SUPABASE_PUBLISHABLE_KEY');
+export const SUPABASE_SECRET_KEY = getEnv('SUPABASE_SECRET_KEY');
+export const SUPABASE_JWKS_URL = getEnv('SUPABASE_JWKS_URL');
+
 if (!DATABASE_URL) {
   throw new Error('DATABASE_URL is required in environment variables.');
 }
@@ -33,4 +42,8 @@ if (!JWT_SECRET || JWT_SECRET === 'replace-with-secret') {
 
 if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) {
   console.warn('Warning: TWILIO_ACCOUNT_SID/TWILIO_AUTH_TOKEN not set. OTP and customer notifications will fail to send.');
+}
+
+if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY || !SUPABASE_SECRET_KEY) {
+  console.warn('Warning: SUPABASE_URL/SUPABASE_PUBLISHABLE_KEY/SUPABASE_SECRET_KEY not fully set. Supabase-backed features will be unavailable.');
 }
