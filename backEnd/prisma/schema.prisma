@@ -94,6 +94,12 @@ model Customer {
   // status"); NEVER include this field in any API response a staff-role
   // token receives (src/middleware/staffFieldFilter.ts).
   discountPercent Decimal? @default("0") @map("discount_percent") @db.Decimal(5, 2)
+  // Separate on/off switch from discountPercent (CLAUDE.md "Monthly billing
+  // + discount: now live") — toggling this off does NOT clear the stored
+  // percentage, so admin can re-enable at the same rate later. A discount
+  // only actually applies when this is true AND discountPercent > 0. Same
+  // staff-hidden treatment as discountPercent.
+  discountEnabled Boolean  @default(false) @map("discount_enabled")
   bagIssued      Boolean   @default(false) @map("bag_issued")
   bagIssuedAt    DateTime? @map("bag_issued_at") @db.Timestamptz(6)
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)

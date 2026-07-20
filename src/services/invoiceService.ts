@@ -3,6 +3,7 @@ import prisma from '../prisma/client';
 import { createPaymentLink, cancelPaymentLink } from '../lib/razorpayClient';
 import { uploadInvoicePdf } from '../lib/supabaseStorage';
 import { renderInvoicePdf } from './invoicePdfService';
+import { calculatePayableAmount } from '../utils/pricing';
 
 // Matches orderService.ts's generateOrderNumber() style (PB-XXXXXXXX).
 const generateInvoiceNumber = (): string => `PB-INV-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
@@ -54,9 +55,15 @@ export const generateInvoice = async (orderId: string): Promise<GeneratedInvoice
     throw new Error(`Order ${orderId} not found`);
   }
 
-  const discountPercent = Number(order.customer.discountPercent ?? 0);
+  // CLAUDE.md "Monthly billing + discount: now live" — a discount only
+  // applies when BOTH discountEnabled is true AND discountPercent > 0;
+  // toggling discountEnabled off must not lose the stored percentage, so
+  // this is a runtime gate in calculatePayableAmount, not a change to the
+  // stored value. Shared with orderService.ts's ledger charge so the two
+  // never disagree on what the customer actually owes.
+  const discountPercent = order.customer.discountEnabled ? Number(order.customer.discountPercent ?? 0) : 0;
   const subtotal = Number(order.finalAmount);
-  const amount = Math.round(subtotal * (1 - discountPercent / 100) * 100) / 100;
+  const amount = calculatePayableAmount(subtotal, order.customer);
 
   const paymentLink = await createPaymentLink({
     amount,

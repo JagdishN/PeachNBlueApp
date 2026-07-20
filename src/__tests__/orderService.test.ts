@@ -18,15 +18,20 @@ jest.mock('../services/invoiceService', () => ({
 jest.mock('../services/invoiceReissue.service', () => ({
   reissueInvoice: jest.fn().mockResolvedValue(undefined),
 }));
+jest.mock('../services/ledgerService', () => ({
+  recordCharge: jest.fn().mockResolvedValue(undefined),
+}));
 
 import prisma from '../prisma/client';
-import { createOrder, listOrders, getOrder } from '../services/orderService';
+import { createOrder, listOrders, getOrder, updateStatus } from '../services/orderService';
 import { generateInvoice } from '../services/invoiceService';
 import { sendNotification } from '../services/notificationService';
+import { recordCharge } from '../services/ledgerService';
 
 const prismaMock = prisma as unknown as DeepMockProxy<PrismaClient>;
 const generateInvoiceMock = generateInvoice as jest.Mock;
 const sendNotificationMock = sendNotification as jest.Mock;
+const recordChargeMock = recordCharge as jest.Mock;
 
 const FIXED_PIECE_GARMENT = {
   id: 'g-shirt',
@@ -88,6 +93,8 @@ beforeEach(() => {
   generateInvoiceMock.mockReset();
   sendNotificationMock.mockReset();
   sendNotificationMock.mockResolvedValue(undefined);
+  recordChargeMock.mockReset();
+  recordChargeMock.mockResolvedValue(undefined);
   // Never resolves by default — createOrder must not await this, so tests
   // that don't care about the invoice follow-up shouldn't need it to settle.
   generateInvoiceMock.mockReturnValue(new Promise(() => {}));
@@ -224,6 +231,36 @@ describe('role-aware customer select (primary defense)', () => {
     expect(createArgs.include.customer.select).toHaveProperty('discountPercent', true);
   });
 
+  it('createOrder never requests discountEnabled in the customer select for staff role', async () => {
+    mockGarments([FIXED_PIECE_GARMENT]);
+
+    await createOrder({ ...baseInput, createdByRole: 'staff', items: [{ garmentId: 'g-shirt', quantity: 1 }] });
+
+    const createArgs = prismaMock.order.create.mock.calls[0][0] as any;
+    expect(createArgs.include.customer.select).not.toHaveProperty('discountEnabled');
+  });
+
+  it('createOrder includes discountEnabled in the customer select for admin role', async () => {
+    mockGarments([FIXED_PIECE_GARMENT]);
+
+    await createOrder({ ...baseInput, createdByRole: 'admin', items: [{ garmentId: 'g-shirt', quantity: 1 }] });
+
+    const createArgs = prismaMock.order.create.mock.calls[0][0] as any;
+    expect(createArgs.include.customer.select).toHaveProperty('discountEnabled', true);
+  });
+
+  // CLAUDE.md: billingMode is admin-only to CHANGE but staff must be able to
+  // READ it (they need it at delivery to know whether to collect payment) —
+  // so, unlike discountPercent/discountEnabled, it must be present for BOTH roles.
+  it('createOrder includes billingMode in the customer select for staff role too', async () => {
+    mockGarments([FIXED_PIECE_GARMENT]);
+
+    await createOrder({ ...baseInput, createdByRole: 'staff', items: [{ garmentId: 'g-shirt', quantity: 1 }] });
+
+    const createArgs = prismaMock.order.create.mock.calls[0][0] as any;
+    expect(createArgs.include.customer.select).toHaveProperty('billingMode', true);
+  });
+
   it('listOrders never requests discountPercent in the customer select for staff role', async () => {
     prismaMock.order.findMany.mockResolvedValue([]);
 
@@ -300,5 +337,88 @@ describe('createOrder — invoice generation is non-blocking', () => {
     expect(invoiceCall).toBeDefined();
     expect(invoiceCall[1]).toBe('pickup_confirmation');
     expect(invoiceCall[4]).toBe('https://storage.example/inv.pdf');
+  });
+});
+
+// CLAUDE.md "Monthly billing + discount: now live" — delivery-time behavior
+// must branch on billingMode: monthly-billing customers accrue a ledger
+// charge instead of being required to pay per-order; daily customers are
+// unaffected (regression check that this branch doesn't fire for them).
+describe('updateStatus — delivery billingMode branch', () => {
+  const buildOrderUpdate = (billingMode: 'daily' | 'monthly_billing') => ({
+    id: 'order-1',
+    orderNumber: 'PB-TEST',
+    finalAmount: 500,
+    customer: { id: 'customer-1', billingMode },
+  });
+
+  it('posts a ledger charge when a monthly-billing customer\'s order is marked delivered', async () => {
+    prismaMock.order.update.mockResolvedValue(buildOrderUpdate('monthly_billing') as any);
+    prismaMock.orderStatusHistory.create.mockResolvedValue({} as any);
+    prismaMock.customer.findUnique.mockResolvedValue({ discountEnabled: false, discountPercent: 0 } as any);
+
+    await updateStatus('order-1', 'delivered', 'user-1', 'staff');
+
+    expect(recordChargeMock).toHaveBeenCalledWith('customer-1', 'order-1', 500, 'Order PB-TEST');
+  });
+
+  it('does not post a ledger charge for a daily customer\'s delivered order (regression)', async () => {
+    prismaMock.order.update.mockResolvedValue(buildOrderUpdate('daily') as any);
+    prismaMock.orderStatusHistory.create.mockResolvedValue({} as any);
+
+    await updateStatus('order-1', 'delivered', 'user-1', 'staff');
+
+    expect(recordChargeMock).not.toHaveBeenCalled();
+    expect(prismaMock.customer.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('does not post a ledger charge for a monthly-billing customer on a non-delivered transition', async () => {
+    prismaMock.order.update.mockResolvedValue(buildOrderUpdate('monthly_billing') as any);
+    prismaMock.orderStatusHistory.create.mockResolvedValue({} as any);
+
+    await updateStatus('order-1', 'washing', 'user-1', 'staff');
+
+    expect(recordChargeMock).not.toHaveBeenCalled();
+  });
+
+  // "Known gaps found during the billing/discount toggle work": the ledger
+  // charge used to post the raw finalAmount even when the customer had a
+  // discount enabled, disagreeing with what their invoice actually says.
+  it('charges the discount-adjusted amount, not the raw finalAmount, when the customer has a discount enabled', async () => {
+    prismaMock.order.update.mockResolvedValue(buildOrderUpdate('monthly_billing') as any);
+    prismaMock.orderStatusHistory.create.mockResolvedValue({} as any);
+    prismaMock.customer.findUnique.mockResolvedValue({ discountEnabled: true, discountPercent: 10 } as any);
+
+    await updateStatus('order-1', 'delivered', 'user-1', 'staff');
+
+    // finalAmount 500, 10% off -> 450.
+    expect(recordChargeMock).toHaveBeenCalledWith('customer-1', 'order-1', 450, 'Order PB-TEST');
+  });
+
+  it('charges the full amount when discountEnabled is false, even if a percent is stored', async () => {
+    prismaMock.order.update.mockResolvedValue(buildOrderUpdate('monthly_billing') as any);
+    prismaMock.orderStatusHistory.create.mockResolvedValue({} as any);
+    prismaMock.customer.findUnique.mockResolvedValue({ discountEnabled: false, discountPercent: 10 } as any);
+
+    await updateStatus('order-1', 'delivered', 'user-1', 'staff');
+
+    expect(recordChargeMock).toHaveBeenCalledWith('customer-1', 'order-1', 500, 'Order PB-TEST');
+  });
+
+  it('reads discount fields directly rather than from the role-scoped order.customer (staff-initiated delivery)', async () => {
+    // order.customer here has no discountEnabled/discountPercent at all —
+    // exactly what customerSelectForRole('staff') produces — so this proves
+    // the branch doesn't (and can't) read discount fields off it.
+    prismaMock.order.update.mockResolvedValue(buildOrderUpdate('monthly_billing') as any);
+    prismaMock.orderStatusHistory.create.mockResolvedValue({} as any);
+    prismaMock.customer.findUnique.mockResolvedValue({ discountEnabled: true, discountPercent: 20 } as any);
+
+    await updateStatus('order-1', 'delivered', 'user-1', 'staff');
+
+    expect(prismaMock.customer.findUnique).toHaveBeenCalledWith({
+      where: { id: 'customer-1' },
+      select: { discountEnabled: true, discountPercent: true },
+    });
+    expect(recordChargeMock).toHaveBeenCalledWith('customer-1', 'order-1', 400, 'Order PB-TEST');
   });
 });

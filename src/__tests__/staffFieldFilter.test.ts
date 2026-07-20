@@ -41,6 +41,13 @@ describe('stripFields (safety-net field walker)', () => {
     expect(result.order.amount.toString()).toBe('249');
   });
 
+  it('removes discountEnabled alongside discountPercent (CLAUDE.md "Monthly billing + discount")', () => {
+    const input = { customer: { fullName: 'X', discountPercent: 10, discountEnabled: true, billingMode: 'daily' } };
+    expect(stripFields(input, STAFF_HIDDEN_FIELDS)).toEqual({
+      customer: { fullName: 'X', billingMode: 'daily' },
+    });
+  });
+
   it('does not throw or hang on a structure mixing arrays, Decimals, and Dates', () => {
     const input = {
       orders: Array.from({ length: 20 }, (_, i) => ({

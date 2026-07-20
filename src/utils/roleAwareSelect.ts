@@ -16,6 +16,7 @@ const ALL_CUSTOMER_FIELDS: Array<keyof Prisma.CustomerSelect> = [
   'billingMode',
   'creditLimit',
   'discountPercent',
+  'discountEnabled',
   'bagIssued',
   'bagIssuedAt',
   'createdAt',

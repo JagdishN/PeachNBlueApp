@@ -785,6 +785,6 @@
     "_laundryMinimumNote": "Client's rate card states 'Minimum 5 Kg applicable for laundry services' for the per-KG tier (Wash & Fold / Wash & Steam Iron / Premium Laundry). This is an ORDER-level minimum charge rule, not per-item — an order containing per-KG items should be charged for at least 5kg total even if actual weight is less.",
     "freeBagPolicyWording": "FREE LAUNDRY BAG FOR EVERY CUSTOMER",
     "_freeBagNote": "New rate card says 'every customer' — earlier confirmed business rule was 'first bag free for every NEW customer' plus a ₹350 lost/damaged replacement fee. Worth confirming with client whether this is a wording simplification or an actual policy change (bag given every order vs just once per customer).",
-    "captionSwapNote": "Client's rate card appears to have the footer captions swapped between sections: the Women's Wear section's caption reads 'And many more men's dresses & winter wear', while the Men's Wear (Dry Cleaning) section's caption reads 'And many more women's dresses & ethnic wear'. Transcribed faithfully, not corrected — flag to client."
+    "captionSwapNote": "RESOLVED (2026-07-20): client confirmed the footer captions were swapped between sections in the rate card by mistake (Women's Wear had 'And many more men's dresses & winter wear'; Men's Wear had 'And many more women's dresses & ethnic wear'). No application data was affected — these captions were never ingested as GarmentCatalogue fields or rendered anywhere in the app, so this note is informational only, kept for the record."
   }
 }

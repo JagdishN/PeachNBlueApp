@@ -36,6 +36,7 @@ const BASE_ORDER = {
     fullName: 'Test Customer',
     phoneNumber: '9999999999',
     discountPercent: null as number | null,
+    discountEnabled: false,
     locationLabel: 'A-101',
     branch: { branchName: 'Attapur' },
   },
@@ -68,16 +69,30 @@ describe('generateInvoice — fresh invoice (no prior Invoice row)', () => {
     expect(createPaymentLinkMock).toHaveBeenCalledWith(expect.objectContaining({ amount: 1000 }));
   });
 
-  it('applies the customer discount percent to the payable amount', async () => {
+  it('applies the customer discount percent to the payable amount when discountEnabled is true', async () => {
     prismaMock.order.findUnique.mockResolvedValue({
       ...BASE_ORDER,
-      customer: { ...BASE_ORDER.customer, discountPercent: 10 },
+      customer: { ...BASE_ORDER.customer, discountPercent: 10, discountEnabled: true },
     } as any);
 
     const result = await generateInvoice('order-1');
 
     expect(result.amount).toBe(900);
     expect(createPaymentLinkMock).toHaveBeenCalledWith(expect.objectContaining({ amount: 900 }));
+  });
+
+  // CLAUDE.md "Monthly billing + discount: now live" — discountEnabled: false
+  // must NOT clear discountPercent, but it must also stop it from applying.
+  it('does not apply discountPercent when discountEnabled is false, even though a percent is stored', async () => {
+    prismaMock.order.findUnique.mockResolvedValue({
+      ...BASE_ORDER,
+      customer: { ...BASE_ORDER.customer, discountPercent: 10, discountEnabled: false },
+    } as any);
+
+    const result = await generateInvoice('order-1');
+
+    expect(result.amount).toBe(1000);
+    expect(createPaymentLinkMock).toHaveBeenCalledWith(expect.objectContaining({ amount: 1000 }));
   });
 
   it('does not attempt to cancel any payment link when there is no prior invoice', async () => {

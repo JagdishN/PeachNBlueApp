@@ -7,6 +7,7 @@ import { sendToUser, sendToUsers } from './pushService';
 import { customerSelectForRole } from '../utils/roleAwareSelect';
 import { generateInvoice } from './invoiceService';
 import { reissueInvoice } from './invoiceReissue.service';
+import { calculatePayableAmount } from '../utils/pricing';
 
 // Note: ledger-charge side effects on delivery are intentionally NOT wired
 // here yet — that lands when the backend's Razorpay/ledger delivery-time
@@ -311,9 +312,22 @@ export const updateStatus = async (
 
   // Monthly-billing customers accrue a running balance; daily customers pay
   // at delivery directly (no Razorpay/cash-payment recording exists yet —
-  // that lands with the deferred Razorpay work), so nothing to charge here.
+  // that lands with the deferred Razorpay work). The charge must match what
+  // the customer's invoice actually says (a discount reduces both or
+  // neither) — so this fetches discountEnabled/discountPercent directly
+  // rather than reading them off `order.customer`, which is role-scoped
+  // (customerSelectForRole) and has those fields excluded entirely when a
+  // staff member is the one marking the order delivered.
   if (newStatus === 'delivered' && order.customer.billingMode === 'monthly_billing') {
-    await recordCharge(order.customer.id, order.id, Number(order.finalAmount), `Order ${order.orderNumber}`);
+    const discountFields = await prisma.customer.findUnique({
+      where: { id: order.customer.id },
+      select: { discountEnabled: true, discountPercent: true },
+    });
+    const payableAmount = calculatePayableAmount(
+      Number(order.finalAmount),
+      discountFields ?? { discountEnabled: false, discountPercent: 0 }
+    );
+    await recordCharge(order.customer.id, order.id, payableAmount, `Order ${order.orderNumber}`);
   }
 
   return order;
