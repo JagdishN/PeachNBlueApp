@@ -135,6 +135,36 @@ Phone numbers are stored **without spaces, with the `+91` prefix** (`+9198850251
 
 ---
 
+## Per-flat discounts — RESOLVED
+
+- Discount is a **persistent percentage tied to a flat/customer** (`Customer.discountPercent`), not a per-order coupon. Admin sets/edits it per flat, via an admin-only endpoint separate from the staff-usable customer creation flow.
+- **Must not be visible to staff** — enforced at the API response level (never included in any response a staff-role token receives), not just hidden in the mobile UI.
+- Shown on the billing document as: subtotal → discount line with the % → **"Amount to be paid"**.
+
+**Resolved: invoice timing.** When admin applies or changes a discount for a customer with an order that already has an invoice out (sent at pickup) and isn't yet delivered/paid, **a new invoice is generated and sent** reflecting the updated amount — this supersedes the original.
+
+**This same "reissue the invoice" mechanism also applies to manual amount revisions** (`order_amount_revisions`), closing a gap that existed before this conversation: previously, an admin amount revision sent a WhatsApp/SMS *notice* but didn't necessarily regenerate the invoice's payment-link amount — meaning a customer could still pay the stale (pre-revision) amount via the original link. Both triggers (discount applied, amount manually revised) should call the **same shared invoice-reissue function**, not two separate implementations:
+
+1. Recalculate the order's payable amount (final amount, minus discount if any).
+2. Generate a new invoice PDF + new Razorpay payment link.
+3. **Cancel/expire the old payment link** if the Razorpay API supports it — this is the part that actually prevents a double-payment or stale-amount-payment risk, not just cosmetic reissuing.
+4. Send the new invoice via WhatsApp + SMS (both channels, as always).
+5. Log the reissue event (extend `communications_log`'s `message_type` enum with an `invoice_reissued` value, or similar) so there's a record of every version sent, not just the latest.
+
+See Claude Code prompts for implementation.
+
+**Architecture decision, resolved: staff-hidden fields use TWO layers, not one.**
+1. **Primary**: role-aware Prisma `select`/`omit` at each query site that fetches `Customer` data reachable by staff (a shared `customerSelectForRole(role)` helper, not per-endpoint duplication) — the sensitive field never enters memory for a staff-authenticated request in the first place.
+2. **Secondary (safety net, not the primary defense)**: a global response-shaping middleware that strips a **centralized, named list** of staff-hidden fields (`STAFF_HIDDEN_FIELDS`, not a hardcoded string) from any response body reaching a staff-role request, catching anything a future endpoint forgets to exclude at the query level.
+
+This list of staff-hidden fields will grow — `discountPercent` is the first entry, and CLAUDE.md's other flagged future-feature ("monthly plans and discounts, admin-only") implies more admin-only financial fields are coming. Treat `STAFF_HIDDEN_FIELDS` as the one place that list lives, referenced by both layers.
+
+If layer 2 (middleware) is implemented, it must specifically handle: Prisma `Decimal`/`Date` instances without breaking, any response path that bypasses `res.json()` (e.g. manual `res.send(JSON.stringify(...))`), and must be the outermost response wrapper relative to any logging/audit middleware — otherwise sensitive data can leak into logs even while the HTTP response itself is clean.
+
+**Implemented.** `src/constants/staffHiddenFields.ts` (`STAFF_HIDDEN_FIELDS`, currently `['discountPercent']`) is the single source of truth for both layers. Primary: `src/utils/roleAwareSelect.ts`'s `customerSelectForRole(role)`, used by `orderService.ts`'s `createOrder`/`listOrders`/`getOrder`/`updateStatus` — the four staff-reachable query sites that include `Customer` data (`reviseAmount`'s two `customer: true` sites are admin-only by route gating, left as-is). Secondary: `src/middleware/staffFieldFilter.ts`, registered in `server.ts` immediately after `express.json()`, before every route. Audited for `res.send()`/manual `JSON.stringify()` bypass risk — none found; the only `JSON.stringify()` in the codebase is `pushService.ts`'s outbound FCM request body, unrelated. No request/response logger exists yet — whoever adds one must register it after `staffFieldFilter` in `server.ts`, not before. Tests: `src/__tests__/orderService.test.ts` (query-construction-level assertions that `discountPercent` is never in the Prisma `select` for staff) and `src/__tests__/staffFieldFilter.test.ts` (nested/array stripping, Decimal/Date handling, admin passthrough).
+
+---
+
 ## Tech stack decisions
 
 - Backend: Node.js + Express, **TypeScript** (financial/ledger calculations benefit from compile-time type safety)
@@ -154,7 +184,8 @@ Phone numbers are stored **without spaces, with the `+91` prefix** (`+9198850251
 - The pricing-model columns from "Major pricing model update" (`pricingUnit`, `category`, `isStartingPrice`, `priceMax`, `OrderItem.weightKg`/`pricePerKg`) plus the `device_tokens` and `additional_charges` tables have been pushed to the live DB (`npx prisma db push`).
 - **Two CHECK constraints were found stale and corrected** to match what this file already documented as resolved: `garment_catalogue_service_type_check` (was `laundry|iron|both`, now `wash_fold|ironing|dry_clean`) and `orders_payment_method_check` / `payments_payment_method_check` (was `qr_online|cash`, now `cash|upi|net_banking|credit_card` per the order workflow section above). Prisma doesn't manage CHECK constraints — any future enum-like value set change needs a manual `ALTER TABLE ... DROP/ADD CONSTRAINT`, not just a schema.prisma edit.
 - The 106-item v2 garment catalogue (`garments-seed-data-v2.json`) has been seeded into the live DB — 106 active rows confirmed. The seed script matches existing rows by `(itemName, category)`, not `itemName` alone — 18 items intentionally share a name across categories at different prices (see "Major pricing model update" point 5); matching on `itemName` alone silently collapses those into one row.
-- All application tables were empty before this work — no production data existed yet, so none of the above carried data-loss risk. This won't be true indefinitely; treat future schema changes against this DB with the caution due a live system.
+- `Customer.discountPercent` (Decimal, nullable, default 0) has been pushed live, with a `customers_discount_percent_check` CHECK constraint enforcing 0–100. `PATCH /api/v1/customers/:id/discount` (admin-only) is live in `src/controllers/customerController.ts` / `src/routes/customers.ts`.
+- Application tables (customers, orders, payments, etc.) are still empty except for `branches` (1 row: Attapur) and `users` (3 rows: the admin/test accounts above) — no order/customer/payment data exists yet, so schema changes there still carry no data-loss risk. This won't be true indefinitely.
 
 ---
 

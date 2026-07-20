@@ -1,9 +1,10 @@
 import crypto from 'crypto';
-import { OrderInternalStatus } from '../types/enums';
+import { OrderInternalStatus, UserRole } from '../types/enums';
 import prisma from '../prisma/client';
 import { sendNotification } from './notificationService';
 import { recordCharge } from './ledgerService';
 import { sendToUser, sendToUsers } from './pushService';
+import { customerSelectForRole } from '../utils/roleAwareSelect';
 
 // Note: ledger-charge / Razorpay QR / invoice PDF side effects on delivery
 // are intentionally NOT wired here yet — those land when the backend's
@@ -45,6 +46,7 @@ interface CreateOrderItemInput {
 
 interface CreateOrderInput {
   createdById: string;
+  createdByRole: UserRole;
   staffId?: string;
   branchId: string;
   customerName: string;
@@ -195,7 +197,7 @@ export const createOrder = async (input: CreateOrderInput) => {
         orderItems: { create: itemsToCreate },
         statusHistory: { create: { status: 'picked_up', changedById: input.createdById } },
       },
-      include: { orderItems: true, customer: true },
+      include: { orderItems: true, customer: { select: customerSelectForRole(input.createdByRole) } },
     });
   });
 
@@ -224,9 +226,10 @@ export const createOrder = async (input: CreateOrderInput) => {
 interface ListOrdersFilter {
   branchId?: string;
   date?: Date;
+  role: UserRole;
 }
 
-export const listOrders = async ({ branchId, date }: ListOrdersFilter) => {
+export const listOrders = async ({ branchId, date, role }: ListOrdersFilter) => {
   const pickupDateFilter = date
     ? {
         gte: new Date(date.getFullYear(), date.getMonth(), date.getDate()),
@@ -239,19 +242,29 @@ export const listOrders = async ({ branchId, date }: ListOrdersFilter) => {
       ...(branchId ? { customer: { branchId } } : {}),
       ...(pickupDateFilter ? { pickupDate: pickupDateFilter } : {}),
     },
-    include: { customer: true, orderItems: true },
+    include: { customer: { select: customerSelectForRole(role) }, orderItems: true },
     orderBy: { createdAt: 'desc' },
   });
 };
 
-export const getOrder = async (orderId: string) => {
+export const getOrder = async (orderId: string, role: UserRole) => {
   return prisma.order.findUnique({
     where: { id: orderId },
-    include: { customer: true, orderItems: true, amountRevisions: true, statusHistory: true },
+    include: {
+      customer: { select: customerSelectForRole(role) },
+      orderItems: true,
+      amountRevisions: true,
+      statusHistory: true,
+    },
   });
 };
 
-export const updateStatus = async (orderId: string, newStatus: OrderInternalStatus, changedById: string) => {
+export const updateStatus = async (
+  orderId: string,
+  newStatus: OrderInternalStatus,
+  changedById: string,
+  role: UserRole
+) => {
   if (!ORDER_STATUS_SEQUENCE.includes(newStatus) && newStatus !== 'cancelled') {
     const err = new Error(`Invalid status: ${newStatus}`);
     (err as any).status = 400;
@@ -262,7 +275,7 @@ export const updateStatus = async (orderId: string, newStatus: OrderInternalStat
     const updated = await tx.order.update({
       where: { id: orderId },
       data: { internalStatus: newStatus },
-      include: { customer: true, orderItems: true },
+      include: { customer: { select: customerSelectForRole(role) }, orderItems: true },
     });
 
     await tx.orderStatusHistory.create({

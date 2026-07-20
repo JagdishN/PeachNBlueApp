@@ -88,6 +88,12 @@ model Customer {
   // Values: daily | monthly_billing
   billingMode    String    @default("daily") @map("billing_mode") @db.VarChar(20)
   creditLimit    Decimal   @default("0") @map("credit_limit") @db.Decimal(10, 2)
+  // Persistent per-flat discount, set by admin only (see CLAUDE.md "Per-flat
+  // discounts — RESOLVED") — not a per-order coupon. Range 0-100 enforced by
+  // a CHECK constraint (Prisma doesn't manage these, see "Database sync
+  // status"); NEVER include this field in any API response a staff-role
+  // token receives (src/middleware/staffFieldFilter.ts).
+  discountPercent Decimal? @default("0") @map("discount_percent") @db.Decimal(5, 2)
   bagIssued      Boolean   @default(false) @map("bag_issued")
   bagIssuedAt    DateTime? @map("bag_issued_at") @db.Timestamptz(6)
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)

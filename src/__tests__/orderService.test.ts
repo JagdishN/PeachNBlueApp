@@ -14,7 +14,7 @@ jest.mock('../services/pushService', () => ({
 }));
 
 import prisma from '../prisma/client';
-import { createOrder } from '../services/orderService';
+import { createOrder, listOrders, getOrder } from '../services/orderService';
 
 const prismaMock = prisma as unknown as DeepMockProxy<PrismaClient>;
 
@@ -61,6 +61,7 @@ const PER_KG_GARMENT_2 = {
 
 const baseInput = {
   createdById: 'user-1',
+  createdByRole: 'staff' as const,
   branchId: 'branch-1',
   customerName: 'Test Customer',
   customerPhoneNumber: '9999999999',
@@ -180,5 +181,66 @@ describe('createOrder pricing', () => {
     });
 
     expect(order.orderItems).toEqual([expect.objectContaining({ unitPrice: 350, quantity: 1, lineTotal: 350 })]);
+  });
+});
+
+// Primary defense (CLAUDE.md "Architecture decision, resolved"): these
+// assert at the QUERY-CONSTRUCTION level that discountPercent was never
+// even requested for a staff-role call — not just that it's absent from
+// the (mocked) response, which wouldn't catch a query site that fetches
+// the field and only strips it later.
+describe('role-aware customer select (primary defense)', () => {
+  it('createOrder never requests discountPercent in the customer select for staff role', async () => {
+    mockGarments([FIXED_PIECE_GARMENT]);
+
+    await createOrder({ ...baseInput, createdByRole: 'staff', items: [{ garmentId: 'g-shirt', quantity: 1 }] });
+
+    const createArgs = prismaMock.order.create.mock.calls[0][0] as any;
+    expect(createArgs.include.customer.select).not.toHaveProperty('discountPercent');
+  });
+
+  it('createOrder includes discountPercent in the customer select for admin role', async () => {
+    mockGarments([FIXED_PIECE_GARMENT]);
+
+    await createOrder({ ...baseInput, createdByRole: 'admin', items: [{ garmentId: 'g-shirt', quantity: 1 }] });
+
+    const createArgs = prismaMock.order.create.mock.calls[0][0] as any;
+    expect(createArgs.include.customer.select).toHaveProperty('discountPercent', true);
+  });
+
+  it('listOrders never requests discountPercent in the customer select for staff role', async () => {
+    prismaMock.order.findMany.mockResolvedValue([]);
+
+    await listOrders({ role: 'staff' });
+
+    const findManyArgs = prismaMock.order.findMany.mock.calls[0][0] as any;
+    expect(findManyArgs.include.customer.select).not.toHaveProperty('discountPercent');
+  });
+
+  it('listOrders includes discountPercent in the customer select for admin role', async () => {
+    prismaMock.order.findMany.mockResolvedValue([]);
+
+    await listOrders({ role: 'admin' });
+
+    const findManyArgs = prismaMock.order.findMany.mock.calls[0][0] as any;
+    expect(findManyArgs.include.customer.select).toHaveProperty('discountPercent', true);
+  });
+
+  it('getOrder never requests discountPercent in the customer select for staff role', async () => {
+    prismaMock.order.findUnique.mockResolvedValue(null);
+
+    await getOrder('order-1', 'staff');
+
+    const findUniqueArgs = prismaMock.order.findUnique.mock.calls[0][0] as any;
+    expect(findUniqueArgs.include.customer.select).not.toHaveProperty('discountPercent');
+  });
+
+  it('getOrder includes discountPercent in the customer select for admin role', async () => {
+    prismaMock.order.findUnique.mockResolvedValue(null);
+
+    await getOrder('order-1', 'admin');
+
+    const findUniqueArgs = prismaMock.order.findUnique.mock.calls[0][0] as any;
+    expect(findUniqueArgs.include.customer.select).toHaveProperty('discountPercent', true);
   });
 });
