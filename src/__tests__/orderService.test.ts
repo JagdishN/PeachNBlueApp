@@ -12,11 +12,21 @@ jest.mock('../services/pushService', () => ({
   sendToUser: jest.fn().mockResolvedValue(undefined),
   sendToUsers: jest.fn().mockResolvedValue(undefined),
 }));
+jest.mock('../services/invoiceService', () => ({
+  generateInvoice: jest.fn(),
+}));
+jest.mock('../services/invoiceReissue.service', () => ({
+  reissueInvoice: jest.fn().mockResolvedValue(undefined),
+}));
 
 import prisma from '../prisma/client';
 import { createOrder, listOrders, getOrder } from '../services/orderService';
+import { generateInvoice } from '../services/invoiceService';
+import { sendNotification } from '../services/notificationService';
 
 const prismaMock = prisma as unknown as DeepMockProxy<PrismaClient>;
+const generateInvoiceMock = generateInvoice as jest.Mock;
+const sendNotificationMock = sendNotification as jest.Mock;
 
 const FIXED_PIECE_GARMENT = {
   id: 'g-shirt',
@@ -75,6 +85,12 @@ function mockGarments(garments: typeof FIXED_PIECE_GARMENT[]) {
 
 beforeEach(() => {
   mockReset(prismaMock);
+  generateInvoiceMock.mockReset();
+  sendNotificationMock.mockReset();
+  sendNotificationMock.mockResolvedValue(undefined);
+  // Never resolves by default — createOrder must not await this, so tests
+  // that don't care about the invoice follow-up shouldn't need it to settle.
+  generateInvoiceMock.mockReturnValue(new Promise(() => {}));
 
   prismaMock.$transaction.mockImplementation(((cb: any) => cb(prismaMock)) as any);
   prismaMock.customer.upsert.mockResolvedValue({
@@ -242,5 +258,47 @@ describe('role-aware customer select (primary defense)', () => {
 
     const findUniqueArgs = prismaMock.order.findUnique.mock.calls[0][0] as any;
     expect(findUniqueArgs.include.customer.select).toHaveProperty('discountPercent', true);
+  });
+});
+
+// CLAUDE.md: PDF generation must run as a background job, never inline with
+// the request that completes an order — so createOrder must resolve without
+// waiting on generateInvoice.
+describe('createOrder — invoice generation is non-blocking', () => {
+  it('resolves even while generateInvoice is still pending', async () => {
+    mockGarments([FIXED_PIECE_GARMENT]);
+    generateInvoiceMock.mockReturnValue(new Promise(() => {})); // never settles
+
+    await expect(
+      createOrder({ ...baseInput, items: [{ garmentId: 'g-shirt', quantity: 1 }] })
+    ).resolves.toBeDefined();
+  });
+
+  it('resolves even when generateInvoice rejects', async () => {
+    mockGarments([FIXED_PIECE_GARMENT]);
+    generateInvoiceMock.mockRejectedValue(new Error('razorpay unavailable'));
+
+    await expect(
+      createOrder({ ...baseInput, items: [{ garmentId: 'g-shirt', quantity: 1 }] })
+    ).resolves.toBeDefined();
+  });
+
+  it('sends a second pickup_confirmation with the invoice details once generateInvoice resolves', async () => {
+    mockGarments([FIXED_PIECE_GARMENT]);
+    generateInvoiceMock.mockResolvedValue({
+      amount: 129,
+      paymentLinkUrl: 'https://rzp.io/l/x',
+      pdfUrl: 'https://storage.example/inv.pdf',
+      wasReissue: false,
+    });
+
+    await createOrder({ ...baseInput, items: [{ garmentId: 'g-shirt', quantity: 1 }] });
+    // Flush the microtask queue so the un-awaited .then() chain runs.
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const invoiceCall = sendNotificationMock.mock.calls.find((call: any) => call[2].includes('rzp.io'));
+    expect(invoiceCall).toBeDefined();
+    expect(invoiceCall[1]).toBe('pickup_confirmation');
+    expect(invoiceCall[4]).toBe('https://storage.example/inv.pdf');
   });
 });

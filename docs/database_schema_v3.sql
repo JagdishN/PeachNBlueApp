@@ -223,6 +223,12 @@ CREATE TABLE invoices (
     invoice_number       VARCHAR(30) UNIQUE NOT NULL,
     pdf_url                TEXT,
     qr_code_url             TEXT,                -- Razorpay payment QR, used on every bill now (not just monthly billing)
+    razorpay_payment_link_id VARCHAR(100),        -- for cancelling the link on reissue
+    payment_link_url       TEXT,                  -- Razorpay short_url sent to the customer
+    payment_link_status    VARCHAR(20) DEFAULT 'created'
+                                CHECK (payment_link_status IN ('created', 'paid', 'cancelled', 'expired')),
+    amount                  NUMERIC(10, 2),        -- payable amount this invoice version reflects (final_amount minus discount)
+    version                 INT DEFAULT 1,         -- incremented on reissue; no separate history table, see communications_log
     created_at                TIMESTAMPTZ DEFAULT now()
 );
 
@@ -244,7 +250,8 @@ CREATE TABLE communications_log (
     message_type    VARCHAR(30) NOT NULL
                         CHECK (message_type IN ('pickup_confirmation', 'amount_revision',
                                                  'delivery_confirmation', 'payment_receipt',
-                                                 'monthly_statement', 'payment_reminder')),
+                                                 'monthly_statement', 'payment_reminder',
+                                                 'invoice_reissued')),
     channel         VARCHAR(20) NOT NULL CHECK (channel IN ('whatsapp', 'sms')),
     status          VARCHAR(20) NOT NULL DEFAULT 'sent'
                         CHECK (status IN ('sent', 'failed')),

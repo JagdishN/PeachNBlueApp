@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { AppScreen } from '../../components/AppScreen';
 import { SplashLogo } from '../../components/BrandComponents';
 import { ApiError } from '../../api/client';
 import { requestOtp, verifyOtp } from '../../api/auth';
 import { useAuth } from '../../context/AuthContext';
-import { colors, radii, spacing } from '../../theme/theme';
+import { useTheme } from '../../context/ThemeContext';
+import { ColorTokens, radii, spacing } from '../../theme/theme';
 
 type Step = 'phone' | 'otp';
 
@@ -18,7 +19,9 @@ const COUNTRY_CODE = '+91';
 
 export const LoginScreen: React.FC = () => {
   const { signIn } = useAuth();
-  const [roleHint, setRoleHint] = useState<RoleHint>('staff');
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const [roleHint, setRoleHint] = useState<RoleHint>('admin');
   const [step, setStep] = useState<Step>('phone');
   const [localNumber, setLocalNumber] = useState('');
   const [otp, setOtp] = useState('');
@@ -54,7 +57,7 @@ export const LoginScreen: React.FC = () => {
   };
 
   return (
-    <AppScreen backgroundColor={colors.peachBg}>
+    <AppScreen>
       <View style={styles.header}>
         <SplashLogo size="small" />
         <Text style={styles.headerSub}>Team Login</Text>
@@ -62,16 +65,16 @@ export const LoginScreen: React.FC = () => {
 
       <View style={styles.toggleRow}>
         <Pressable
-          style={[styles.toggle, roleHint === 'staff' && styles.toggleActive]}
-          onPress={() => setRoleHint('staff')}
-        >
-          <Text style={[styles.toggleText, roleHint === 'staff' && styles.toggleTextActive]}>Staff</Text>
-        </Pressable>
-        <Pressable
           style={[styles.toggle, roleHint === 'admin' && styles.toggleActive]}
           onPress={() => setRoleHint('admin')}
         >
           <Text style={[styles.toggleText, roleHint === 'admin' && styles.toggleTextActive]}>Admin</Text>
+        </Pressable>
+        <Pressable
+          style={[styles.toggle, roleHint === 'staff' && styles.toggleActive]}
+          onPress={() => setRoleHint('staff')}
+        >
+          <Text style={[styles.toggleText, roleHint === 'staff' && styles.toggleTextActive]}>Staff</Text>
         </Pressable>
       </View>
 
@@ -123,108 +126,110 @@ export const LoginScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  header: {
-    alignItems: 'center',
-    marginVertical: spacing.lg,
-  },
-  headerSub: {
-    fontSize: 9.5,
-    fontWeight: '700',
-    color: colors.warning,
-    letterSpacing: 2,
-    textTransform: 'uppercase',
-    marginTop: spacing.xs,
-  },
-  toggleRow: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    marginBottom: spacing.lg,
-  },
-  toggle: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
-    borderRadius: radii.sm,
-    borderWidth: 1.5,
-    borderColor: colors.navyDeep,
-  },
-  toggleActive: {
-    backgroundColor: colors.navyDeep,
-  },
-  toggleText: {
-    fontSize: 10.5,
-    fontWeight: '700',
-    color: colors.navyDeep,
-  },
-  toggleTextActive: {
-    color: colors.peachBg,
-  },
-  fieldLabel: {
-    fontSize: 9.5,
-    fontWeight: '700',
-    color: colors.navyText,
-    marginBottom: spacing.xs,
-  },
-  field: {
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.md,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    fontSize: 13,
-    color: colors.navyText,
-    marginBottom: spacing.sm,
-  },
-  phoneRow: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    marginBottom: spacing.sm,
-  },
-  countryCode: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.md,
-    paddingHorizontal: spacing.md,
-  },
-  countryCodeText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.navyText,
-  },
-  phoneField: {
-    flex: 1,
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.md,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    fontSize: 13,
-    color: colors.navyText,
-  },
-  error: {
-    color: colors.danger,
-    fontSize: 11,
-    marginBottom: spacing.sm,
-  },
-  button: {
-    backgroundColor: colors.peachPrimary,
-    borderRadius: radii.md,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-    marginTop: spacing.xs,
-  },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
-  buttonText: {
-    color: colors.white,
-    fontWeight: '700',
-    fontSize: 13,
-  },
-});
+const createStyles = (colors: ColorTokens) =>
+  StyleSheet.create({
+    header: {
+      alignItems: 'center',
+      marginVertical: spacing.lg,
+    },
+    headerSub: {
+      fontSize: 9.5,
+      fontWeight: '700',
+      color: colors.warning,
+      letterSpacing: 2,
+      textTransform: 'uppercase',
+      marginTop: spacing.xs,
+    },
+    toggleRow: {
+      flexDirection: 'row',
+      gap: spacing.sm,
+      marginBottom: spacing.lg,
+    },
+    toggle: {
+      flex: 1,
+      alignItems: 'center',
+      paddingVertical: spacing.sm,
+      borderRadius: radii.sm,
+      borderWidth: 1.5,
+      borderColor: colors.navyDeep,
+    },
+    toggleActive: {
+      backgroundColor: colors.chrome,
+      borderColor: colors.chrome,
+    },
+    toggleText: {
+      fontSize: 10.5,
+      fontWeight: '700',
+      color: colors.navyDeep,
+    },
+    toggleTextActive: {
+      color: colors.cream,
+    },
+    fieldLabel: {
+      fontSize: 9.5,
+      fontWeight: '700',
+      color: colors.navyText,
+      marginBottom: spacing.xs,
+    },
+    field: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radii.md,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+      fontSize: 13,
+      color: colors.navyText,
+      marginBottom: spacing.sm,
+    },
+    phoneRow: {
+      flexDirection: 'row',
+      gap: spacing.sm,
+      marginBottom: spacing.sm,
+    },
+    countryCode: {
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radii.md,
+      paddingHorizontal: spacing.md,
+    },
+    countryCodeText: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: colors.navyText,
+    },
+    phoneField: {
+      flex: 1,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radii.md,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+      fontSize: 13,
+      color: colors.navyText,
+    },
+    error: {
+      color: colors.danger,
+      fontSize: 11,
+      marginBottom: spacing.sm,
+    },
+    button: {
+      backgroundColor: colors.peachPrimary,
+      borderRadius: radii.md,
+      paddingVertical: spacing.md,
+      alignItems: 'center',
+      marginTop: spacing.xs,
+    },
+    buttonDisabled: {
+      opacity: 0.7,
+    },
+    buttonText: {
+      color: colors.white,
+      fontWeight: '700',
+      fontSize: 13,
+    },
+  });

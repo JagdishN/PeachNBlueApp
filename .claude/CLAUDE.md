@@ -105,7 +105,7 @@ The client sent a second, much more comprehensive rate card (`garments-seed-data
 - Suit (2 Piece) is priced at ₹999, *higher* than Suit (3 Piece) at ₹549 — reads backwards, likely a swap in the client's price list.
 - The Women's Wear section's footer caption and the Men's Wear section's footer caption appear swapped (each references the other's category).
 
-**Also worth reconciling, not urgent**: this new card says "FREE LAUNDRY BAG FOR EVERY CUSTOMER," while the earlier confirmed policy was "first bag free for every *new* customer" plus a ₹350 lost/damaged fee. Could be wording simplification or an actual policy change — worth asking.
+**Resolved: bag policy.** The laundry bag is free for every customer (not limited to new customers as earlier phrasing implied) — the ₹350 charge only applies if the bag is subsequently lost or damaged. Supersedes the earlier "first bag free for every *new* customer" wording; the ₹350 lost/damaged fee itself is unchanged. Schema support already exists (`Customer.bagIssued`/`bagIssuedAt`, `AdditionalCharge` with `chargeType: bag_replacement`) but no application code uses it yet — issuing the bag and charging the replacement fee is still unbuilt.
 
 See the Claude Code prompts for the actual migration/implementation sequence — this is too structurally significant to hand off as a single prompt.
 
@@ -113,7 +113,7 @@ See the Claude Code prompts for the actual migration/implementation sequence —
 
 ## Admin accounts (confirmed by client, created in the live DB)
 
-Two admin accounts, plus one internal test account — all created as `User` rows with `role: admin`, `branchId` scoped to the Attapur branch (client confirmed this scoping; not unscoped `null` as originally assumed — revisit if a second branch is added and these should become unscoped instead):
+Two admin accounts, plus one internal test account — all created as `User` rows with `role: admin`. Originally scoped to the Attapur branch; **now updated to unscoped (`branchId = null`)** per the resolved "default admin view is All Branches" decision above (see "Still open"):
 - `+919885025151` — internal `fullName`: "PeachandBlue (Admin 1)"
 - `+919395389886` — internal `fullName`: "PeachandBlue (Admin 2)"
 - `+919949300888` — internal `fullName`: "Jagdish" — **internal test account, delete before deployment.** Assumed `admin` role since it was grouped with the two real admin accounts; flag if `staff` was actually intended.
@@ -151,7 +151,15 @@ Phone numbers are stored **without spaces, with the `+91` prefix** (`+9198850251
 4. Send the new invoice via WhatsApp + SMS (both channels, as always).
 5. Log the reissue event (extend `communications_log`'s `message_type` enum with an `invoice_reissued` value, or similar) so there's a record of every version sent, not just the latest.
 
-See Claude Code prompts for implementation.
+**Implemented.** Invoice PDF generation uses `@react-pdf/renderer` (chosen over Puppeteer specifically to avoid bundling Chromium into the backend deployment) rendered in `src/services/invoicePdfService.tsx`, uploaded to a Supabase Storage `invoices` bucket via `src/lib/supabaseStorage.ts` (bucket itself is a one-time manual dashboard setup, not code-managed). Razorpay Payment Links (Card + Net Banking) are created/cancelled via `src/lib/razorpayClient.ts` — the "restrict to Card + Net Banking only" requirement is implemented against Razorpay's documented parameters but **not yet verified against a live sandbox** (no `RAZORPAY_KEY_ID`/`_KEY_SECRET` configured yet — flagged for a real-credentials check).
+
+The five numbered steps above are one shared, idempotent function: `src/services/invoiceService.ts`'s `generateInvoice(orderId)` fetches the order's existing `Invoice` row (if any) and, when present, best-effort cancels its payment link and bumps `Invoice.version` (suffixing `invoiceNumber` with `-R{version}`, e.g. `PB-INV-00042-R2`) rather than maintaining a separate invoice-history table — the version-by-version audit trail lives in `communications_log` instead, per point 5 above. `src/services/invoiceReissue.service.ts`'s `reissueInvoice(orderId)` wraps this with the customer notification (`invoice_reissued`, added to `CommunicationMessageType` and the live `communications_log_message_type_check` constraint), and `reissueAllOpenInvoicesForCustomer(customerId)` is the discount-triggered fan-out, scoped to `internalStatus !== 'delivered' AND paymentStatus !== 'paid'` per this section's "isn't yet delivered/paid" wording. Wired at both call sites: `orderService.ts::reviseAmount` awaits `reissueInvoice` (synchronous admin action — failures should surface, not be swallowed), and `customerController.ts::updateDiscountHandler` awaits `reissueAllOpenInvoicesForCustomer`.
+
+The very first invoice (at pickup, order creation) reuses this exact same `generateInvoice` function — with no prior `Invoice` row, it just creates version 1, no cancellation needed. Per CLAUDE.md's tech-stack decision that PDF generation must run as a background job, never inline with the order-creation request, `orderService.ts::createOrder` calls `generateInvoice` **without awaiting it** — the existing instant `pickup_confirmation` text (order number, estimated amount, turnaround time) still fires synchronously as before; a second `pickup_confirmation` message with the invoice PDF link and payment link follows once generation completes, typically a few seconds later. This is the first genuinely fire-and-forget side effect in the codebase (every other notification call is awaited) — deliberate, not an oversight.
+
+Tests: `src/__tests__/invoiceService.test.ts` (discount-adjusted amount math, fresh-vs-reissue version/invoice-number/cancel behavior), `src/__tests__/invoiceReissue.test.ts` (notification content, delivered/paid order filtering), `src/__tests__/razorpayClient.test.ts` (payment-link creation, best-effort cancel swallowing failures), and `src/__tests__/orderService.test.ts`'s "invoice generation is non-blocking" block (`createOrder` resolves even while/if `generateInvoice` hangs or rejects).
+
+**Not yet done**: end-to-end verification against a real Razorpay sandbox (needs test-mode credentials) and creating the live Supabase Storage `invoices` bucket.
 
 **Architecture decision, resolved: staff-hidden fields use TWO layers, not one.**
 1. **Primary**: role-aware Prisma `select`/`omit` at each query site that fetches `Customer` data reachable by staff (a shared `customerSelectForRole(role)` helper, not per-endpoint duplication) — the sensitive field never enters memory for a staff-authenticated request in the first place.
@@ -206,13 +214,18 @@ If layer 2 (middleware) is implemented, it must specifically handle: Prisma `Dec
 - Final logo source file (SVG/AI) and exact brand hex values
 - Decide how pilot-program introductory pricing should work at the data-model level (see New business rules above) — not yet designed
 - App store assets (icon, screenshots) — client-provided or need creation
-- Default admin branch-scoping behavior in the UI (single-branch view vs all-branches view as default)
+
+**Resolved: default admin view is All Branches**, not single-branch. `AdminDashboardScreen.tsx` already implements this correctly as a consequence of `branchId` scoping (`user.branchId == null` → "All Branches ▾" chip, no branch filter passed to `listOrders`) — no code change needed there. What this resolves is the *account-level* scoping question CLAUDE.md's "Admin accounts" section flagged: the two live admin accounts are currently scoped to Attapur (`branchId` set), not unscoped — update them to unscoped (`branchId = null`) so this default actually takes effect, now that it's confirmed rather than assumed.
 
 ---
 
-## Light/dark mode — CONFIRMED, not yet built
+## Light/dark mode — Implemented, defaults to light
 
-Client has confirmed light/dark mode is required. Not yet implemented: `mobile/src/theme/theme.ts` and every screen's styles are currently hardcoded to one (light) palette. Building this touches every screen — treat as a dedicated implementation pass, not a drive-by change alongside unrelated work.
+`mobile/src/theme/theme.ts` exports `lightColors`/`darkColors` (a `ColorTokens` shape both must satisfy) instead of one static `colors` object. Some tokens are deliberately identical across both palettes rather than flipping: `peachPrimary`/`peachPrimaryDark`/`white` (brand accent + button-label text), `chrome` (the dark navy bar used for every app bar/footer/tab bar/total bar — already dark in light mode, doesn't need to get "darker"), and `cream` (light header-title text sitting on that fixed `chrome` bar). Everything else (`peachBg`, `peachCard`, `surface`, `navy`, `navyText`, `navyDeep`, `border`, `muted`, `successBg`, `warningBg`) flips. `mobile/src/context/ThemeContext.tsx` (mirrors `AuthContext.tsx`'s conventions) holds the mode, persisted via `expo-secure-store` (no AsyncStorage dependency added), default `'light'`. A new `mobile/src/screens/shared/SettingsScreen.tsx` houses the toggle plus the About-page content this file separately required ("Technology by NIVENXA") — bundled into one screen since neither existed before, registered in both `AdminStack`/`StaffStack`, reachable via a settings icon on the Admin/Staff home app bars. `app.json`'s `userInterfaceStyle` changed from `"light"` to `"automatic"` so native iOS chrome (keyboard, alerts) doesn't clash with an in-app dark theme.
+
+Small fixed-pastel "chip" badges (`theme/serviceTag.ts`'s service tags, `BranchesScreen.tsx`'s apartment/area tags) intentionally keep their existing background+foreground pairing across both themes rather than following the flipping tokens — they're small, self-contained, already-contrasted elements, not full surfaces.
+
+Not built: OS-appearance-following ("system") mode — this is a manual `'light' | 'dark'` toggle only, not asked for beyond that.
 
 ---
 

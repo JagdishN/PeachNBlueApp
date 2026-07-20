@@ -1,12 +1,16 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { AppScreen } from '../../components/AppScreen';
 import { PriceChip } from '../../components/PriceChip';
+import { useTheme } from '../../context/ThemeContext';
 import { fetchAgingReport, sendReminder, AgingRow } from '../../api/ledger';
-import { colors, radii, spacing } from '../../theme/theme';
+import { ColorTokens, radii, spacing } from '../../theme/theme';
 
 export const LedgerAgingScreen: React.FC = () => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   const [rows, setRows] = useState<AgingRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [reminding, setReminding] = useState<string | null>(null);
@@ -83,69 +87,70 @@ export const LedgerAgingScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  appbar: {
-    backgroundColor: colors.navyDeep,
-    padding: spacing.lg,
-    paddingBottom: 14,
-  },
-  title: {
-    fontFamily: 'Lora_600SemiBold',
-    fontSize: 16,
-    color: colors.cream,
-  },
-  subtitle: {
-    fontSize: 10,
-    color: '#C8A67B',
-    marginTop: 2,
-  },
-  body: {
-    flex: 1,
-    padding: 14,
-  },
-  card: {
-    backgroundColor: colors.peachCard,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.lg,
-    padding: 12,
-    marginBottom: 10,
-  },
-  cardRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  cardTitle: {
-    fontSize: 12.5,
-    fontWeight: '700',
-    color: colors.navyText,
-  },
-  cardSub: {
-    fontSize: 10.5,
-    color: colors.muted,
-    marginTop: 2,
-  },
-  remindButton: {
-    borderWidth: 1.5,
-    borderColor: colors.navyDeep,
-    borderRadius: radii.md,
-    paddingVertical: spacing.sm,
-    alignItems: 'center',
-    marginTop: spacing.sm,
-  },
-  remindButtonDisabled: {
-    opacity: 0.7,
-  },
-  remindButtonText: {
-    color: colors.navyDeep,
-    fontWeight: '700',
-    fontSize: 10.5,
-  },
-  empty: {
-    fontSize: 11,
-    color: colors.muted,
-    marginTop: spacing.lg,
-    textAlign: 'center',
-  },
-});
+const createStyles = (colors: ColorTokens) =>
+  StyleSheet.create({
+    appbar: {
+      backgroundColor: colors.chrome,
+      padding: spacing.lg,
+      paddingBottom: 14,
+    },
+    title: {
+      fontFamily: 'Lora_600SemiBold',
+      fontSize: 16,
+      color: colors.cream,
+    },
+    subtitle: {
+      fontSize: 10,
+      color: '#C8A67B',
+      marginTop: 2,
+    },
+    body: {
+      flex: 1,
+      padding: 14,
+    },
+    card: {
+      backgroundColor: colors.peachCard,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radii.lg,
+      padding: 12,
+      marginBottom: 10,
+    },
+    cardRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    cardTitle: {
+      fontSize: 12.5,
+      fontWeight: '700',
+      color: colors.navyText,
+    },
+    cardSub: {
+      fontSize: 10.5,
+      color: colors.muted,
+      marginTop: 2,
+    },
+    remindButton: {
+      borderWidth: 1.5,
+      borderColor: colors.navyDeep,
+      borderRadius: radii.md,
+      paddingVertical: spacing.sm,
+      alignItems: 'center',
+      marginTop: spacing.sm,
+    },
+    remindButtonDisabled: {
+      opacity: 0.7,
+    },
+    remindButtonText: {
+      color: colors.navyDeep,
+      fontWeight: '700',
+      fontSize: 10.5,
+    },
+    empty: {
+      fontSize: 11,
+      color: colors.muted,
+      marginTop: spacing.lg,
+      textAlign: 'center',
+    },
+  });

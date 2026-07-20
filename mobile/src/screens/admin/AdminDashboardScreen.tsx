@@ -1,15 +1,16 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { AppScreen } from '../../components/AppScreen';
 import { PriceChip } from '../../components/PriceChip';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import { fetchBranch, Branch } from '../../api/branches';
 import { fetchSummary, ReportSummary } from '../../api/reports';
 import { fetchAgingReport, AgingRow } from '../../api/ledger';
 import { listOrders, Order } from '../../api/orders';
-import { colors, radii, spacing } from '../../theme/theme';
+import { ColorTokens, radii, spacing } from '../../theme/theme';
 import type { AdminStackParamList } from '../../navigation/AdminStack';
 
 type Nav = NativeStackNavigationProp<AdminStackParamList>;
@@ -22,6 +23,8 @@ const todayLabel = () =>
 export const AdminDashboardScreen: React.FC = () => {
   const navigation = useNavigation<Nav>();
   const { state } = useAuth();
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const user = state.status === 'signedIn' ? state.user : null;
 
   const [branch, setBranch] = useState<Branch | null>(null);
@@ -61,8 +64,15 @@ export const AdminDashboardScreen: React.FC = () => {
   return (
     <AppScreen scroll={false}>
       <View style={styles.appbar}>
-        <Text style={styles.title}>Overview</Text>
-        <Text style={styles.subtitle}>Today, {todayLabel()}</Text>
+        <View style={styles.appbarTopRow}>
+          <View>
+            <Text style={styles.title}>Overview</Text>
+            <Text style={styles.subtitle}>Today, {todayLabel()}</Text>
+          </View>
+          <Pressable style={styles.settingsButton} onPress={() => navigation.navigate('Settings')}>
+            <Text style={styles.settingsButtonText}>⚙</Text>
+          </Pressable>
+        </View>
         <View style={styles.branchChip}>
           <Text style={styles.branchChipText}>{user?.branchId ? branch?.branchName ?? '…' : 'All Branches ▾'}</Text>
         </View>
@@ -74,10 +84,10 @@ export const AdminDashboardScreen: React.FC = () => {
         ) : (
           <>
             <View style={styles.statGrid}>
-              <StatCard num={summary.ordersToday} label="Orders Today" />
-              <StatCard num={`₹${summary.revenueToday}`} label="Revenue Today" />
-              <StatCard num={`₹${summary.outstandingDues}`} label="Outstanding Dues" />
-              <StatCard num={summary.branchesActive} label="Branches Active" />
+              <StatCard num={summary.ordersToday} label="Orders Today" styles={styles} />
+              <StatCard num={`₹${summary.revenueToday}`} label="Revenue Today" styles={styles} />
+              <StatCard num={`₹${summary.outstandingDues}`} label="Outstanding Dues" styles={styles} />
+              <StatCard num={summary.branchesActive} label="Branches Active" styles={styles} />
             </View>
 
             <Text style={styles.sectionTitle}>Needs Attention</Text>
@@ -112,107 +122,129 @@ export const AdminDashboardScreen: React.FC = () => {
   );
 };
 
-const StatCard: React.FC<{ num: number | string; label: string }> = ({ num, label }) => (
+const StatCard: React.FC<{ num: number | string; label: string; styles: ReturnType<typeof createStyles> }> = ({
+  num,
+  label,
+  styles,
+}) => (
   <View style={styles.statCard}>
     <Text style={styles.statNum}>{num}</Text>
     <Text style={styles.statLabel}>{label}</Text>
   </View>
 );
 
-const styles = StyleSheet.create({
-  appbar: {
-    backgroundColor: colors.navyDeep,
-    padding: spacing.lg,
-    paddingBottom: 14,
-  },
-  title: {
-    fontFamily: 'Lora_600SemiBold',
-    fontSize: 16,
-    color: colors.cream,
-  },
-  subtitle: {
-    fontSize: 10,
-    color: '#C8A67B',
-    marginTop: 2,
-  },
-  branchChip: {
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.25)',
-    borderRadius: radii.pill,
-    paddingVertical: 3,
-    paddingHorizontal: 9,
-    marginTop: spacing.sm,
-  },
-  branchChipText: {
-    fontSize: 8.5,
-    fontWeight: '700',
-    color: colors.peachBg,
-  },
-  body: {
-    flex: 1,
-    padding: 14,
-  },
-  statGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-    marginBottom: spacing.md,
-  },
-  statCard: {
-    width: '48%',
-    backgroundColor: colors.peachCard,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.lg,
-    padding: 11,
-  },
-  statNum: {
-    fontFamily: 'Lora_700Bold',
-    fontSize: 18,
-    color: colors.navyDeep,
-  },
-  statLabel: {
-    fontSize: 9,
-    color: colors.muted,
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  sectionTitle: {
-    fontSize: 12.5,
-    fontWeight: '700',
-    color: colors.navyText,
-    marginVertical: spacing.sm,
-  },
-  attentionCard: {
-    backgroundColor: colors.peachCard,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.lg,
-    padding: 12,
-    marginBottom: spacing.sm,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  attentionText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.navyText,
-  },
-  reviewChip: {
-    backgroundColor: colors.peachPrimary,
-    color: colors.white,
-    fontWeight: '800',
-    fontSize: 10.5,
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: radii.pill,
-    overflow: 'hidden',
-  },
-  empty: {
-    fontSize: 11,
-    color: colors.muted,
-  },
-});
+const createStyles = (colors: ColorTokens) =>
+  StyleSheet.create({
+    appbar: {
+      backgroundColor: colors.chrome,
+      padding: spacing.lg,
+      paddingBottom: 14,
+    },
+    appbarTopRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+    },
+    settingsButton: {
+      width: 28,
+      height: 28,
+      borderRadius: radii.pill,
+      backgroundColor: 'rgba(255,255,255,0.12)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    settingsButtonText: {
+      fontSize: 14,
+      color: colors.cream,
+    },
+    title: {
+      fontFamily: 'Lora_600SemiBold',
+      fontSize: 16,
+      color: colors.cream,
+    },
+    subtitle: {
+      fontSize: 10,
+      color: '#C8A67B',
+      marginTop: 2,
+    },
+    branchChip: {
+      alignSelf: 'flex-start',
+      backgroundColor: 'rgba(255,255,255,0.12)',
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.25)',
+      borderRadius: radii.pill,
+      paddingVertical: 3,
+      paddingHorizontal: 9,
+      marginTop: spacing.sm,
+    },
+    branchChipText: {
+      fontSize: 8.5,
+      fontWeight: '700',
+      color: colors.cream,
+    },
+    body: {
+      flex: 1,
+      padding: 14,
+    },
+    statGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: spacing.sm,
+      marginBottom: spacing.md,
+    },
+    statCard: {
+      width: '48%',
+      backgroundColor: colors.peachCard,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radii.lg,
+      padding: 11,
+    },
+    statNum: {
+      fontFamily: 'Lora_700Bold',
+      fontSize: 18,
+      color: colors.navyDeep,
+    },
+    statLabel: {
+      fontSize: 9,
+      color: colors.muted,
+      fontWeight: '600',
+      marginTop: 2,
+    },
+    sectionTitle: {
+      fontSize: 12.5,
+      fontWeight: '700',
+      color: colors.navyText,
+      marginVertical: spacing.sm,
+    },
+    attentionCard: {
+      backgroundColor: colors.peachCard,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radii.lg,
+      padding: 12,
+      marginBottom: spacing.sm,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    attentionText: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: colors.navyText,
+    },
+    reviewChip: {
+      backgroundColor: colors.peachPrimary,
+      color: colors.white,
+      fontWeight: '800',
+      fontSize: 10.5,
+      paddingVertical: 4,
+      paddingHorizontal: 10,
+      borderRadius: radii.pill,
+      overflow: 'hidden',
+    },
+    empty: {
+      fontSize: 11,
+      color: colors.muted,
+    },
+  });

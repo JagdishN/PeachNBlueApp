@@ -1,16 +1,12 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { AppScreen } from '../../components/AppScreen';
 import { NivenxaFooter } from '../../components/BrandComponents';
 import { Tag } from '../../components/Tag';
+import { useTheme } from '../../context/ThemeContext';
 import { fetchBranches, createBranch, updateBranch, Branch, BranchType } from '../../api/branches';
-import { colors, radii, spacing } from '../../theme/theme';
-
-const BRANCH_TAG: Record<BranchType, { label: string; bg: string; color: string }> = {
-  apartment: { label: 'Apartment', bg: colors.peachBg, color: colors.peachPrimaryDark },
-  area: { label: 'Area', bg: colors.successBg, color: colors.success },
-};
+import { ColorTokens, radii, spacing } from '../../theme/theme';
 
 const ADDRESS_PLACEHOLDER: Record<BranchType, string> = {
   apartment: 'Apartment complex name, street',
@@ -36,6 +32,19 @@ const emptyForm: FormState = {
 };
 
 export const BranchesScreen: React.FC = () => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  // apartment's pastel pairing is fixed regardless of theme (small
+  // self-contained badge, same treatment as theme/serviceTag.ts) — area's
+  // successBg/success pairing flips together, consistently, like elsewhere.
+  const BRANCH_TAG: Record<BranchType, { label: string; bg: string; color: string }> = useMemo(
+    () => ({
+      apartment: { label: 'Apartment', bg: '#FBE9D9', color: colors.peachPrimaryDark },
+      area: { label: 'Area', bg: colors.successBg, color: colors.success },
+    }),
+    [colors]
+  );
+
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Branch | 'new' | null>(null);
@@ -138,6 +147,7 @@ export const BranchesScreen: React.FC = () => {
               value={form.branchName}
               onChangeText={(v) => setForm({ ...form, branchName: v })}
               placeholder="Green Valley Apartments"
+              placeholderTextColor={colors.muted}
             />
 
             <Text style={styles.fieldLabel}>Type</Text>
@@ -161,6 +171,7 @@ export const BranchesScreen: React.FC = () => {
               value={form.phoneNumber}
               onChangeText={(v) => setForm({ ...form, phoneNumber: v })}
               placeholder="+91 93981 25151"
+              placeholderTextColor={colors.muted}
               keyboardType="phone-pad"
             />
 
@@ -170,6 +181,7 @@ export const BranchesScreen: React.FC = () => {
               value={form.whatsappNumber}
               onChangeText={(v) => setForm({ ...form, whatsappNumber: v })}
               placeholder="Same as phone number"
+              placeholderTextColor={colors.muted}
               keyboardType="phone-pad"
             />
 
@@ -183,7 +195,12 @@ export const BranchesScreen: React.FC = () => {
             />
 
             <Text style={styles.fieldLabel}>City</Text>
-            <TextInput style={styles.field} value={form.city} onChangeText={(v) => setForm({ ...form, city: v })} />
+            <TextInput
+              style={styles.field}
+              value={form.city}
+              onChangeText={(v) => setForm({ ...form, city: v })}
+              placeholderTextColor={colors.muted}
+            />
 
             {error && <Text style={styles.error}>{error}</Text>}
 
@@ -205,145 +222,147 @@ export const BranchesScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  appbar: {
-    backgroundColor: colors.navyDeep,
-    padding: spacing.lg,
-    paddingBottom: 14,
-  },
-  title: {
-    fontFamily: 'Lora_600SemiBold',
-    fontSize: 16,
-    color: colors.cream,
-  },
-  subtitle: {
-    fontSize: 10,
-    color: '#C8A67B',
-    marginTop: 2,
-  },
-  body: {
-    flex: 1,
-    padding: 14,
-  },
-  card: {
-    backgroundColor: colors.peachCard,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.lg,
-    padding: 12,
-    marginBottom: 10,
-  },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  cardTitle: {
-    fontSize: 12.5,
-    fontWeight: '700',
-    color: colors.navyText,
-  },
-  cardSub: {
-    fontSize: 10.5,
-    color: colors.muted,
-    marginTop: 2,
-  },
-  addButton: {
-    backgroundColor: colors.peachPrimary,
-    borderRadius: radii.md,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-    marginTop: spacing.xs,
-  },
-  addButtonText: {
-    color: colors.white,
-    fontWeight: '700',
-    fontSize: 11.5,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(14,33,66,0.4)',
-    justifyContent: 'flex-end',
-  },
-  modalCard: {
-    backgroundColor: colors.cream,
-    borderTopLeftRadius: radii.lg,
-    borderTopRightRadius: radii.lg,
-    padding: spacing.lg,
-    maxHeight: '85%',
-  },
-  modalTitle: {
-    fontFamily: 'Lora_600SemiBold',
-    fontSize: 15,
-    color: colors.navyDeep,
-    marginBottom: spacing.md,
-  },
-  fieldLabel: {
-    fontSize: 9.5,
-    fontWeight: '700',
-    color: colors.navyText,
-    marginBottom: spacing.xs,
-  },
-  field: {
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.md,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    fontSize: 13,
-    color: colors.navyText,
-    marginBottom: spacing.sm,
-  },
-  typeToggleRow: {
-    flexDirection: 'row',
-    gap: spacing.xs,
-    marginBottom: spacing.sm,
-  },
-  typeToggle: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
-    borderRadius: radii.sm,
-    borderWidth: 1.5,
-    borderColor: colors.navyDeep,
-  },
-  typeToggleActive: {
-    backgroundColor: colors.navyDeep,
-  },
-  typeToggleText: {
-    fontSize: 10.5,
-    fontWeight: '700',
-    color: colors.navyDeep,
-  },
-  typeToggleTextActive: {
-    color: colors.peachBg,
-  },
-  error: {
-    color: colors.danger,
-    fontSize: 11,
-    marginBottom: spacing.sm,
-  },
-  saveButton: {
-    backgroundColor: colors.peachPrimary,
-    borderRadius: radii.md,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-    marginTop: spacing.xs,
-  },
-  saveButtonDisabled: {
-    opacity: 0.7,
-  },
-  saveButtonText: {
-    color: colors.white,
-    fontWeight: '700',
-    fontSize: 12,
-  },
-  cancelButton: {
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
-  },
-  cancelButtonText: {
-    color: colors.muted,
-    fontSize: 11,
-  },
-});
+const createStyles = (colors: ColorTokens) =>
+  StyleSheet.create({
+    appbar: {
+      backgroundColor: colors.chrome,
+      padding: spacing.lg,
+      paddingBottom: 14,
+    },
+    title: {
+      fontFamily: 'Lora_600SemiBold',
+      fontSize: 16,
+      color: colors.cream,
+    },
+    subtitle: {
+      fontSize: 10,
+      color: '#C8A67B',
+      marginTop: 2,
+    },
+    body: {
+      flex: 1,
+      padding: 14,
+    },
+    card: {
+      backgroundColor: colors.peachCard,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radii.lg,
+      padding: 12,
+      marginBottom: 10,
+    },
+    nameRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    cardTitle: {
+      fontSize: 12.5,
+      fontWeight: '700',
+      color: colors.navyText,
+    },
+    cardSub: {
+      fontSize: 10.5,
+      color: colors.muted,
+      marginTop: 2,
+    },
+    addButton: {
+      backgroundColor: colors.peachPrimary,
+      borderRadius: radii.md,
+      paddingVertical: spacing.md,
+      alignItems: 'center',
+      marginTop: spacing.xs,
+    },
+    addButtonText: {
+      color: colors.white,
+      fontWeight: '700',
+      fontSize: 11.5,
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(14,33,66,0.4)',
+      justifyContent: 'flex-end',
+    },
+    modalCard: {
+      backgroundColor: colors.surface,
+      borderTopLeftRadius: radii.lg,
+      borderTopRightRadius: radii.lg,
+      padding: spacing.lg,
+      maxHeight: '85%',
+    },
+    modalTitle: {
+      fontFamily: 'Lora_600SemiBold',
+      fontSize: 15,
+      color: colors.navyDeep,
+      marginBottom: spacing.md,
+    },
+    fieldLabel: {
+      fontSize: 9.5,
+      fontWeight: '700',
+      color: colors.navyText,
+      marginBottom: spacing.xs,
+    },
+    field: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radii.md,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+      fontSize: 13,
+      color: colors.navyText,
+      marginBottom: spacing.sm,
+    },
+    typeToggleRow: {
+      flexDirection: 'row',
+      gap: spacing.xs,
+      marginBottom: spacing.sm,
+    },
+    typeToggle: {
+      flex: 1,
+      alignItems: 'center',
+      paddingVertical: spacing.sm,
+      borderRadius: radii.sm,
+      borderWidth: 1.5,
+      borderColor: colors.navyDeep,
+    },
+    typeToggleActive: {
+      backgroundColor: colors.chrome,
+      borderColor: colors.chrome,
+    },
+    typeToggleText: {
+      fontSize: 10.5,
+      fontWeight: '700',
+      color: colors.navyDeep,
+    },
+    typeToggleTextActive: {
+      color: colors.cream,
+    },
+    error: {
+      color: colors.danger,
+      fontSize: 11,
+      marginBottom: spacing.sm,
+    },
+    saveButton: {
+      backgroundColor: colors.peachPrimary,
+      borderRadius: radii.md,
+      paddingVertical: spacing.md,
+      alignItems: 'center',
+      marginTop: spacing.xs,
+    },
+    saveButtonDisabled: {
+      opacity: 0.7,
+    },
+    saveButtonText: {
+      color: colors.white,
+      fontWeight: '700',
+      fontSize: 12,
+    },
+    cancelButton: {
+      alignItems: 'center',
+      paddingVertical: spacing.sm,
+    },
+    cancelButtonText: {
+      color: colors.muted,
+      fontSize: 11,
+    },
+  });

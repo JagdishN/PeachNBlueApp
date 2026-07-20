@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+ import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -6,11 +6,12 @@ import { AppScreen } from '../../components/AppScreen';
 import { PriceChip } from '../../components/PriceChip';
 import { Tag } from '../../components/Tag';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import { fetchGarments, Garment } from '../../api/garments';
 import { createOrder } from '../../api/orders';
 import { ApiError } from '../../api/client';
-import { colors, radii, spacing } from '../../theme/theme';
-import { SERVICE_TAG } from '../../theme/serviceTag';
+import { ColorTokens, radii, spacing } from '../../theme/theme';
+import { getServiceTag } from '../../theme/serviceTag';
 import type { StaffStackParamList } from '../../navigation/StaffStack';
 
 type Nav = NativeStackNavigationProp<StaffStackParamList, 'NewOrderEntry'>;
@@ -23,6 +24,9 @@ const LAUNDRY_MINIMUM_KG = 5;
 export const NewOrderEntryScreen: React.FC = () => {
   const navigation = useNavigation<Nav>();
   const { state } = useAuth();
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const serviceTag = useMemo(() => getServiceTag(colors), [colors]);
   const user = state.status === 'signedIn' ? state.user : null;
 
   const [garments, setGarments] = useState<Garment[]>([]);
@@ -208,14 +212,13 @@ export const NewOrderEntryScreen: React.FC = () => {
   const renderGarmentRow = (garment: Garment, isLast: boolean) => {
     if (garment.pricingUnit === 'per_kg') {
       const weightText = weights[garment.id] ?? '';
-      const weightValue = parseFloat(weightText) || 0;
 
       return (
         <View key={garment.id} style={[styles.garmentRow, isLast && styles.garmentRowLast]}>
           <View style={styles.garmentInfo}>
             <View style={styles.garmentNameRow}>
               <Text style={styles.garmentName}>{garment.itemName}</Text>
-              <Tag {...SERVICE_TAG[garment.serviceType]} />
+              <Tag {...serviceTag[garment.serviceType]} />
             </View>
             <Text style={styles.garmentPrice}>₹{garment.price} / kg</Text>
           </View>
@@ -225,6 +228,7 @@ export const NewOrderEntryScreen: React.FC = () => {
               value={weightText}
               onChangeText={(text) => setWeights((prev) => ({ ...prev, [garment.id]: text }))}
               placeholder="0.0"
+              placeholderTextColor={colors.muted}
               keyboardType="decimal-pad"
             />
             <Text style={styles.weightUnit}>kg</Text>
@@ -238,7 +242,7 @@ export const NewOrderEntryScreen: React.FC = () => {
         <View style={styles.garmentInfo}>
           <View style={styles.garmentNameRow}>
             <Text style={styles.garmentName}>{garment.itemName}</Text>
-            <Tag {...SERVICE_TAG[garment.serviceType]} />
+            <Tag {...serviceTag[garment.serviceType]} />
           </View>
           {garment.priceMax !== null ? (
             <View style={styles.priceRangeRow}>
@@ -260,6 +264,7 @@ export const NewOrderEntryScreen: React.FC = () => {
                 value={enteredPrices[garment.id] ?? ''}
                 onChangeText={(text) => setEnteredPrices((prev) => ({ ...prev, [garment.id]: text }))}
                 placeholder={`${garment.price}`}
+                placeholderTextColor={colors.muted}
                 keyboardType="decimal-pad"
               />
             </View>
@@ -292,17 +297,30 @@ export const NewOrderEntryScreen: React.FC = () => {
 
       <View style={styles.body}>
         <Text style={styles.fieldLabel}>Customer Name</Text>
-        <TextInput style={styles.field} value={customerName} onChangeText={setCustomerName} placeholder="Priya Menon" />
+        <TextInput
+          style={styles.field}
+          value={customerName}
+          onChangeText={setCustomerName}
+          placeholder="Priya Menon"
+          placeholderTextColor={colors.muted}
+        />
         <Text style={styles.fieldLabel}>Phone Number</Text>
         <TextInput
           style={styles.field}
           value={customerPhoneNumber}
           onChangeText={setCustomerPhoneNumber}
           placeholder="+91 98xxxxxx45"
+          placeholderTextColor={colors.muted}
           keyboardType="phone-pad"
         />
         <Text style={styles.fieldLabel}>Location (flat / house / shop no.)</Text>
-        <TextInput style={styles.field} value={locationLabel} onChangeText={setLocationLabel} placeholder="A-304" />
+        <TextInput
+          style={styles.field}
+          value={locationLabel}
+          onChangeText={setLocationLabel}
+          placeholder="A-304"
+          placeholderTextColor={colors.muted}
+        />
 
         <Text style={styles.sectionTitle}>Garments Collected</Text>
 
@@ -343,230 +361,231 @@ export const NewOrderEntryScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  appbar: {
-    backgroundColor: colors.navyDeep,
-    padding: spacing.lg,
-    paddingBottom: 14,
-  },
-  title: {
-    fontFamily: 'Lora_600SemiBold',
-    fontSize: 16,
-    color: colors.cream,
-  },
-  subtitle: {
-    fontSize: 10,
-    color: '#C8A67B',
-    marginTop: 2,
-  },
-  body: {
-    flex: 1,
-    padding: 14,
-  },
-  fieldLabel: {
-    fontSize: 9.5,
-    fontWeight: '700',
-    color: colors.navyText,
-    marginBottom: spacing.xs,
-  },
-  field: {
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.md,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    fontSize: 13,
-    color: colors.navyText,
-    marginBottom: spacing.sm,
-  },
-  sectionTitle: {
-    fontSize: 12.5,
-    fontWeight: '700',
-    color: colors.navyText,
-    marginTop: spacing.sm,
-    marginBottom: spacing.sm,
-  },
-  garmentScroll: {
-    flex: 1,
-  },
-  categoryBlock: {
-    marginBottom: spacing.md,
-  },
-  categoryHeader: {
-    fontSize: 10.5,
-    fontWeight: '800',
-    color: colors.muted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-    marginBottom: spacing.xs,
-  },
-  garmentCard: {
-    backgroundColor: colors.peachCard,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.lg,
-    padding: 13,
-  },
-  garmentRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 9,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    borderStyle: 'dashed',
-  },
-  garmentRowLast: {
-    borderBottomWidth: 0,
-  },
-  garmentInfo: {
-    flexShrink: 1,
-    paddingRight: spacing.sm,
-  },
-  garmentNameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  garmentName: {
-    fontSize: 11.5,
-    fontWeight: '600',
-    color: colors.navyText,
-  },
-  garmentPrice: {
-    fontSize: 10.5,
-    color: colors.muted,
-    marginTop: 2,
-  },
-  priceRangeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    marginTop: 2,
-  },
-  priceStepperBtn: {
-    width: 18,
-    height: 18,
-    borderRadius: 5,
-    backgroundColor: colors.peachBg,
-    borderWidth: 1,
-    borderColor: colors.peachPrimary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  startingPriceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    marginTop: 2,
-  },
-  startingPriceInput: {
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.peachPrimary,
-    borderRadius: 6,
-    paddingVertical: 2,
-    paddingHorizontal: spacing.xs,
-    fontSize: 10.5,
-    color: colors.navyText,
-    minWidth: 54,
-  },
-  weightInputWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-  },
-  weightInput: {
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.peachPrimary,
-    borderRadius: 6,
-    paddingVertical: 4,
-    paddingHorizontal: spacing.sm,
-    fontSize: 12,
-    color: colors.navyText,
-    minWidth: 56,
-    textAlign: 'right',
-  },
-  weightUnit: {
-    fontSize: 10.5,
-    color: colors.muted,
-    fontWeight: '600',
-  },
-  minimumNote: {
-    fontSize: 9.5,
-    color: colors.danger,
-    marginTop: 2,
-  },
-  minimumBanner: {
-    fontSize: 10,
-    color: colors.warning,
-    backgroundColor: colors.warningBg,
-    borderRadius: radii.sm,
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.sm,
-    marginTop: spacing.sm,
-  },
-  stepper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  stepperBtn: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    backgroundColor: colors.peachBg,
-    borderWidth: 1,
-    borderColor: colors.peachPrimary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stepperBtnText: {
-    color: colors.navyDeep,
-    fontWeight: '800',
-    fontSize: 14,
-  },
-  stepperNum: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.navyText,
-    minWidth: 16,
-    textAlign: 'center',
-  },
-  totalBar: {
-    backgroundColor: colors.navyDeep,
-    borderRadius: radii.lg,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: spacing.sm,
-  },
-  totalLabel: {
-    fontSize: 10,
-    color: '#C8A67B',
-    fontWeight: '600',
-  },
-  error: {
-    color: colors.danger,
-    fontSize: 11,
-    marginTop: spacing.sm,
-  },
-  confirmButton: {
-    backgroundColor: colors.peachPrimary,
-    borderRadius: radii.md,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-    marginTop: spacing.md,
-  },
-  confirmButtonDisabled: {
-    opacity: 0.7,
-  },
-  confirmButtonText: {
-    color: colors.white,
-    fontWeight: '700',
-    fontSize: 11.5,
-  },
-});
+const createStyles = (colors: ColorTokens) =>
+  StyleSheet.create({
+    appbar: {
+      backgroundColor: colors.chrome,
+      padding: spacing.lg,
+      paddingBottom: 14,
+    },
+    title: {
+      fontFamily: 'Lora_600SemiBold',
+      fontSize: 16,
+      color: colors.cream,
+    },
+    subtitle: {
+      fontSize: 10,
+      color: '#C8A67B',
+      marginTop: 2,
+    },
+    body: {
+      flex: 1,
+      padding: 14,
+    },
+    fieldLabel: {
+      fontSize: 9.5,
+      fontWeight: '700',
+      color: colors.navyText,
+      marginBottom: spacing.xs,
+    },
+    field: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radii.md,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+      fontSize: 13,
+      color: colors.navyText,
+      marginBottom: spacing.sm,
+    },
+    sectionTitle: {
+      fontSize: 12.5,
+      fontWeight: '700',
+      color: colors.navyText,
+      marginTop: spacing.sm,
+      marginBottom: spacing.sm,
+    },
+    garmentScroll: {
+      flex: 1,
+    },
+    categoryBlock: {
+      marginBottom: spacing.md,
+    },
+    categoryHeader: {
+      fontSize: 10.5,
+      fontWeight: '800',
+      color: colors.muted,
+      textTransform: 'uppercase',
+      letterSpacing: 0.4,
+      marginBottom: spacing.xs,
+    },
+    garmentCard: {
+      backgroundColor: colors.peachCard,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radii.lg,
+      padding: 13,
+    },
+    garmentRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: 9,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      borderStyle: 'dashed',
+    },
+    garmentRowLast: {
+      borderBottomWidth: 0,
+    },
+    garmentInfo: {
+      flexShrink: 1,
+      paddingRight: spacing.sm,
+    },
+    garmentNameRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    garmentName: {
+      fontSize: 11.5,
+      fontWeight: '600',
+      color: colors.navyText,
+    },
+    garmentPrice: {
+      fontSize: 10.5,
+      color: colors.muted,
+      marginTop: 2,
+    },
+    priceRangeRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs,
+      marginTop: 2,
+    },
+    priceStepperBtn: {
+      width: 18,
+      height: 18,
+      borderRadius: 5,
+      backgroundColor: colors.peachBg,
+      borderWidth: 1,
+      borderColor: colors.peachPrimary,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    startingPriceRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs,
+      marginTop: 2,
+    },
+    startingPriceInput: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.peachPrimary,
+      borderRadius: 6,
+      paddingVertical: 2,
+      paddingHorizontal: spacing.xs,
+      fontSize: 10.5,
+      color: colors.navyText,
+      minWidth: 54,
+    },
+    weightInputWrap: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs,
+    },
+    weightInput: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.peachPrimary,
+      borderRadius: 6,
+      paddingVertical: 4,
+      paddingHorizontal: spacing.sm,
+      fontSize: 12,
+      color: colors.navyText,
+      minWidth: 56,
+      textAlign: 'right',
+    },
+    weightUnit: {
+      fontSize: 10.5,
+      color: colors.muted,
+      fontWeight: '600',
+    },
+    minimumNote: {
+      fontSize: 9.5,
+      color: colors.danger,
+      marginTop: 2,
+    },
+    minimumBanner: {
+      fontSize: 10,
+      color: colors.warning,
+      backgroundColor: colors.warningBg,
+      borderRadius: radii.sm,
+      paddingVertical: spacing.xs,
+      paddingHorizontal: spacing.sm,
+      marginTop: spacing.sm,
+    },
+    stepper: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+    },
+    stepperBtn: {
+      width: 24,
+      height: 24,
+      borderRadius: 6,
+      backgroundColor: colors.peachBg,
+      borderWidth: 1,
+      borderColor: colors.peachPrimary,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    stepperBtnText: {
+      color: colors.navyDeep,
+      fontWeight: '800',
+      fontSize: 14,
+    },
+    stepperNum: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.navyText,
+      minWidth: 16,
+      textAlign: 'center',
+    },
+    totalBar: {
+      backgroundColor: colors.chrome,
+      borderRadius: radii.lg,
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.lg,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginTop: spacing.sm,
+    },
+    totalLabel: {
+      fontSize: 10,
+      color: '#C8A67B',
+      fontWeight: '600',
+    },
+    error: {
+      color: colors.danger,
+      fontSize: 11,
+      marginTop: spacing.sm,
+    },
+    confirmButton: {
+      backgroundColor: colors.peachPrimary,
+      borderRadius: radii.md,
+      paddingVertical: spacing.md,
+      alignItems: 'center',
+      marginTop: spacing.md,
+    },
+    confirmButtonDisabled: {
+      opacity: 0.7,
+    },
+    confirmButtonText: {
+      color: colors.white,
+      fontWeight: '700',
+      fontSize: 11.5,
+    },
+  });

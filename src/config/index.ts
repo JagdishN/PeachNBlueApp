@@ -32,6 +32,10 @@ export const SUPABASE_PUBLISHABLE_KEY = getEnv('SUPABASE_PUBLISHABLE_KEY');
 export const SUPABASE_SECRET_KEY = getEnv('SUPABASE_SECRET_KEY');
 export const SUPABASE_JWKS_URL = getEnv('SUPABASE_JWKS_URL');
 
+export const RAZORPAY_KEY_ID = getEnv('RAZORPAY_KEY_ID');
+export const RAZORPAY_KEY_SECRET = getEnv('RAZORPAY_KEY_SECRET');
+export const RAZORPAY_WEBHOOK_SECRET = getEnv('RAZORPAY_WEBHOOK_SECRET');
+
 if (!DATABASE_URL) {
   throw new Error('DATABASE_URL is required in environment variables.');
 }
@@ -46,4 +50,8 @@ if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) {
 
 if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY || !SUPABASE_SECRET_KEY) {
   console.warn('Warning: SUPABASE_URL/SUPABASE_PUBLISHABLE_KEY/SUPABASE_SECRET_KEY not fully set. Supabase-backed features will be unavailable.');
+}
+
+if (!RAZORPAY_KEY_ID || !RAZORPAY_KEY_SECRET) {
+  console.warn('Warning: RAZORPAY_KEY_ID/RAZORPAY_KEY_SECRET not set. Invoice payment links will fail to generate.');
 }

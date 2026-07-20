@@ -320,6 +320,20 @@ model Invoice {
   invoiceNumber String @unique @map("invoice_number") @db.VarChar(30)
   pdfUrl      String?  @map("pdf_url")
   qrCodeUrl   String?  @map("qr_code_url")
+  // Razorpay Payment Link id (for cancellation) and short_url (sent to the
+  // customer) — see CLAUDE.md "Per-flat discounts — RESOLVED" invoice-reissue
+  // mechanism. Distinct from qrCodeUrl, which holds the QR *image* URL.
+  razorpayPaymentLinkId String? @map("razorpay_payment_link_id") @db.VarChar(100)
+  paymentLinkUrl        String? @map("payment_link_url")
+  // Values: created | paid | cancelled | expired
+  paymentLinkStatus     String? @default("created") @map("payment_link_status") @db.VarChar(20)
+  // Payable amount this invoice version reflects (order.finalAmount minus any
+  // customer discount) — lets reissue diff against what was last invoiced.
+  amount      Decimal? @db.Decimal(10, 2)
+  // Incremented on every reissue; suffixes invoiceNumber (e.g. "-R2") so
+  // reissued invoices are distinguishable without a separate history table —
+  // audit trail of every version sent lives in communications_log instead.
+  version     Int      @default(1)
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@map("invoices")
@@ -331,7 +345,7 @@ model CommunicationLog {
   customerId   String                      @map("customer_id") @db.Uuid
   order        Order?                      @relation(fields: [orderId], references: [id])
   orderId      String?                     @map("order_id") @db.Uuid
-  // Values: pickup_confirmation | amount_revision | delivery_confirmation | payment_receipt | monthly_statement | payment_reminder
+  // Values: pickup_confirmation | amount_revision | delivery_confirmation | payment_receipt | monthly_statement | payment_reminder | invoice_reissued
   messageType  String                      @map("message_type") @db.VarChar(30)
   // Values: whatsapp | sms
   channel      String                      @db.VarChar(20)
