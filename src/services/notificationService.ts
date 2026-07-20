@@ -1,4 +1,4 @@
-import { CommunicationMessageType } from '@prisma/client';
+import { CommunicationMessageType } from '../types/enums';
 import prisma from '../prisma/client';
 import { sendSms, sendWhatsApp } from '../lib/twilioClient';
 

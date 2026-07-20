@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { OrderInternalStatus } from '@prisma/client';
+import { OrderInternalStatus } from '../types/enums';
 import prisma from '../prisma/client';
 import { sendNotification } from './notificationService';
 import { recordCharge } from './ledgerService';
@@ -24,12 +24,22 @@ const generateOrderNumber = (): string => {
   return `PB-${suffix}`;
 };
 
+// Sourced from garments-seed-data-v2.json businessInfo.laundryMinimumKg —
+// the client's rate card states "Minimum 5 Kg applicable for laundry
+// services" for the per-KG tier. Order-level, not per-item: see CLAUDE.md
+// "Major pricing model update".
+const LAUNDRY_MINIMUM_KG = 5;
+
 interface CreateOrderItemInput {
   garmentId: string;
-  quantity: number;
+  // Per-piece garments (pricingUnit "per_piece").
+  quantity?: number;
+  // Per-KG garments (pricingUnit "per_kg") — weight staff measured at pickup.
+  weightKg?: number;
   // Required when the garment has a priceMax (a price-range item, e.g.
-  // Designer Dress ₹80–₹150) — staff pick the final price at pickup.
-  // Ignored for fixed-price garments, which always use garment.price.
+  // Designer Dress ₹80–₹150) or isStartingPrice (a floor price, e.g. Sofa
+  // Cover) — staff pick/enter the final price at pickup. Ignored for
+  // fixed-price garments, which always use garment.price.
   chosenPrice?: number;
 }
 
@@ -65,6 +75,26 @@ export const createOrder = async (input: CreateOrderInput) => {
       throw err;
     }
 
+    if (garment.pricingUnit === 'per_kg') {
+      if (item.weightKg === undefined || item.weightKg <= 0) {
+        const err = new Error(`${garment.itemName} is billed per kg; weightKg (greater than 0) is required.`);
+        (err as any).status = 400;
+        throw err;
+      }
+
+      const pricePerKg = Number(garment.price);
+      return {
+        garmentId: garment.id,
+        itemName: garment.itemName,
+        quantity: null,
+        unitPrice: null,
+        weightKg: item.weightKg,
+        pricePerKg,
+        // May be scaled up below to honor the order-level 5kg minimum.
+        lineTotal: item.weightKg * pricePerKg,
+      };
+    }
+
     const priceMax = garment.priceMax !== null ? Number(garment.priceMax) : null;
     let unitPrice = Number(garment.price);
 
@@ -84,17 +114,53 @@ export const createOrder = async (input: CreateOrderInput) => {
         throw err;
       }
       unitPrice = item.chosenPrice;
+    } else if (garment.isStartingPrice) {
+      if (item.chosenPrice === undefined) {
+        const err = new Error(`${garment.itemName} is priced from ₹${garment.price} onwards; chosenPrice is required.`);
+        (err as any).status = 400;
+        throw err;
+      }
+      if (item.chosenPrice < unitPrice) {
+        const err = new Error(`chosenPrice for ${garment.itemName} must be at least ₹${garment.price}.`);
+        (err as any).status = 400;
+        throw err;
+      }
+      unitPrice = item.chosenPrice;
     }
 
-    const lineTotal = unitPrice * item.quantity;
+    if (item.quantity === undefined || item.quantity <= 0) {
+      const err = new Error(`${garment.itemName} requires a quantity (greater than 0).`);
+      (err as any).status = 400;
+      throw err;
+    }
+
     return {
       garmentId: garment.id,
       itemName: garment.itemName,
       quantity: item.quantity,
       unitPrice,
-      lineTotal,
+      weightKg: null,
+      pricePerKg: null,
+      lineTotal: unitPrice * item.quantity,
     };
   });
+
+  // Order-level 5kg minimum charge on per-KG lines (CLAUDE.md "Major pricing
+  // model update"). Computed here rather than stored on the order, matching
+  // this codebase's derive-don't-duplicate convention (see internalStatus
+  // vs the customer-facing status label). When mixed per-KG items fall
+  // short of the minimum, each line is scaled up proportionally so
+  // per-line totals still sum to the order total — needed for the invoice
+  // to itemize correctly rather than showing an unexplained top-up.
+  const perKgItems = itemsToCreate.filter((item) => item.weightKg !== null);
+  const totalPerKgWeight = perKgItems.reduce((sum, item) => sum + item.weightKg!, 0);
+
+  if (perKgItems.length > 0 && totalPerKgWeight < LAUNDRY_MINIMUM_KG) {
+    const scaleFactor = LAUNDRY_MINIMUM_KG / totalPerKgWeight;
+    for (const item of perKgItems) {
+      item.lineTotal = Math.round(item.lineTotal * scaleFactor * 100) / 100;
+    }
+  }
 
   const estimatedAmount = itemsToCreate.reduce((sum, item) => sum + item.lineTotal, 0);
 
