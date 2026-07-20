@@ -2,9 +2,10 @@
 // response — referenced by both the primary defense (role-aware Prisma
 // select, src/utils/roleAwareSelect.ts) and the secondary safety net
 // (response-shaping middleware, src/middleware/staffFieldFilter.ts).
-// discountPercent is the first entry; more admin-only financial fields are
-// expected (CLAUDE.md's "monthly plans and discounts, admin-only" future
-// feature) — add to this list, don't hardcode a new string elsewhere.
-export const STAFF_HIDDEN_FIELDS = ['discountPercent'] as const;
+// discountEnabled joins discountPercent here (CLAUDE.md "Monthly billing +
+// discount: now live") — same sensitivity, same treatment. Note billingMode
+// is deliberately NOT in this list despite also being admin-only to change:
+// staff need to read it at delivery to know whether to collect payment.
+export const STAFF_HIDDEN_FIELDS = ['discountPercent', 'discountEnabled'] as const;
 
 export type StaffHiddenField = (typeof STAFF_HIDDEN_FIELDS)[number];

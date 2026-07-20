@@ -2,7 +2,14 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const getEnv = (key: string, fallback = ''): string => process.env[key] ?? fallback;
+// `??` alone doesn't catch an env var that's *present but empty* (e.g.
+// `JWT_SECRET=` in .env) — that's '' , not null/undefined, so `??` never
+// falls back to `fallback`. An empty secret is never useful (jsonwebtoken
+// rejects it outright for JWT_SECRET), so treat '' the same as unset here.
+const getEnv = (key: string, fallback = ''): string => {
+  const value = process.env[key];
+  return value === undefined || value === '' ? fallback : value;
+};
 
 export const NODE_ENV = getEnv('NODE_ENV', 'development');
 export const PORT = Number(getEnv('PORT', '4000'));
