@@ -1,11 +1,12 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import { AppScreen } from '../../components/AppScreen';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import { getOrder, updateOrderStatus, reviseOrderAmount, Order, InternalStatus } from '../../api/orders';
 import { ApiError } from '../../api/client';
-import { colors, radii, spacing } from '../../theme/theme';
+import { ColorTokens, radii, spacing } from '../../theme/theme';
 
 type OrderStatusRoute = RouteProp<{ OrderStatus: { orderId: string } }, 'OrderStatus'>;
 
@@ -34,6 +35,8 @@ const nextStatusLabel: Partial<Record<InternalStatus, string>> = {
 export const OrderStatusScreen: React.FC = () => {
   const route = useRoute<OrderStatusRoute>();
   const { state } = useAuth();
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const user = state.status === 'signedIn' ? state.user : null;
 
   const [order, setOrder] = useState<Order | null>(null);
@@ -177,6 +180,7 @@ export const OrderStatusScreen: React.FC = () => {
               value={reason}
               onChangeText={setReason}
               placeholder="e.g. Saree needed stain treatment"
+              placeholderTextColor={colors.muted}
               multiline
             />
 
@@ -196,122 +200,123 @@ export const OrderStatusScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  appbar: {
-    backgroundColor: colors.navyDeep,
-    padding: spacing.lg,
-    paddingBottom: 14,
-    marginHorizontal: -14,
-    marginTop: -14,
-  },
-  title: {
-    fontFamily: 'Lora_600SemiBold',
-    fontSize: 16,
-    color: colors.cream,
-  },
-  subtitle: {
-    fontSize: 10,
-    color: '#C8A67B',
-    marginTop: 2,
-  },
-  body: {
-    paddingTop: spacing.lg,
-  },
-  sectionTitle: {
-    fontSize: 12.5,
-    fontWeight: '700',
-    color: colors.navyText,
-    marginBottom: spacing.sm,
-  },
-  track: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  dot: {
-    width: 9,
-    height: 9,
-    borderRadius: 5,
-    backgroundColor: colors.border,
-  },
-  dotDone: {
-    backgroundColor: colors.success,
-  },
-  dotNow: {
-    backgroundColor: colors.peachPrimary,
-  },
-  line: {
-    flex: 1,
-    height: 2,
-    backgroundColor: colors.border,
-  },
-  lineDone: {
-    backgroundColor: colors.success,
-  },
-  trackLabels: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: spacing.lg,
-  },
-  trackLabel: {
-    fontSize: 7.5,
-    fontWeight: '700',
-    color: colors.muted,
-  },
-  error: {
-    color: colors.danger,
-    fontSize: 11,
-    marginBottom: spacing.sm,
-  },
-  advanceButton: {
-    backgroundColor: colors.peachPrimary,
-    borderRadius: radii.md,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-    marginTop: spacing.xs,
-  },
-  advanceButtonDisabled: {
-    opacity: 0.7,
-  },
-  advanceButtonText: {
-    color: colors.white,
-    fontWeight: '700',
-    fontSize: 11.5,
-  },
-  revisionCard: {
-    backgroundColor: colors.peachCard,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.lg,
-    padding: 13,
-    marginTop: spacing.lg,
-  },
-  fieldLabel: {
-    fontSize: 9.5,
-    fontWeight: '700',
-    color: colors.navyText,
-    marginTop: spacing.sm,
-    marginBottom: spacing.xs,
-  },
-  readOnlyField: {
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.md,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    fontSize: 13,
-    color: colors.muted,
-  },
-  field: {
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.md,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    fontSize: 13,
-    color: colors.navyDeep,
-    fontWeight: '700',
-  },
-});
+const createStyles = (colors: ColorTokens) =>
+  StyleSheet.create({
+    appbar: {
+      backgroundColor: colors.chrome,
+      padding: spacing.lg,
+      paddingBottom: 14,
+      marginHorizontal: -14,
+      marginTop: -14,
+    },
+    title: {
+      fontFamily: 'Lora_600SemiBold',
+      fontSize: 16,
+      color: colors.cream,
+    },
+    subtitle: {
+      fontSize: 10,
+      color: '#C8A67B',
+      marginTop: 2,
+    },
+    body: {
+      paddingTop: spacing.lg,
+    },
+    sectionTitle: {
+      fontSize: 12.5,
+      fontWeight: '700',
+      color: colors.navyText,
+      marginBottom: spacing.sm,
+    },
+    track: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 4,
+    },
+    dot: {
+      width: 9,
+      height: 9,
+      borderRadius: 5,
+      backgroundColor: colors.border,
+    },
+    dotDone: {
+      backgroundColor: colors.success,
+    },
+    dotNow: {
+      backgroundColor: colors.peachPrimary,
+    },
+    line: {
+      flex: 1,
+      height: 2,
+      backgroundColor: colors.border,
+    },
+    lineDone: {
+      backgroundColor: colors.success,
+    },
+    trackLabels: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginBottom: spacing.lg,
+    },
+    trackLabel: {
+      fontSize: 7.5,
+      fontWeight: '700',
+      color: colors.muted,
+    },
+    error: {
+      color: colors.danger,
+      fontSize: 11,
+      marginBottom: spacing.sm,
+    },
+    advanceButton: {
+      backgroundColor: colors.peachPrimary,
+      borderRadius: radii.md,
+      paddingVertical: spacing.md,
+      alignItems: 'center',
+      marginTop: spacing.xs,
+    },
+    advanceButtonDisabled: {
+      opacity: 0.7,
+    },
+    advanceButtonText: {
+      color: colors.white,
+      fontWeight: '700',
+      fontSize: 11.5,
+    },
+    revisionCard: {
+      backgroundColor: colors.peachCard,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radii.lg,
+      padding: 13,
+      marginTop: spacing.lg,
+    },
+    fieldLabel: {
+      fontSize: 9.5,
+      fontWeight: '700',
+      color: colors.navyText,
+      marginTop: spacing.sm,
+      marginBottom: spacing.xs,
+    },
+    readOnlyField: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radii.md,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+      fontSize: 13,
+      color: colors.muted,
+    },
+    field: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radii.md,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+      fontSize: 13,
+      color: colors.navyDeep,
+      fontWeight: '700',
+    },
+  });

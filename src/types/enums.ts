@@ -22,4 +22,5 @@ export type CommunicationMessageType =
   | 'delivery_confirmation'
   | 'payment_receipt'
   | 'monthly_statement'
-  | 'payment_reminder';
+  | 'payment_reminder'
+  | 'invoice_reissued';

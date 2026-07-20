@@ -12,16 +12,20 @@ interface NotifiableCustomer {
 // channels always fire, never one as a fallback for the other (CLAUDE.md).
 // Each channel writes its own communications_log row, per the schema's
 // two-rows-per-event design, regardless of whether that channel succeeded.
+// mediaUrl (e.g. an invoice PDF) is attached on WhatsApp only — SMS has no
+// attachment concept, so callers should fold a plain-text link into `body`
+// for SMS if the recipient needs a way to reach the document there too.
 export const sendNotification = async (
   customer: NotifiableCustomer,
   messageType: CommunicationMessageType,
   body: string,
-  orderId?: string
+  orderId?: string,
+  mediaUrl?: string
 ): Promise<void> => {
   const whatsappTarget = customer.whatsappNumber ?? customer.phoneNumber;
 
   const [whatsappResult, smsResult] = await Promise.allSettled([
-    sendWhatsApp(whatsappTarget, body),
+    sendWhatsApp(whatsappTarget, body, mediaUrl),
     sendSms(customer.phoneNumber, body),
   ]);
 

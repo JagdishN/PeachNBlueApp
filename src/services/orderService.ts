@@ -1,14 +1,19 @@
 import crypto from 'crypto';
-import { OrderInternalStatus } from '../types/enums';
+import { OrderInternalStatus, UserRole } from '../types/enums';
 import prisma from '../prisma/client';
 import { sendNotification } from './notificationService';
 import { recordCharge } from './ledgerService';
 import { sendToUser, sendToUsers } from './pushService';
+import { customerSelectForRole } from '../utils/roleAwareSelect';
+import { generateInvoice } from './invoiceService';
+import { reissueInvoice } from './invoiceReissue.service';
 
-// Note: ledger-charge / Razorpay QR / invoice PDF side effects on delivery
-// are intentionally NOT wired here yet — those land when the backend's
-// Razorpay/ledger/PDF work (still pending) is built. updateStatus today
-// only transitions internal_status and logs history.
+// Note: ledger-charge side effects on delivery are intentionally NOT wired
+// here yet — that lands when the backend's Razorpay/ledger delivery-time
+// work (still pending) is built. updateStatus today only transitions
+// internal_status and logs history. Invoice PDF/payment-link generation IS
+// wired, but at pickup (createOrder) and reissue (reviseAmount) — see those
+// functions below — not at delivery.
 
 const ORDER_STATUS_SEQUENCE: OrderInternalStatus[] = [
   'picked_up',
@@ -45,6 +50,7 @@ interface CreateOrderItemInput {
 
 interface CreateOrderInput {
   createdById: string;
+  createdByRole: UserRole;
   staffId?: string;
   branchId: string;
   customerName: string;
@@ -195,7 +201,7 @@ export const createOrder = async (input: CreateOrderInput) => {
         orderItems: { create: itemsToCreate },
         statusHistory: { create: { status: 'picked_up', changedById: input.createdById } },
       },
-      include: { orderItems: true, customer: true },
+      include: { orderItems: true, customer: { select: customerSelectForRole(input.createdByRole) } },
     });
   });
 
@@ -218,15 +224,36 @@ export const createOrder = async (input: CreateOrderInput) => {
     });
   }
 
+  // Invoice PDF + Razorpay payment link (CLAUDE.md: instant at pickup, not
+  // delivery) — deliberately NOT awaited. PDF generation must run as a
+  // background job, never inline with the request that completes an order
+  // (CLAUDE.md tech-stack decision), so the staff member's app isn't left
+  // waiting on PDF render + Razorpay + storage upload. This is the first
+  // genuinely fire-and-forget side effect in this file; the two-message
+  // pattern is deliberate — today's pickup_confirmation text above still
+  // fires instantly, and this follow-up lands moments later once ready.
+  generateInvoice(order.id)
+    .then((invoice) =>
+      sendNotification(
+        order.customer,
+        'pickup_confirmation',
+        `Here is your invoice for order ${order.orderNumber}. Amount: ₹${invoice.amount}. Pay online: ${invoice.paymentLinkUrl}`,
+        order.id,
+        invoice.pdfUrl ?? undefined
+      )
+    )
+    .catch((err) => console.error(`Invoice generation failed for order ${order.id}:`, err));
+
   return order;
 };
 
 interface ListOrdersFilter {
   branchId?: string;
   date?: Date;
+  role: UserRole;
 }
 
-export const listOrders = async ({ branchId, date }: ListOrdersFilter) => {
+export const listOrders = async ({ branchId, date, role }: ListOrdersFilter) => {
   const pickupDateFilter = date
     ? {
         gte: new Date(date.getFullYear(), date.getMonth(), date.getDate()),
@@ -239,19 +266,29 @@ export const listOrders = async ({ branchId, date }: ListOrdersFilter) => {
       ...(branchId ? { customer: { branchId } } : {}),
       ...(pickupDateFilter ? { pickupDate: pickupDateFilter } : {}),
     },
-    include: { customer: true, orderItems: true },
+    include: { customer: { select: customerSelectForRole(role) }, orderItems: true },
     orderBy: { createdAt: 'desc' },
   });
 };
 
-export const getOrder = async (orderId: string) => {
+export const getOrder = async (orderId: string, role: UserRole) => {
   return prisma.order.findUnique({
     where: { id: orderId },
-    include: { customer: true, orderItems: true, amountRevisions: true, statusHistory: true },
+    include: {
+      customer: { select: customerSelectForRole(role) },
+      orderItems: true,
+      amountRevisions: true,
+      statusHistory: true,
+    },
   });
 };
 
-export const updateStatus = async (orderId: string, newStatus: OrderInternalStatus, changedById: string) => {
+export const updateStatus = async (
+  orderId: string,
+  newStatus: OrderInternalStatus,
+  changedById: string,
+  role: UserRole
+) => {
   if (!ORDER_STATUS_SEQUENCE.includes(newStatus) && newStatus !== 'cancelled') {
     const err = new Error(`Invalid status: ${newStatus}`);
     (err as any).status = 400;
@@ -262,7 +299,7 @@ export const updateStatus = async (orderId: string, newStatus: OrderInternalStat
     const updated = await tx.order.update({
       where: { id: orderId },
       data: { internalStatus: newStatus },
-      include: { customer: true, orderItems: true },
+      include: { customer: { select: customerSelectForRole(role) }, orderItems: true },
     });
 
     await tx.orderStatusHistory.create({
@@ -323,6 +360,15 @@ export const reviseAmount = async (
     `Your Peach & Blue order ${order.orderNumber}'s amount was revised to ₹${newAmount}. Reason: ${reason}`,
     orderId
   );
+
+  // CLAUDE.md "Per-flat discounts — RESOLVED": an amount revision must
+  // reissue the invoice (new PDF + new payment link, old link cancelled),
+  // not just send the text notice above — otherwise the customer could
+  // still pay the stale pre-revision amount via the original link. Awaited:
+  // this whole flow is already a synchronous admin action, and the admin
+  // revising the amount should see a reissue failure, not have it silently
+  // swallowed in the background.
+  await reissueInvoice(orderId);
 
   // "Amount revision needing attention" push — flags the change to broader
   // admin oversight (unscoped admins, plus any admin scoped to this order's

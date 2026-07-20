@@ -5,12 +5,14 @@ import helmet from 'helmet';
 import authRoutes from './routes/auth';
 import userRoutes from './routes/users';
 import orderRoutes from './routes/orders';
+import customerRoutes from './routes/customers';
 import garmentRoutes from './routes/garments';
 import branchRoutes from './routes/branches';
 import ledgerRoutes from './routes/ledger';
 import reportRoutes from './routes/reports';
 import deviceRoutes from './routes/devices';
 import { errorHandler } from './middleware/errorHandler';
+import { staffFieldFilter } from './middleware/staffFieldFilter';
 import { PORT } from './config';
 
 const app = express();
@@ -18,10 +20,15 @@ const app = express();
 app.use(helmet());
 app.use(cors());
 app.use(express.json());
+// Secondary safety net for staff-hidden fields (see CLAUDE.md "Architecture
+// decision, resolved") — must stay above every route, and above any future
+// request/response logger, so it's the outermost res.json wrapper.
+app.use(staffFieldFilter);
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/v1/orders', orderRoutes);
+app.use('/api/v1/customers', customerRoutes);
 app.use('/api/v1/garments', garmentRoutes);
 app.use('/api/v1/branches', branchRoutes);
 app.use('/api/v1/ledger', ledgerRoutes);

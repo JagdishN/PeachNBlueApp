@@ -17,6 +17,7 @@ import {
   Inter_800ExtraBold,
 } from '@expo-google-fonts/inter';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
+import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { navigationRef, navigateToOrder } from './src/navigation/navigationRef';
 import { SplashScreen } from './src/screens/shared/SplashScreen';
@@ -26,9 +27,11 @@ const SPLASH_DURATION_MS = 2000;
 
 export default function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 
@@ -39,6 +42,8 @@ export default function App() {
 // has resolved — whichever finishes last.
 function AppContent() {
   const { state } = useAuth();
+  const { mode } = useTheme();
+  const statusBarStyle = mode === 'dark' ? 'light' : 'dark';
   const [loraLoaded] = useLoraFonts({ Lora_600SemiBold, Lora_600SemiBold_Italic, Lora_700Bold });
   const [interLoaded] = useInterFonts({
     Inter_400Regular,
@@ -80,7 +85,7 @@ function AppContent() {
   if (showSplash) {
     return (
       <>
-        <StatusBar style="dark" />
+        <StatusBar style={statusBarStyle} />
         <SplashScreen />
       </>
     );
@@ -88,7 +93,7 @@ function AppContent() {
 
   return (
     <NavigationContainer ref={navigationRef}>
-      <StatusBar style="dark" />
+      <StatusBar style={statusBarStyle} />
       <RootNavigator />
     </NavigationContainer>
   );

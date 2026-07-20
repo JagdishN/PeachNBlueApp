@@ -35,6 +35,7 @@ export const createOrderHandler = async (req: AuthRequest, res: Response): Promi
 
   const order = await orderService.createOrder({
     createdById: req.auth!.userId,
+    createdByRole: req.auth!.role,
     staffId,
     branchId,
     customerName,
@@ -57,13 +58,14 @@ export const listOrdersHandler = async (req: AuthRequest, res: Response): Promis
   const orders = await orderService.listOrders({
     branchId: effectiveBranchId,
     date: typeof date === 'string' ? new Date(date) : new Date(),
+    role: req.auth!.role,
   });
 
   res.status(200).json({ orders });
 };
 
 export const getOrderHandler = async (req: AuthRequest, res: Response): Promise<void> => {
-  const order = await orderService.getOrder(req.params.id);
+  const order = await orderService.getOrder(req.params.id, req.auth!.role);
 
   if (!order) {
     res.status(404).json({ error: 'Order not found' });
@@ -81,7 +83,7 @@ export const updateStatusHandler = async (req: AuthRequest, res: Response): Prom
     return;
   }
 
-  const order = await orderService.updateStatus(req.params.id, status, req.auth!.userId);
+  const order = await orderService.updateStatus(req.params.id, status, req.auth!.userId, req.auth!.role);
   res.status(200).json({ order });
 };
 

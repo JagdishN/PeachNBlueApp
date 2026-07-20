@@ -3,11 +3,12 @@ import { TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_SMS_FROM, TWILIO_WHATSAPP
 
 const client = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
 
-export const sendWhatsApp = async (toPhoneNumber: string, body: string): Promise<void> => {
+export const sendWhatsApp = async (toPhoneNumber: string, body: string, mediaUrl?: string): Promise<void> => {
   await client.messages.create({
     from: `whatsapp:${TWILIO_WHATSAPP_FROM}`,
     to: `whatsapp:${toPhoneNumber}`,
     body,
+    ...(mediaUrl ? { mediaUrl: [mediaUrl] } : {}),
   });
 };
 
