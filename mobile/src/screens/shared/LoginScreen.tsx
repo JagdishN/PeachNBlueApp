@@ -14,20 +14,24 @@ type Step = 'phone' | 'otp';
 // selection has no effect on the request.
 type RoleHint = 'staff' | 'admin';
 
+const COUNTRY_CODE = '+91';
+
 export const LoginScreen: React.FC = () => {
   const { signIn } = useAuth();
   const [roleHint, setRoleHint] = useState<RoleHint>('staff');
   const [step, setStep] = useState<Step>('phone');
-  const [phoneNumber, setPhoneNumber] = useState('');
+  const [localNumber, setLocalNumber] = useState('');
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const phoneNumber = `${COUNTRY_CODE}${localNumber.trim()}`;
 
   const handleSendOtp = async () => {
     setError(null);
     setLoading(true);
     try {
-      await requestOtp(phoneNumber.trim());
+      await requestOtp(phoneNumber);
       setStep('otp');
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not send OTP. Try again.');
@@ -40,7 +44,7 @@ export const LoginScreen: React.FC = () => {
     setError(null);
     setLoading(true);
     try {
-      const { token, user } = await verifyOtp(phoneNumber.trim(), otp.trim());
+      const { token, user } = await verifyOtp(phoneNumber, otp.trim());
       await signIn(token, user);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Sign in failed. Try again.');
@@ -72,15 +76,20 @@ export const LoginScreen: React.FC = () => {
       </View>
 
       <Text style={styles.fieldLabel}>Phone Number</Text>
-      <TextInput
-        style={styles.field}
-        placeholder="+91 98xxxxxx21"
-        placeholderTextColor={colors.muted}
-        value={phoneNumber}
-        onChangeText={setPhoneNumber}
-        keyboardType="phone-pad"
-        editable={step === 'phone'}
-      />
+      <View style={styles.phoneRow}>
+        <View style={styles.countryCode}>
+          <Text style={styles.countryCodeText}>{COUNTRY_CODE}</Text>
+        </View>
+        <TextInput
+          style={styles.phoneField}
+          placeholder="98xxxxxx21"
+          placeholderTextColor={colors.muted}
+          value={localNumber}
+          onChangeText={setLocalNumber}
+          keyboardType="phone-pad"
+          editable={step === 'phone'}
+        />
+      </View>
 
       {step === 'otp' && (
         <>
@@ -102,7 +111,7 @@ export const LoginScreen: React.FC = () => {
       <Pressable
         style={[styles.button, loading && styles.buttonDisabled]}
         onPress={step === 'phone' ? handleSendOtp : handleSignIn}
-        disabled={loading || !phoneNumber || (step === 'otp' && !otp)}
+        disabled={loading || !localNumber || (step === 'otp' && !otp)}
       >
         {loading ? (
           <ActivityIndicator color={colors.white} />
@@ -167,6 +176,36 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.navyText,
     marginBottom: spacing.sm,
+  },
+  phoneRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  countryCode: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.md,
+    paddingHorizontal: spacing.md,
+  },
+  countryCodeText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.navyText,
+  },
+  phoneField: {
+    flex: 1,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    fontSize: 13,
+    color: colors.navyText,
   },
   error: {
     color: colors.danger,

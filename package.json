@@ -37,6 +37,12 @@
     "typescript": "^5.5.4"
   },
   "prisma": {
-    "schema": "backEnd/prisma/schema.prisma"
+    "schema": "backEnd/prisma/schema.prisma",
+    "seed": "ts-node backEnd/prisma/seed.ts"
+  },
+  "allowScripts": {
+    "@prisma/client@5.22.0": true,
+    "@prisma/engines@5.22.0": true,
+    "prisma@5.22.0": true
   }
 }

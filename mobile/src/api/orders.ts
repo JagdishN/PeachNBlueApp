@@ -46,7 +46,7 @@ export interface CreateOrderInput {
   locationLabel: string;
   branchId: string;
   pickupDate: string;
-  items: { garmentId: string; quantity: number }[];
+  items: { garmentId: string; quantity: number; chosenPrice?: number }[];
 }
 
 export const createOrder = (input: CreateOrderInput) =>

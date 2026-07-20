@@ -1,8 +1,18 @@
 import { Request, Response } from 'express';
 import jwt, { SignOptions } from 'jsonwebtoken';
 import prisma from '../prisma/client';
-import { JWT_EXPIRES_IN, JWT_SECRET, OTP_EXPIRY_MINUTES } from '../config';
+import { JWT_EXPIRES_IN, JWT_SECRET, MOCK_AUTH, NODE_ENV, OTP_EXPIRY_MINUTES } from '../config';
 import { checkOtpRateLimit, generateOtp, saveOtpAttempt, sendOtpViaChannels, verifyOtpCode } from '../services/otpService';
+
+// MOCK_AUTH-only stand-in for a users row — any phone number logs in as an
+// unscoped admin, no DB required. See config.MOCK_AUTH.
+const mockUserFor = (phoneNumber: string) => ({
+  id: '00000000-0000-0000-0000-000000000000',
+  role: 'admin' as const,
+  branchId: null,
+  fullName: 'Mock Admin',
+  phoneNumber,
+});
 
 const createToken = (user: { id: string; role: 'staff' | 'admin'; branchId: string | null }) => {
   return jwt.sign(
@@ -24,7 +34,7 @@ export const requestOtp = async (req: Request, res: Response): Promise<void> => 
     return;
   }
 
-  const user = await prisma.user.findUnique({ where: { phoneNumber } });
+  const user = MOCK_AUTH ? mockUserFor(phoneNumber) : await prisma.user.findUnique({ where: { phoneNumber } });
 
   if (!user) {
     res.status(404).json({ error: 'User not found' });
@@ -38,9 +48,19 @@ export const requestOtp = async (req: Request, res: Response): Promise<void> => 
     return;
   }
 
-  const otp = generateOtp();
+  // MOCK_AUTH uses a fixed code and skips Twilio entirely — there are no real
+  // credentials configured for it to send with, and the resulting errors
+  // just bury the dev log line below.
+  const otp = MOCK_AUTH ? '123456' : generateOtp();
   await saveOtpAttempt(phoneNumber, otp, OTP_EXPIRY_MINUTES);
-  await sendOtpViaChannels(phoneNumber, otp);
+
+  if (!MOCK_AUTH) {
+    await sendOtpViaChannels(phoneNumber, otp);
+  }
+
+  if (NODE_ENV !== 'production') {
+    console.log(`[dev] OTP for ${phoneNumber}: ${otp}`);
+  }
 
   res.status(200).json({ message: 'OTP sent if the user exists' });
 };
@@ -53,7 +73,7 @@ export const verifyOtp = async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  const user = await prisma.user.findUnique({ where: { phoneNumber } });
+  const user = MOCK_AUTH ? mockUserFor(phoneNumber) : await prisma.user.findUnique({ where: { phoneNumber } });
 
   if (!user) {
     res.status(404).json({ error: 'User not found' });
