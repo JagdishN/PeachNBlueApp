@@ -1,21 +1,41 @@
 import crypto from 'crypto';
 import redis from '../lib/redis';
 import { sendSms, sendWhatsApp } from '../lib/twilioClient';
+import { MOCK_AUTH } from '../config';
 
 const OTP_KEY_PREFIX = 'otp:';
 const RATE_LIMIT_KEY_PREFIX = 'otp:ratelimit:';
 const RATE_LIMIT_MAX_PER_HOUR = 5;
 const RATE_LIMIT_WINDOW_SECONDS = 60 * 60;
 
+// Mirrors the Redis-backed store below so MOCK_AUTH can run with no Redis
+// instance available at all — local testing only, see config.MOCK_AUTH.
+const mockOtpStore = new Map<string, string>();
+const mockRateLimitStore = new Map<string, number>();
+
 export const generateOtp = (): string => {
   return crypto.randomInt(100000, 999999).toString();
 };
 
 export const saveOtpAttempt = async (phoneNumber: string, otp: string, expiryMinutes: number): Promise<void> => {
+  if (MOCK_AUTH) {
+    mockOtpStore.set(phoneNumber, otp);
+    return;
+  }
+
   await redis.set(`${OTP_KEY_PREFIX}${phoneNumber}`, otp, 'EX', expiryMinutes * 60);
 };
 
 export const verifyOtpCode = async (phoneNumber: string, otp: string): Promise<boolean> => {
+  if (MOCK_AUTH) {
+    const storedOtp = mockOtpStore.get(phoneNumber);
+    if (!storedOtp || storedOtp !== otp) {
+      return false;
+    }
+    mockOtpStore.delete(phoneNumber);
+    return true;
+  }
+
   const key = `${OTP_KEY_PREFIX}${phoneNumber}`;
   const storedOtp = await redis.get(key);
 
@@ -30,6 +50,12 @@ export const verifyOtpCode = async (phoneNumber: string, otp: string): Promise<b
 // Rate-limits OTP requests per phone number (CLAUDE.md: max 5/hour). Returns
 // false once the caller should be rejected with a 429.
 export const checkOtpRateLimit = async (phoneNumber: string): Promise<boolean> => {
+  if (MOCK_AUTH) {
+    const count = (mockRateLimitStore.get(phoneNumber) ?? 0) + 1;
+    mockRateLimitStore.set(phoneNumber, count);
+    return count <= RATE_LIMIT_MAX_PER_HOUR;
+  }
+
   const key = `${RATE_LIMIT_KEY_PREFIX}${phoneNumber}`;
   const count = await redis.incr(key);
 

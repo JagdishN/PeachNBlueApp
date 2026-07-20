@@ -41,30 +41,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     (async () => {
-      const [token, userJson] = await Promise.all([
-        SecureStore.getItemAsync(TOKEN_KEY),
-        SecureStore.getItemAsync(USER_KEY),
-      ]);
+      try {
+        const [token, userJson] = await Promise.all([
+          SecureStore.getItemAsync(TOKEN_KEY),
+          SecureStore.getItemAsync(USER_KEY),
+        ]);
 
-      if (token && userJson) {
-        setAuthToken(token);
-        dispatch({ type: 'RESTORE_SIGNED_IN', token, user: JSON.parse(userJson) as AuthUser });
-      } else {
+        if (token && userJson) {
+          setAuthToken(token);
+          dispatch({ type: 'RESTORE_SIGNED_IN', token, user: JSON.parse(userJson) as AuthUser });
+        } else {
+          dispatch({ type: 'RESTORE_SIGNED_OUT' });
+        }
+      } catch {
+        // SecureStore is unavailable on this platform (e.g. web) — fall back
+        // to signed-out rather than leaving auth state stuck on 'loading'.
         dispatch({ type: 'RESTORE_SIGNED_OUT' });
       }
     })();
   }, []);
 
   const signIn = async (token: string, user: AuthUser) => {
-    await SecureStore.setItemAsync(TOKEN_KEY, token);
-    await SecureStore.setItemAsync(USER_KEY, JSON.stringify(user));
+    try {
+      await SecureStore.setItemAsync(TOKEN_KEY, token);
+      await SecureStore.setItemAsync(USER_KEY, JSON.stringify(user));
+    } catch {
+      // Persisting the session failed (e.g. SecureStore unavailable) — the
+      // user is still signed in for this session, just not restored on relaunch.
+    }
     setAuthToken(token);
     dispatch({ type: 'SIGN_IN', token, user });
   };
 
   const signOut = async () => {
-    await SecureStore.deleteItemAsync(TOKEN_KEY);
-    await SecureStore.deleteItemAsync(USER_KEY);
+    try {
+      await SecureStore.deleteItemAsync(TOKEN_KEY);
+      await SecureStore.deleteItemAsync(USER_KEY);
+    } catch {
+      // Best-effort cleanup — proceed with signing out regardless.
+    }
     setAuthToken(null);
     dispatch({ type: 'SIGN_OUT' });
   };

@@ -22,10 +22,8 @@ enum BillingMode {
   monthly_billing
 }
 
-enum ServiceType {
-  laundry
-  iron
-  both
+enum ChargeType {
+  bag_replacement
 }
 
 enum OrderInternalStatus {
@@ -123,6 +121,7 @@ model User {
   statusChanges OrderStatusHistory[]
   amountRevisions OrderAmountRevision[]
   deviceTokens DeviceToken[]
+  additionalChargesCreated AdditionalCharge[]
 }
 
 // Not present in database_schema_v3.sql — new for FCM/Expo push support.
@@ -152,6 +151,8 @@ model Customer {
   locationLabel  String    @db.VarChar(100)
   billingMode    BillingMode @default(daily)
   creditLimit    Decimal   @default("0") @db.Decimal(10, 2)
+  bagIssued      Boolean   @default(false)
+  bagIssuedAt    DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   orders         Order[]
@@ -159,6 +160,7 @@ model Customer {
   ledgerEntries  LedgerEntry[]
   monthlyStatements MonthlyStatement[]
   communicationsLog CommunicationLog[]
+  additionalCharges AdditionalCharge[]
 
   @@unique([phoneNumber, branchId, locationLabel])
   @@index([phoneNumber])
@@ -170,8 +172,14 @@ model GarmentCatalogue {
   branch       Branch?  @relation(fields: [branchId], references: [id])
   branchId     String?  @db.Uuid
   itemName     String   @db.VarChar(100)
-  serviceType  ServiceType @default(laundry)
+  // Deliberately a plain string, not a hard DB enum — see CLAUDE.md "Services —
+  // RESOLVED". Seed values: wash_fold, ironing, dry_clean, specialty_care.
+  serviceType  String   @default("wash_fold") @db.VarChar(30)
   price        Decimal  @db.Decimal(8, 2)
+  // Set alongside `price` only for items priced as a range (e.g. Designer
+  // Dress ₹80–₹150) — staff choose the final price within [price, priceMax]
+  // at order creation instead of using `price` directly.
+  priceMax     Decimal? @db.Decimal(8, 2)
   isActive     Boolean  @default(true)
   displayOrder Int      @default(0)
   createdAt    DateTime @default(now())
@@ -207,6 +215,7 @@ model Order {
   ledgerEntries   LedgerEntry[]
   invoice         Invoice?
   communications  CommunicationLog[]
+  additionalCharges AdditionalCharge[]
 
   @@index([customerId])
   @@index([staffId])
@@ -234,6 +243,27 @@ model OrderAmountRevision {
   revisedById String  @db.Uuid
   revisedAt  DateTime @default(now())
 
+  @@index([orderId])
+}
+
+// Non-garment, order-independent charges (e.g. the ₹350 bag replacement
+// fee) — kept separate from OrderItem/garment_catalogue since these aren't
+// laundry services. orderId is optional because a bag can be lost/damaged
+// outside the context of any specific pickup/delivery.
+model AdditionalCharge {
+  id          String     @id @default(uuid()) @db.Uuid
+  customer    Customer   @relation(fields: [customerId], references: [id])
+  customerId  String     @db.Uuid
+  order       Order?     @relation(fields: [orderId], references: [id])
+  orderId     String?    @db.Uuid
+  chargeType  ChargeType
+  amount      Decimal    @db.Decimal(8, 2)
+  description String?
+  createdBy   User       @relation(fields: [createdById], references: [id])
+  createdById String     @db.Uuid
+  createdAt   DateTime   @default(now())
+
+  @@index([customerId])
   @@index([orderId])
 }
 

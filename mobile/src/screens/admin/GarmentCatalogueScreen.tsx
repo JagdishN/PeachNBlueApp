@@ -9,7 +9,7 @@ import { fetchGarments, createGarment, updateGarment, deleteGarment, Garment, Se
 import { SERVICE_TAG } from '../../theme/serviceTag';
 import { colors, radii, spacing } from '../../theme/theme';
 
-const SERVICE_TYPES: ServiceType[] = ['laundry', 'iron', 'both'];
+const SERVICE_TYPES: ServiceType[] = ['wash_fold', 'ironing', 'dry_clean', 'specialty_care'];
 
 export const GarmentCatalogueScreen: React.FC = () => {
   const [garments, setGarments] = useState<Garment[]>([]);

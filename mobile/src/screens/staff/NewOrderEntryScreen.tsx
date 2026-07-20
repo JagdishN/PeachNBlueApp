@@ -22,6 +22,7 @@ export const NewOrderEntryScreen: React.FC = () => {
 
   const [garments, setGarments] = useState<Garment[]>([]);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [chosenPrices, setChosenPrices] = useState<Record<string, number>>({});
   const [customerName, setCustomerName] = useState('');
   const [customerPhoneNumber, setCustomerPhoneNumber] = useState('');
   const [locationLabel, setLocationLabel] = useState('');
@@ -31,7 +32,16 @@ export const NewOrderEntryScreen: React.FC = () => {
 
   useEffect(() => {
     fetchGarments()
-      .then(setGarments)
+      .then((fetched) => {
+        setGarments(fetched);
+        // Range-priced items (e.g. Designer Dress) default to the low end of
+        // the range; staff adjust from there.
+        setChosenPrices(
+          Object.fromEntries(
+            fetched.filter((g) => g.priceMax !== null).map((g) => [g.id, Number(g.price)])
+          )
+        );
+      })
       .catch(() => setError('Could not load the garment catalogue.'))
       .finally(() => setLoading(false));
   }, []);
@@ -43,13 +53,26 @@ export const NewOrderEntryScreen: React.FC = () => {
     });
   };
 
+  const adjustChosenPrice = (garment: Garment, delta: number) => {
+    const min = Number(garment.price);
+    const max = Number(garment.priceMax);
+    setChosenPrices((prev) => {
+      const current = prev[garment.id] ?? min;
+      const next = Math.min(max, Math.max(min, current + delta));
+      return { ...prev, [garment.id]: next };
+    });
+  };
+
+  const unitPriceFor = (garment: Garment) =>
+    garment.priceMax !== null ? chosenPrices[garment.id] ?? Number(garment.price) : Number(garment.price);
+
   const estimatedTotal = useMemo(
     () =>
       garments.reduce((sum, garment) => {
         const qty = quantities[garment.id] ?? 0;
-        return sum + qty * Number(garment.price);
+        return sum + qty * unitPriceFor(garment);
       }, 0),
-    [garments, quantities]
+    [garments, quantities, chosenPrices]
   );
 
   const handleConfirm = async () => {
@@ -60,7 +83,11 @@ export const NewOrderEntryScreen: React.FC = () => {
 
     const items = Object.entries(quantities)
       .filter(([, qty]) => qty > 0)
-      .map(([garmentId, quantity]) => ({ garmentId, quantity }));
+      .map(([garmentId, quantity]) => {
+        const garment = garments.find((g) => g.id === garmentId);
+        const chosenPrice = garment && garment.priceMax !== null ? chosenPrices[garmentId] : undefined;
+        return { garmentId, quantity, ...(chosenPrice !== undefined ? { chosenPrice } : {}) };
+      });
 
     if (items.length === 0) {
       setError('Add at least one garment.');
@@ -128,7 +155,21 @@ export const NewOrderEntryScreen: React.FC = () => {
                     <Text style={styles.garmentName}>{garment.itemName}</Text>
                     <Tag {...SERVICE_TAG[garment.serviceType]} />
                   </View>
-                  <Text style={styles.garmentPrice}>₹{garment.price} / piece</Text>
+                  {garment.priceMax !== null ? (
+                    <View style={styles.priceRangeRow}>
+                      <Pressable style={styles.priceStepperBtn} onPress={() => adjustChosenPrice(garment, -5)}>
+                        <Text style={styles.stepperBtnText}>–</Text>
+                      </Pressable>
+                      <Text style={styles.garmentPrice}>
+                        ₹{unitPriceFor(garment)} / piece (₹{garment.price}–₹{garment.priceMax})
+                      </Text>
+                      <Pressable style={styles.priceStepperBtn} onPress={() => adjustChosenPrice(garment, 5)}>
+                        <Text style={styles.stepperBtnText}>+</Text>
+                      </Pressable>
+                    </View>
+                  ) : (
+                    <Text style={styles.garmentPrice}>₹{garment.price} / piece</Text>
+                  )}
                 </View>
                 <View style={styles.stepper}>
                   <Pressable style={styles.stepperBtn} onPress={() => adjustQuantity(garment.id, -1)}>
@@ -235,6 +276,22 @@ const styles = StyleSheet.create({
     fontSize: 10.5,
     color: colors.muted,
     marginTop: 2,
+  },
+  priceRangeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginTop: 2,
+  },
+  priceStepperBtn: {
+    width: 18,
+    height: 18,
+    borderRadius: 5,
+    backgroundColor: colors.peachBg,
+    borderWidth: 1,
+    borderColor: colors.peachPrimary,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   stepper: {
     flexDirection: 'row',

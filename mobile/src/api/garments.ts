@@ -1,6 +1,8 @@
 import { apiRequest } from './client';
 
-export type ServiceType = 'laundry' | 'iron' | 'both';
+// Deliberately a plain string, not a fixed union — see CLAUDE.md "Services —
+// RESOLVED". Known values: wash_fold, ironing, dry_clean, specialty_care.
+export type ServiceType = string;
 
 export interface Garment {
   id: string;
@@ -8,6 +10,7 @@ export interface Garment {
   itemName: string;
   serviceType: ServiceType;
   price: string; // Prisma Decimal serializes as a string over JSON
+  priceMax: string | null; // set only for range-priced items, e.g. Designer Dress
   isActive: boolean;
   displayOrder: number;
 }
@@ -16,6 +19,7 @@ export interface GarmentInput {
   itemName: string;
   serviceType: ServiceType;
   price: number;
+  priceMax?: number | null;
   branchId?: string;
   displayOrder?: number;
 }
