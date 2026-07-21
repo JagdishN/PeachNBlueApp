@@ -5,6 +5,7 @@ import { GarmentCatalogueScreen } from '../screens/admin/GarmentCatalogueScreen'
 import { LedgerAgingScreen } from '../screens/admin/LedgerAgingScreen';
 import { BranchesScreen } from '../screens/admin/BranchesScreen';
 import { CustomerManagementScreen } from '../screens/admin/CustomerManagementScreen';
+import { StaffManagementScreen } from '../screens/admin/StaffManagementScreen';
 import { useTheme } from '../context/ThemeContext';
 
 export type AdminTabParamList = {
@@ -13,6 +14,7 @@ export type AdminTabParamList = {
   Customers: undefined;
   Ledger: undefined;
   Branches: undefined;
+  Staff: undefined;
 };
 
 const Tab = createBottomTabNavigator<AdminTabParamList>();
@@ -37,6 +39,7 @@ export const AdminTabs: React.FC = () => {
       <Tab.Screen name="Customers" component={CustomerManagementScreen} />
       <Tab.Screen name="Ledger" component={LedgerAgingScreen} />
       <Tab.Screen name="Branches" component={BranchesScreen} />
+      <Tab.Screen name="Staff" component={StaffManagementScreen} />
     </Tab.Navigator>
   );
 };

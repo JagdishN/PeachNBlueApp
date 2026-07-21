@@ -10,6 +10,14 @@ export const createOrderHandler = async (req: AuthRequest, res: Response): Promi
     return;
   }
 
+  // CLAUDE.md "Staff-scoped order visibility": a staff caller must not be
+  // able to assign an order to a colleague by passing an arbitrary staffId
+  // in the body — that would silently defeat the ownership checks on
+  // listOrders/getOrder/updateStatus. Only an admin may set staffId
+  // explicitly (e.g. assigning a pickup to a specific staff member); a
+  // staff caller's own id always wins, regardless of what the body sends.
+  const effectiveStaffId = req.auth!.role === 'admin' ? staffId : req.auth!.userId;
+
   // Per-item shape check only — which of quantity/weightKg/chosenPrice is
   // actually required depends on the linked garment's pricingUnit and
   // isStartingPrice/priceMax, so that validation happens in orderService
@@ -36,7 +44,7 @@ export const createOrderHandler = async (req: AuthRequest, res: Response): Promi
   const order = await orderService.createOrder({
     createdById: req.auth!.userId,
     createdByRole: req.auth!.role,
-    staffId,
+    staffId: effectiveStaffId,
     branchId,
     customerName,
     customerPhoneNumber,
@@ -48,24 +56,35 @@ export const createOrderHandler = async (req: AuthRequest, res: Response): Promi
   res.status(201).json({ order });
 };
 
+// Shared by listOrdersHandler and getOrderHandler so both apply the same
+// branch scoping: a branch-scoped user (staff always, or a branch-scoped
+// admin) is locked to their own branchId; an unscoped admin may pass
+// ?branchId= to narrow the view or omit it to see every branch.
+const effectiveBranchIdFor = (req: AuthRequest, branchIdParam: unknown): string | undefined =>
+  req.auth!.role === 'admin' && !req.auth!.branchId
+    ? (typeof branchIdParam === 'string' ? branchIdParam : undefined)
+    : req.auth!.branchId ?? undefined;
+
 export const listOrdersHandler = async (req: AuthRequest, res: Response): Promise<void> => {
   const { branchId, date } = req.query;
 
-  const effectiveBranchId = req.auth!.role === 'admin' && !req.auth!.branchId
-    ? (typeof branchId === 'string' ? branchId : undefined)
-    : req.auth!.branchId ?? undefined;
-
   const orders = await orderService.listOrders({
-    branchId: effectiveBranchId,
+    branchId: effectiveBranchIdFor(req, branchId),
     date: typeof date === 'string' ? new Date(date) : new Date(),
     role: req.auth!.role,
+    // CLAUDE.md "Staff-scoped order visibility": staff only see their own
+    // assigned orders, not every order in the branch.
+    staffId: req.auth!.role === 'staff' ? req.auth!.userId : undefined,
   });
 
   res.status(200).json({ orders });
 };
 
 export const getOrderHandler = async (req: AuthRequest, res: Response): Promise<void> => {
-  const order = await orderService.getOrder(req.params.id, req.auth!.role);
+  const order = await orderService.getOrder(req.params.id, req.auth!.role, {
+    branchId: effectiveBranchIdFor(req, req.query.branchId),
+    staffId: req.auth!.role === 'staff' ? req.auth!.userId : undefined,
+  });
 
   if (!order) {
     res.status(404).json({ error: 'Order not found' });
@@ -96,5 +115,21 @@ export const reviseAmountHandler = async (req: AuthRequest, res: Response): Prom
   }
 
   const order = await orderService.reviseAmount(req.params.id, Number(newAmount), reason, req.auth!.userId);
+  res.status(200).json({ order });
+};
+
+// Admin-only — CLAUDE.md "Staff-scoped order visibility" edge case,
+// resolved: rather than special-casing order creation, admin gets a general
+// (re)assignment control usable on any order regardless of who created it or
+// who it's currently assigned to.
+export const assignStaffHandler = async (req: AuthRequest, res: Response): Promise<void> => {
+  const { staffId } = req.body;
+
+  if (!staffId) {
+    res.status(400).json({ error: 'staffId is required' });
+    return;
+  }
+
+  const order = await orderService.assignStaff(req.params.id, staffId, req.auth!.role);
   res.status(200).json({ order });
 };

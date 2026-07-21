@@ -252,9 +252,13 @@ interface ListOrdersFilter {
   branchId?: string;
   date?: Date;
   role: UserRole;
+  // CLAUDE.md "Staff-scoped order visibility": each staff member sees only
+  // orders assigned to them, in addition to the existing branch scope.
+  // Admin visibility is unchanged regardless of whether this is passed.
+  staffId?: string;
 }
 
-export const listOrders = async ({ branchId, date, role }: ListOrdersFilter) => {
+export const listOrders = async ({ branchId, date, role, staffId }: ListOrdersFilter) => {
   const pickupDateFilter = date
     ? {
         gte: new Date(date.getFullYear(), date.getMonth(), date.getDate()),
@@ -266,15 +270,33 @@ export const listOrders = async ({ branchId, date, role }: ListOrdersFilter) => 
     where: {
       ...(branchId ? { customer: { branchId } } : {}),
       ...(pickupDateFilter ? { pickupDate: pickupDateFilter } : {}),
+      ...(role === 'staff' && staffId ? { staffId } : {}),
     },
     include: { customer: { select: customerSelectForRole(role) }, orderItems: true },
     orderBy: { createdAt: 'desc' },
   });
 };
 
-export const getOrder = async (orderId: string, role: UserRole) => {
-  return prisma.order.findUnique({
-    where: { id: orderId },
+interface OrderScope {
+  // Restricts to a single branch — applied for staff always, and for a
+  // branch-scoped admin (mirrors listOrdersHandler's effectiveBranchId).
+  branchId?: string;
+  // Restricts to a single assigned staff member — CLAUDE.md "Staff-scoped
+  // order visibility". Only meaningful when role === 'staff'.
+  staffId?: string;
+}
+
+export const getOrder = async (orderId: string, role: UserRole, scope: OrderScope = {}) => {
+  // findFirst (not findUnique) so branch/staff scoping applies at the query
+  // level, not as a post-fetch check — an out-of-scope order comes back as
+  // null, indistinguishable from "doesn't exist", rather than leaking that
+  // an order with this id exists in someone else's branch.
+  return prisma.order.findFirst({
+    where: {
+      id: orderId,
+      ...(scope.branchId ? { customer: { branchId: scope.branchId } } : {}),
+      ...(scope.staffId ? { staffId: scope.staffId } : {}),
+    },
     include: {
       customer: { select: customerSelectForRole(role) },
       orderItems: true,
@@ -294,6 +316,29 @@ export const updateStatus = async (
     const err = new Error(`Invalid status: ${newStatus}`);
     (err as any).status = 400;
     throw err;
+  }
+
+  // CLAUDE.md "Staff-scoped order visibility" (write side): a staff member
+  // may only update an order they're actually assigned to — previously any
+  // staff in the branch could update any order in that branch. changedById
+  // IS the requesting staff member's own id here (there's no separate
+  // "acting staffId" concept for a status update, unlike createOrder's
+  // admin-assigns-to-staff case), so it's compared directly against the
+  // order's assigned staffId.
+  if (role === 'staff') {
+    const existing = await prisma.order.findUnique({ where: { id: orderId }, select: { staffId: true } });
+
+    if (!existing) {
+      const err = new Error('Order not found.');
+      (err as any).status = 404;
+      throw err;
+    }
+
+    if (existing.staffId !== changedById) {
+      const err = new Error('Forbidden: you can only update orders assigned to you.');
+      (err as any).status = 403;
+      throw err;
+    }
   }
 
   const order = await prisma.$transaction(async (tx) => {
@@ -405,4 +450,40 @@ export const reviseAmount = async (
   }
 
   return updatedOrder;
+};
+
+// Admin-only (route-gated) — CLAUDE.md "Staff-scoped order visibility" edge
+// case, resolved: rather than special-casing staffId at order creation
+// (which has no dedicated admin mobile flow anyway — see StaffStack/
+// AdminStack), admin gets a general (re)assignment control usable on any
+// order at any time, regardless of who created it or who it's currently
+// assigned to.
+export const assignStaff = async (orderId: string, staffId: string, role: UserRole) => {
+  const targetUser = await prisma.user.findUnique({ where: { id: staffId } });
+
+  if (!targetUser || targetUser.role !== 'staff') {
+    const err = new Error('staffId must reference an existing staff account.');
+    (err as any).status = 400;
+    throw err;
+  }
+
+  const order = await prisma.order.findUnique({ where: { id: orderId }, include: { customer: true } });
+
+  if (!order) {
+    const err = new Error('Order not found.');
+    (err as any).status = 404;
+    throw err;
+  }
+
+  if (targetUser.branchId !== order.customer.branchId) {
+    const err = new Error("This staff member is not assigned to the order's branch.");
+    (err as any).status = 400;
+    throw err;
+  }
+
+  return prisma.order.update({
+    where: { id: orderId },
+    data: { staffId },
+    include: { customer: { select: customerSelectForRole(role) }, orderItems: true },
+  });
 };

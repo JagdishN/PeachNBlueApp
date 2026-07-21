@@ -12,7 +12,9 @@ interface SeedGarment {
   price: number;
   priceMax?: number;
   isStartingPrice?: boolean;
+  requiresSpecialCare?: boolean;
   _note?: string;
+  _tier?: string;
 }
 
 interface SeedData {
@@ -67,6 +69,7 @@ async function main() {
       price: garment.price,
       priceMax: garment.priceMax ?? null,
       isStartingPrice: garment.isStartingPrice ?? false,
+      requiresSpecialCare: garment.requiresSpecialCare ?? false,
       isActive: true,
       branchId: null,
     };

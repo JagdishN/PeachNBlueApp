@@ -23,7 +23,7 @@ jest.mock('../services/ledgerService', () => ({
 }));
 
 import prisma from '../prisma/client';
-import { createOrder, listOrders, getOrder, updateStatus } from '../services/orderService';
+import { createOrder, listOrders, getOrder, updateStatus, assignStaff } from '../services/orderService';
 import { generateInvoice } from '../services/invoiceService';
 import { sendNotification } from '../services/notificationService';
 import { recordCharge } from '../services/ledgerService';
@@ -280,21 +280,65 @@ describe('role-aware customer select (primary defense)', () => {
   });
 
   it('getOrder never requests discountPercent in the customer select for staff role', async () => {
-    prismaMock.order.findUnique.mockResolvedValue(null);
+    prismaMock.order.findFirst.mockResolvedValue(null);
 
     await getOrder('order-1', 'staff');
 
-    const findUniqueArgs = prismaMock.order.findUnique.mock.calls[0][0] as any;
-    expect(findUniqueArgs.include.customer.select).not.toHaveProperty('discountPercent');
+    const findFirstArgs = prismaMock.order.findFirst.mock.calls[0][0] as any;
+    expect(findFirstArgs.include.customer.select).not.toHaveProperty('discountPercent');
   });
 
   it('getOrder includes discountPercent in the customer select for admin role', async () => {
-    prismaMock.order.findUnique.mockResolvedValue(null);
+    prismaMock.order.findFirst.mockResolvedValue(null);
 
     await getOrder('order-1', 'admin');
 
-    const findUniqueArgs = prismaMock.order.findUnique.mock.calls[0][0] as any;
-    expect(findUniqueArgs.include.customer.select).toHaveProperty('discountPercent', true);
+    const findFirstArgs = prismaMock.order.findFirst.mock.calls[0][0] as any;
+    expect(findFirstArgs.include.customer.select).toHaveProperty('discountPercent', true);
+  });
+});
+
+// CLAUDE.md "Staff-scoped order visibility" — each staff member should only
+// see/manage orders assigned to them, not every order in their branch.
+describe('getOrder / listOrders — staff-scoped visibility', () => {
+  it('getOrder scopes by staffId when provided (query-construction level)', async () => {
+    prismaMock.order.findFirst.mockResolvedValue(null);
+
+    await getOrder('order-1', 'staff', { branchId: 'branch-1', staffId: 'staff-1' });
+
+    const findFirstArgs = prismaMock.order.findFirst.mock.calls[0][0] as any;
+    expect(findFirstArgs.where).toEqual({
+      id: 'order-1',
+      customer: { branchId: 'branch-1' },
+      staffId: 'staff-1',
+    });
+  });
+
+  it('getOrder applies no branch/staff restriction when scope is omitted (admin, unscoped)', async () => {
+    prismaMock.order.findFirst.mockResolvedValue(null);
+
+    await getOrder('order-1', 'admin');
+
+    const findFirstArgs = prismaMock.order.findFirst.mock.calls[0][0] as any;
+    expect(findFirstArgs.where).toEqual({ id: 'order-1' });
+  });
+
+  it('listOrders filters by staffId when role is staff and staffId is provided', async () => {
+    prismaMock.order.findMany.mockResolvedValue([]);
+
+    await listOrders({ role: 'staff', staffId: 'staff-1' });
+
+    const findManyArgs = prismaMock.order.findMany.mock.calls[0][0] as any;
+    expect(findManyArgs.where).toEqual(expect.objectContaining({ staffId: 'staff-1' }));
+  });
+
+  it('listOrders does not filter by staffId for admin even if one were passed', async () => {
+    prismaMock.order.findMany.mockResolvedValue([]);
+
+    await listOrders({ role: 'admin', staffId: 'staff-1' });
+
+    const findManyArgs = prismaMock.order.findMany.mock.calls[0][0] as any;
+    expect(findManyArgs.where).not.toHaveProperty('staffId');
   });
 });
 
@@ -350,6 +394,15 @@ describe('updateStatus — delivery billingMode branch', () => {
     orderNumber: 'PB-TEST',
     finalAmount: 500,
     customer: { id: 'customer-1', billingMode },
+  });
+
+  // All tests in this block call updateStatus with role 'staff' and
+  // changedById 'user-1' — the new ownership pre-check (CLAUDE.md
+  // "Staff-scoped order visibility") needs the order's assigned staffId to
+  // match, or it 403s before reaching the billingMode logic these tests
+  // actually care about.
+  beforeEach(() => {
+    prismaMock.order.findUnique.mockResolvedValue({ staffId: 'user-1' } as any);
   });
 
   it('posts a ledger charge when a monthly-billing customer\'s order is marked delivered', async () => {
@@ -420,5 +473,101 @@ describe('updateStatus — delivery billingMode branch', () => {
       select: { discountEnabled: true, discountPercent: true },
     });
     expect(recordChargeMock).toHaveBeenCalledWith('customer-1', 'order-1', 400, 'Order PB-TEST');
+  });
+});
+
+// CLAUDE.md "Staff-scoped order visibility" (write side): a staff member may
+// only update the status of an order actually assigned to them.
+describe('updateStatus — staff ownership check', () => {
+  it('rejects with 403 when the requesting staff member is not the order\'s assigned staffId', async () => {
+    prismaMock.order.findUnique.mockResolvedValue({ staffId: 'staff-1' } as any);
+
+    await expect(updateStatus('order-1', 'washing', 'staff-2', 'staff')).rejects.toMatchObject({
+      status: 403,
+    });
+
+    expect(prismaMock.order.update).not.toHaveBeenCalled();
+  });
+
+  it('allows the update when the requesting staff member IS the order\'s assigned staffId', async () => {
+    prismaMock.order.findUnique.mockResolvedValue({ staffId: 'staff-1' } as any);
+    prismaMock.order.update.mockResolvedValue({
+      id: 'order-1',
+      orderNumber: 'PB-TEST',
+      finalAmount: 500,
+      customer: { id: 'customer-1', billingMode: 'daily' },
+    } as any);
+    prismaMock.orderStatusHistory.create.mockResolvedValue({} as any);
+
+    await expect(updateStatus('order-1', 'washing', 'staff-1', 'staff')).resolves.toBeDefined();
+    expect(prismaMock.order.update).toHaveBeenCalled();
+  });
+
+  it('rejects with 404 when the order does not exist', async () => {
+    prismaMock.order.findUnique.mockResolvedValue(null);
+
+    await expect(updateStatus('missing-order', 'washing', 'staff-1', 'staff')).rejects.toMatchObject({
+      status: 404,
+    });
+  });
+
+  it('does not run the ownership check for admin — any admin can update any order in scope', async () => {
+    prismaMock.order.update.mockResolvedValue({
+      id: 'order-1',
+      orderNumber: 'PB-TEST',
+      finalAmount: 500,
+      customer: { id: 'customer-1', billingMode: 'daily' },
+    } as any);
+    prismaMock.orderStatusHistory.create.mockResolvedValue({} as any);
+
+    await expect(updateStatus('order-1', 'washing', 'admin-1', 'admin')).resolves.toBeDefined();
+    // The staffId pre-check query only runs for role === 'staff'.
+    expect(prismaMock.order.findUnique).not.toHaveBeenCalled();
+  });
+});
+
+// CLAUDE.md "Staff-scoped order visibility" edge case, resolved: admin gets
+// a general (re)assignment control rather than special-casing staffId at
+// order creation.
+describe('assignStaff — admin (re)assignment', () => {
+  it('rejects when the target user does not exist', async () => {
+    prismaMock.user.findUnique.mockResolvedValue(null);
+
+    await expect(assignStaff('order-1', 'not-a-user', 'admin')).rejects.toMatchObject({ status: 400 });
+    expect(prismaMock.order.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects when the target user is an admin, not staff', async () => {
+    prismaMock.user.findUnique.mockResolvedValue({ id: 'admin-2', role: 'admin', branchId: null } as any);
+
+    await expect(assignStaff('order-1', 'admin-2', 'admin')).rejects.toMatchObject({ status: 400 });
+    expect(prismaMock.order.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects when the order does not exist', async () => {
+    prismaMock.user.findUnique.mockResolvedValue({ id: 'staff-2', role: 'staff', branchId: 'branch-1' } as any);
+    prismaMock.order.findUnique.mockResolvedValue(null);
+
+    await expect(assignStaff('missing-order', 'staff-2', 'admin')).rejects.toMatchObject({ status: 404 });
+  });
+
+  it("rejects when the staff member's branch doesn't match the order's branch", async () => {
+    prismaMock.user.findUnique.mockResolvedValue({ id: 'staff-2', role: 'staff', branchId: 'branch-2' } as any);
+    prismaMock.order.findUnique.mockResolvedValue({ id: 'order-1', customer: { branchId: 'branch-1' } } as any);
+
+    await expect(assignStaff('order-1', 'staff-2', 'admin')).rejects.toMatchObject({ status: 400 });
+    expect(prismaMock.order.update).not.toHaveBeenCalled();
+  });
+
+  it('reassigns the order when the target is a valid staff member in the same branch', async () => {
+    prismaMock.user.findUnique.mockResolvedValue({ id: 'staff-2', role: 'staff', branchId: 'branch-1' } as any);
+    prismaMock.order.findUnique.mockResolvedValue({ id: 'order-1', customer: { branchId: 'branch-1' } } as any);
+    prismaMock.order.update.mockResolvedValue({ id: 'order-1', staffId: 'staff-2' } as any);
+
+    await assignStaff('order-1', 'staff-2', 'admin');
+
+    expect(prismaMock.order.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'order-1' }, data: { staffId: 'staff-2' } })
+    );
   });
 });

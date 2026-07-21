@@ -18,8 +18,17 @@ Copy `.env.example` to `.env` and fill in:
 - `DATABASE_URL` — Postgres connection string (Supabase).
 - `JWT_SECRET` — signing secret for auth tokens. Must not be left as the fallback value in any non-local environment.
 - `REDIS_URL` — see "Redis setup" below.
-- `TWILIO_*` — Twilio credentials. Twilio is used for **both** WhatsApp and SMS (two separate "from" numbers: `TWILIO_WHATSAPP_FROM` for the WhatsApp-enabled sender, `TWILIO_SMS_FROM` for plain SMS). Both channels are always sent together — never one as a fallback for the other.
+- `TWILIO_*` — Twilio credentials. Twilio is used for **both** WhatsApp and SMS (two separate "from" numbers: `TWILIO_WHATSAPP_FROM` for the WhatsApp-enabled sender, `TWILIO_SMS_FROM` for plain SMS). Both channels are always sent together — never one as a fallback for the other. `TWILIO_WHATSAPP_FROM` is the bare number (no `whatsapp:` prefix) — the code adds that itself.
 - `RAZORPAY_*` — use test-mode keys for local development; never live keys outside production.
+
+### Twilio trial mode
+
+While the Twilio account is on the free trial tier, two real limitations apply — see `.claude/CLAUDE.md`'s "Twilio trial mode" section for the full detail:
+
+- **SMS** only reaches phone numbers manually verified in the Twilio Console (Phone Numbers → Verified Caller IDs).
+- **WhatsApp** only reaches numbers that have joined Twilio's WhatsApp Sandbox (recipient sends a join code to the sandbox number first) — this is separate from Meta's WhatsApp Business API production approval process (see the Technical Design Document's WhatsApp setup section).
+
+Real customer numbers won't receive anything until the client upgrades Twilio billing (for SMS) and completes WhatsApp Business API approval separately (for WhatsApp) — these are two independent upgrades, not one.
 
 ## Redis setup
 

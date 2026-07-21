@@ -9,9 +9,10 @@ import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { fetchGarments, Garment } from '../../api/garments';
 import { createOrder } from '../../api/orders';
+import { searchCustomers, createCustomer, markBagIssued, CustomerLookup } from '../../api/customers';
 import { ApiError } from '../../api/client';
 import { ColorTokens, radii, spacing } from '../../theme/theme';
-import { getServiceTag } from '../../theme/serviceTag';
+import { getServiceTag, SPECIAL_CARE_TAG } from '../../theme/serviceTag';
 import type { StaffStackParamList } from '../../navigation/StaffStack';
 
 type Nav = NativeStackNavigationProp<StaffStackParamList, 'NewOrderEntry'>;
@@ -45,6 +46,23 @@ export const NewOrderEntryScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // CLAUDE.md "Customer creation — real gap": staff search by phone first,
+  // then either pick an existing customer/location or add a new one, before
+  // the garment picker unlocks — one continuous flow, not a separate screen.
+  const [customerConfirmed, setCustomerConfirmed] = useState(false);
+  const [phoneQuery, setPhoneQuery] = useState('');
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  // null = haven't searched yet; [] = searched, no matches (show new-customer form).
+  const [searchResults, setSearchResults] = useState<CustomerLookup[] | null>(null);
+  const [confirmingNewCustomer, setConfirmingNewCustomer] = useState(false);
+
+  // CLAUDE.md "Laundry bag tracking" — free bag, issued once per customer;
+  // surfaced here since staff is physically at the pickup handing it over.
+  const [confirmedCustomerId, setConfirmedCustomerId] = useState<string | null>(null);
+  const [bagIssued, setBagIssued] = useState(false);
+  const [issuingBag, setIssuingBag] = useState(false);
 
   useEffect(() => {
     fetchGarments()
@@ -185,8 +203,8 @@ export const NewOrderEntryScreen: React.FC = () => {
       return;
     }
 
-    if (!customerName || !customerPhoneNumber || !locationLabel) {
-      setError('Customer name, phone number, and location are required.');
+    if (!customerConfirmed || !customerName || !customerPhoneNumber || !locationLabel) {
+      setError('Find or add a customer before confirming the pickup.');
       return;
     }
 
@@ -209,6 +227,87 @@ export const NewOrderEntryScreen: React.FC = () => {
     }
   };
 
+  const handleSearchCustomer = async () => {
+    if (!phoneQuery) return;
+    setSearching(true);
+    setSearchError(null);
+    try {
+      const results = await searchCustomers(phoneQuery);
+      setSearchResults(results);
+      if (results.length === 0) {
+        // No match — prefill the new-customer form with the number already typed.
+        setCustomerPhoneNumber(phoneQuery);
+        setCustomerName('');
+        setLocationLabel('');
+      }
+    } catch (err) {
+      setSearchError(err instanceof ApiError ? err.message : 'Could not search for this customer.');
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const selectExistingCustomer = (customer: CustomerLookup) => {
+    setCustomerName(customer.fullName);
+    setCustomerPhoneNumber(customer.phoneNumber);
+    setLocationLabel(customer.locationLabel);
+    setConfirmedCustomerId(customer.id);
+    setBagIssued(customer.bagIssued);
+    setCustomerConfirmed(true);
+  };
+
+  const startNewCustomerAtThisNumber = () => {
+    setCustomerPhoneNumber(phoneQuery);
+    setCustomerName('');
+    setLocationLabel('');
+    setSearchResults([]);
+  };
+
+  const handleConfirmNewCustomer = async () => {
+    if (!customerName || !locationLabel) {
+      setError('Customer name and location are required.');
+      return;
+    }
+
+    setError(null);
+    setConfirmingNewCustomer(true);
+    try {
+      const customer = await createCustomer({ fullName: customerName, phoneNumber: customerPhoneNumber, locationLabel });
+      setConfirmedCustomerId(customer.id);
+      setBagIssued(customer.bagIssued);
+      setCustomerConfirmed(true);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not save this customer.');
+    } finally {
+      setConfirmingNewCustomer(false);
+    }
+  };
+
+  const handleIssueBag = async () => {
+    if (!confirmedCustomerId) return;
+    setIssuingBag(true);
+    try {
+      await markBagIssued(confirmedCustomerId);
+      setBagIssued(true);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not mark the bag as issued.');
+    } finally {
+      setIssuingBag(false);
+    }
+  };
+
+  const resetCustomer = () => {
+    setCustomerConfirmed(false);
+    setSearchResults(null);
+    setSearchError(null);
+    setPhoneQuery('');
+    setCustomerName('');
+    setCustomerPhoneNumber('');
+    setLocationLabel('');
+    setConfirmedCustomerId(null);
+    setBagIssued(false);
+  };
+
   const renderGarmentRow = (garment: Garment, isLast: boolean) => {
     if (garment.pricingUnit === 'per_kg') {
       const weightText = weights[garment.id] ?? '';
@@ -219,6 +318,7 @@ export const NewOrderEntryScreen: React.FC = () => {
             <View style={styles.garmentNameRow}>
               <Text style={styles.garmentName}>{garment.itemName}</Text>
               <Tag {...serviceTag[garment.serviceType]} />
+              {garment.requiresSpecialCare && <Tag {...SPECIAL_CARE_TAG} />}
             </View>
             <Text style={styles.garmentPrice}>₹{garment.price} / kg</Text>
           </View>
@@ -243,6 +343,7 @@ export const NewOrderEntryScreen: React.FC = () => {
           <View style={styles.garmentNameRow}>
             <Text style={styles.garmentName}>{garment.itemName}</Text>
             <Tag {...serviceTag[garment.serviceType]} />
+            {garment.requiresSpecialCare && <Tag {...SPECIAL_CARE_TAG} />}
           </View>
           {garment.priceMax !== null ? (
             <View style={styles.priceRangeRow}>
@@ -296,66 +397,153 @@ export const NewOrderEntryScreen: React.FC = () => {
       </View>
 
       <View style={styles.body}>
-        <Text style={styles.fieldLabel}>Customer Name</Text>
-        <TextInput
-          style={styles.field}
-          value={customerName}
-          onChangeText={setCustomerName}
-          placeholder="Priya Menon"
-          placeholderTextColor={colors.muted}
-        />
-        <Text style={styles.fieldLabel}>Phone Number</Text>
-        <TextInput
-          style={styles.field}
-          value={customerPhoneNumber}
-          onChangeText={setCustomerPhoneNumber}
-          placeholder="+91 98xxxxxx45"
-          placeholderTextColor={colors.muted}
-          keyboardType="phone-pad"
-        />
-        <Text style={styles.fieldLabel}>Location (flat / house / shop no.)</Text>
-        <TextInput
-          style={styles.field}
-          value={locationLabel}
-          onChangeText={setLocationLabel}
-          placeholder="A-304"
-          placeholderTextColor={colors.muted}
-        />
+        {!customerConfirmed ? (
+          <>
+            <Text style={styles.fieldLabel}>Customer Phone Number</Text>
+            <View style={styles.phoneSearchRow}>
+              <TextInput
+                style={[styles.field, styles.phoneSearchInput]}
+                value={phoneQuery}
+                onChangeText={setPhoneQuery}
+                placeholder="+91 98xxxxxx45"
+                placeholderTextColor={colors.muted}
+                keyboardType="phone-pad"
+              />
+              <Pressable
+                style={[styles.searchButton, (searching || !phoneQuery) && styles.confirmButtonDisabled]}
+                onPress={handleSearchCustomer}
+                disabled={searching || !phoneQuery}
+              >
+                {searching ? <ActivityIndicator color={colors.white} /> : <Text style={styles.searchButtonText}>Find</Text>}
+              </Pressable>
+            </View>
+            {searchError && <Text style={styles.error}>{searchError}</Text>}
 
-        <Text style={styles.sectionTitle}>Garments Collected</Text>
-
-        {loading ? (
-          <ActivityIndicator color={colors.peachPrimary} style={{ marginTop: spacing.lg }} />
-        ) : (
-          <ScrollView style={styles.garmentScroll} showsVerticalScrollIndicator={false}>
-            {groupedGarments.map(([category, items]) => (
-              <View key={category} style={styles.categoryBlock}>
-                <Text style={styles.categoryHeader}>{category}</Text>
-                <View style={styles.garmentCard}>
-                  {items.map((garment, index) => renderGarmentRow(garment, index === items.length - 1))}
-                </View>
+            {searchResults !== null && searchResults.length > 0 && (
+              <View style={styles.resultsBlock}>
+                <Text style={styles.resultsLabel}>Existing customers at this number</Text>
+                {searchResults.map((c) => (
+                  <Pressable key={c.id} style={styles.resultCard} onPress={() => selectExistingCustomer(c)}>
+                    <View style={styles.resultInfo}>
+                      <Text style={styles.resultName}>{c.fullName}</Text>
+                      <Text style={styles.resultLocation}>{c.locationLabel}</Text>
+                    </View>
+                    {c.billingMode === 'monthly_billing' && (
+                      <Tag label="Monthly" bg={colors.warningBg} color={colors.warning} />
+                    )}
+                  </Pressable>
+                ))}
+                <Pressable style={styles.newLocationLink} onPress={startNewCustomerAtThisNumber}>
+                  <Text style={styles.newLocationLinkText}>+ New customer / location for this number</Text>
+                </Pressable>
               </View>
-            ))}
-          </ScrollView>
+            )}
+
+            {searchResults !== null && searchResults.length === 0 && (
+              <View style={styles.newCustomerBlock}>
+                <Text style={styles.fieldLabel}>Customer Name</Text>
+                <TextInput
+                  style={styles.field}
+                  value={customerName}
+                  onChangeText={setCustomerName}
+                  placeholder="Priya Menon"
+                  placeholderTextColor={colors.muted}
+                />
+                <Text style={styles.fieldLabel}>Location (flat / house / shop no.)</Text>
+                <TextInput
+                  style={styles.field}
+                  value={locationLabel}
+                  onChangeText={setLocationLabel}
+                  placeholder="A-304"
+                  placeholderTextColor={colors.muted}
+                />
+                <Pressable
+                  style={[styles.addButton, confirmingNewCustomer && styles.confirmButtonDisabled]}
+                  onPress={handleConfirmNewCustomer}
+                  disabled={confirmingNewCustomer}
+                >
+                  {confirmingNewCustomer ? (
+                    <ActivityIndicator color={colors.white} />
+                  ) : (
+                    <Text style={styles.addButtonText}>Confirm Customer</Text>
+                  )}
+                </Pressable>
+              </View>
+            )}
+
+            {error && <Text style={styles.error}>{error}</Text>}
+          </>
+        ) : (
+          <>
+            <View style={styles.confirmedCustomerCard}>
+              <View style={styles.resultInfo}>
+                <Text style={styles.resultName}>{customerName}</Text>
+                <Text style={styles.resultLocation}>
+                  {customerPhoneNumber} · {locationLabel}
+                </Text>
+              </View>
+              <Pressable onPress={resetCustomer}>
+                <Text style={styles.changeCustomerLink}>Change</Text>
+              </Pressable>
+            </View>
+
+            {/* CLAUDE.md "Laundry bag tracking" — free, issued once per
+                customer; staff is physically at the pickup, so this is the
+                natural moment to hand it over and record it. */}
+            <View style={styles.bagRow}>
+              {bagIssued ? (
+                <Tag label="Bag Issued" bg={colors.successBg} color={colors.success} />
+              ) : (
+                <Pressable style={styles.issueBagButton} onPress={handleIssueBag} disabled={issuingBag}>
+                  {issuingBag ? (
+                    <ActivityIndicator color={colors.peachPrimary} />
+                  ) : (
+                    <Text style={styles.issueBagButtonText}>Issue Laundry Bag (Free)</Text>
+                  )}
+                </Pressable>
+              )}
+            </View>
+
+            <Text style={styles.sectionTitle}>Garments Collected</Text>
+
+            {loading ? (
+              <ActivityIndicator color={colors.peachPrimary} style={{ marginTop: spacing.lg }} />
+            ) : (
+              <ScrollView style={styles.garmentScroll} showsVerticalScrollIndicator={false}>
+                {groupedGarments.map(([category, items]) => (
+                  <View key={category} style={styles.categoryBlock}>
+                    <Text style={styles.categoryHeader}>{category}</Text>
+                    <View style={styles.garmentCard}>
+                      {items.map((garment, index) => renderGarmentRow(garment, index === items.length - 1))}
+                    </View>
+                  </View>
+                ))}
+              </ScrollView>
+            )}
+
+            {totalPerKgWeight > 0 && totalPerKgWeight < LAUNDRY_MINIMUM_KG && (
+              <Text style={styles.minimumBanner}>
+                Per-KG minimum is {LAUNDRY_MINIMUM_KG}kg per order — {totalPerKgWeight.toFixed(1)}kg entered, minimum
+                charge will apply.
+              </Text>
+            )}
+
+            <View style={styles.totalBar}>
+              <Text style={styles.totalLabel}>ESTIMATED TOTAL</Text>
+              <PriceChip amount={Math.round(estimatedTotal * 100) / 100} />
+            </View>
+
+            {error && <Text style={styles.error}>{error}</Text>}
+
+            <Pressable
+              style={[styles.confirmButton, submitting && styles.confirmButtonDisabled]}
+              onPress={handleConfirm}
+              disabled={submitting}
+            >
+              {submitting ? <ActivityIndicator color={colors.white} /> : <Text style={styles.confirmButtonText}>Confirm Pickup</Text>}
+            </Pressable>
+          </>
         )}
-
-        {totalPerKgWeight > 0 && totalPerKgWeight < LAUNDRY_MINIMUM_KG && (
-          <Text style={styles.minimumBanner}>
-            Per-KG minimum is {LAUNDRY_MINIMUM_KG}kg per order — {totalPerKgWeight.toFixed(1)}kg entered, minimum
-            charge will apply.
-          </Text>
-        )}
-
-        <View style={styles.totalBar}>
-          <Text style={styles.totalLabel}>ESTIMATED TOTAL</Text>
-          <PriceChip amount={Math.round(estimatedTotal * 100) / 100} />
-        </View>
-
-        {error && <Text style={styles.error}>{error}</Text>}
-
-        <Pressable style={[styles.confirmButton, submitting && styles.confirmButtonDisabled]} onPress={handleConfirm} disabled={submitting}>
-          {submitting ? <ActivityIndicator color={colors.white} /> : <Text style={styles.confirmButtonText}>Confirm Pickup</Text>}
-        </Pressable>
       </View>
     </AppScreen>
   );
@@ -377,6 +565,118 @@ const createStyles = (colors: ColorTokens) =>
       fontSize: 10,
       color: '#C8A67B',
       marginTop: 2,
+    },
+    phoneSearchRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs,
+    },
+    phoneSearchInput: {
+      flex: 1,
+    },
+    searchButton: {
+      backgroundColor: colors.peachPrimary,
+      borderRadius: radii.md,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.lg,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: spacing.sm,
+    },
+    searchButtonText: {
+      color: colors.white,
+      fontWeight: '700',
+      fontSize: 11.5,
+    },
+    resultsBlock: {
+      marginBottom: spacing.sm,
+    },
+    resultsLabel: {
+      fontSize: 9.5,
+      fontWeight: '700',
+      color: colors.muted,
+      textTransform: 'uppercase',
+      marginBottom: spacing.xs,
+    },
+    resultCard: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      backgroundColor: colors.peachCard,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radii.md,
+      padding: spacing.sm,
+      marginBottom: spacing.xs,
+    },
+    resultInfo: {
+      flexShrink: 1,
+    },
+    resultName: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.navyText,
+    },
+    resultLocation: {
+      fontSize: 10.5,
+      color: colors.muted,
+      marginTop: 1,
+    },
+    newLocationLink: {
+      paddingVertical: spacing.sm,
+      alignItems: 'center',
+    },
+    newLocationLinkText: {
+      color: colors.peachPrimary,
+      fontWeight: '700',
+      fontSize: 11,
+    },
+    newCustomerBlock: {
+      marginBottom: spacing.sm,
+    },
+    addButton: {
+      backgroundColor: colors.peachPrimary,
+      borderRadius: radii.md,
+      paddingVertical: spacing.md,
+      alignItems: 'center',
+      marginTop: spacing.xs,
+    },
+    addButtonText: {
+      color: colors.white,
+      fontWeight: '700',
+      fontSize: 11.5,
+    },
+    confirmedCustomerCard: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      backgroundColor: colors.peachCard,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radii.lg,
+      padding: spacing.md,
+      marginBottom: spacing.sm,
+    },
+    changeCustomerLink: {
+      color: colors.peachPrimary,
+      fontWeight: '700',
+      fontSize: 11,
+    },
+    bagRow: {
+      marginBottom: spacing.sm,
+    },
+    issueBagButton: {
+      alignSelf: 'flex-start',
+      borderWidth: 1.5,
+      borderColor: colors.peachPrimary,
+      borderRadius: radii.sm,
+      paddingVertical: spacing.xs,
+      paddingHorizontal: spacing.sm,
+    },
+    issueBagButtonText: {
+      color: colors.peachPrimary,
+      fontWeight: '700',
+      fontSize: 10.5,
     },
     body: {
       flex: 1,

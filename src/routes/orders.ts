@@ -6,6 +6,7 @@ import {
   listOrdersHandler,
   reviseAmountHandler,
   updateStatusHandler,
+  assignStaffHandler,
 } from '../controllers/orderController';
 
 const router = Router();
@@ -18,5 +19,6 @@ router.get('/', listOrdersHandler);
 router.get('/:id', getOrderHandler);
 router.patch('/:id/status', updateStatusHandler);
 router.patch('/:id/amount', requireRole(['admin']), reviseAmountHandler);
+router.patch('/:id/assign', requireRole(['admin']), assignStaffHandler);
 
 export default router;

@@ -1,8 +1,11 @@
 import { ColorTokens } from './theme';
 import { ServiceType } from '../api/garments';
 
-// Confirmed values per CLAUDE.md "Services — RESOLVED":
-// wash_fold, ironing, dry_clean, specialty_care.
+// Confirmed values per CLAUDE.md "Services — RESOLVED": wash_fold, ironing,
+// dry_clean. There is no `specialty_care` service type — special-care
+// handling is the orthogonal `requiresSpecialCare` boolean instead (see
+// CLAUDE.md "requiresSpecialCare — RESOLVED"), surfaced as its own badge,
+// not a service tag.
 //
 // A function, not a static object — the pastel chip backgrounds below are
 // deliberately fixed regardless of theme (small self-contained badges, same
@@ -20,5 +23,10 @@ export const getServiceTag = (
   wash_fold: { label: 'Wash & Fold', bg: '#DCEAE3', color: colors.success },
   ironing: { label: 'Ironing', bg: '#E1E9F5', color: '#17315E' },
   dry_clean: { label: 'Dry Clean', bg: colors.warningBg, color: colors.warning },
-  specialty_care: { label: 'Specialty Care', bg: '#F1E1F5', color: '#17315E' },
 });
+
+// Fixed pastel badge for requiresSpecialCare — same "small self-contained
+// chip, colors fixed regardless of theme" treatment as getServiceTag above,
+// kept as a separate export since it's an orthogonal attribute, not a
+// service type (would be a Partial<Record<ServiceType,...>> bug otherwise).
+export const SPECIAL_CARE_TAG = { label: 'Special Care', bg: '#F1E1F5', color: '#6B1F80' };

@@ -4,7 +4,9 @@ import { RouteProp, useRoute } from '@react-navigation/native';
 import { AppScreen } from '../../components/AppScreen';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
-import { getOrder, updateOrderStatus, reviseOrderAmount, Order, InternalStatus } from '../../api/orders';
+import { getOrder, updateOrderStatus, reviseOrderAmount, assignOrderStaff, Order, InternalStatus } from '../../api/orders';
+import { fetchUsers, StaffUser } from '../../api/users';
+import { getDisplayName } from '../../utils/displayName';
 import { ApiError } from '../../api/client';
 import { ColorTokens, radii, spacing } from '../../theme/theme';
 
@@ -49,6 +51,14 @@ export const OrderStatusScreen: React.FC = () => {
   const [revising, setRevising] = useState(false);
   const [revisionError, setRevisionError] = useState<string | null>(null);
 
+  // Admin-only "reassign staff" control (CLAUDE.md "Staff-scoped order
+  // visibility" edge case, resolved) — staff list for the order's own
+  // branch, filtered to role 'staff' client-side since there's no
+  // role-filtering query param on GET /users.
+  const [branchStaff, setBranchStaff] = useState<StaffUser[]>([]);
+  const [assigning, setAssigning] = useState(false);
+  const [assignError, setAssignError] = useState<string | null>(null);
+
   const loadOrder = useCallback(async () => {
     setLoading(true);
     try {
@@ -65,6 +75,28 @@ export const OrderStatusScreen: React.FC = () => {
   useEffect(() => {
     loadOrder();
   }, [loadOrder]);
+
+  useEffect(() => {
+    if (user?.role === 'admin' && order?.customer.branchId) {
+      fetchUsers(order.customer.branchId)
+        .then((users) => setBranchStaff(users.filter((u) => u.role === 'staff')))
+        .catch(() => setBranchStaff([]));
+    }
+  }, [user?.role, order?.customer.branchId]);
+
+  const handleAssignStaff = async (staffId: string) => {
+    if (!order) return;
+    setAssigning(true);
+    setAssignError(null);
+    try {
+      const updated = await assignOrderStaff(order.id, staffId);
+      setOrder(updated);
+    } catch (err) {
+      setAssignError(err instanceof ApiError ? err.message : 'Could not reassign this order.');
+    } finally {
+      setAssigning(false);
+    }
+  };
 
   const handleAdvanceStatus = async () => {
     if (!order) return;
@@ -157,6 +189,30 @@ export const OrderStatusScreen: React.FC = () => {
           <Pressable style={[styles.advanceButton, updating && styles.advanceButtonDisabled]} onPress={handleAdvanceStatus} disabled={updating}>
             {updating ? <ActivityIndicator color={colors.white} /> : <Text style={styles.advanceButtonText}>Mark as {nextLabel}</Text>}
           </Pressable>
+        )}
+
+        {user?.role === 'admin' && (
+          <View style={styles.revisionCard}>
+            <Text style={styles.sectionTitle}>Assigned Staff</Text>
+
+            <View style={styles.toggleRow}>
+              {branchStaff.map((staffMember) => (
+                <Pressable
+                  key={staffMember.id}
+                  style={[styles.toggle, order.staffId === staffMember.id && styles.toggleActive]}
+                  onPress={() => handleAssignStaff(staffMember.id)}
+                  disabled={assigning}
+                >
+                  <Text style={[styles.toggleText, order.staffId === staffMember.id && styles.toggleTextActive]}>
+                    {getDisplayName(staffMember.fullName)}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            {branchStaff.length === 0 && <Text style={styles.hint}>No staff accounts found for this branch.</Text>}
+            {assigning && <ActivityIndicator color={colors.peachPrimary} />}
+            {assignError && <Text style={styles.error}>{assignError}</Text>}
+          </View>
         )}
 
         {user?.role === 'admin' && order.internalStatus !== 'delivered' && (
@@ -318,5 +374,34 @@ const createStyles = (colors: ColorTokens) =>
       fontSize: 13,
       color: colors.navyDeep,
       fontWeight: '700',
+    },
+    toggleRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: spacing.xs,
+      marginBottom: spacing.xs,
+    },
+    toggle: {
+      paddingVertical: spacing.xs,
+      paddingHorizontal: spacing.sm,
+      borderRadius: radii.sm,
+      borderWidth: 1.5,
+      borderColor: colors.navyDeep,
+    },
+    toggleActive: {
+      backgroundColor: colors.chrome,
+      borderColor: colors.chrome,
+    },
+    toggleText: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: colors.navyDeep,
+    },
+    toggleTextActive: {
+      color: colors.cream,
+    },
+    hint: {
+      fontSize: 9.5,
+      color: colors.muted,
     },
   });

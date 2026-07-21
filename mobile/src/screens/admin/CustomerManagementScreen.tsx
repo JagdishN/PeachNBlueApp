@@ -12,6 +12,9 @@ import {
   updateCustomerBillingMode,
   updateCustomerDiscountEnabled,
   updateCustomerDiscountPercent,
+  markBagIssued,
+  reportBagReplacement,
+  fetchBagReplacements,
   BillingMode,
   Customer,
 } from '../../api/customers';
@@ -41,6 +44,13 @@ export const CustomerManagementScreen: React.FC = () => {
   const [discountPercentInput, setDiscountPercentInput] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // CLAUDE.md "Laundry bag tracking" — bagIssued/bagIssuedAt come straight
+  // off the loaded Customer row; replacement count is a separate admin-only
+  // fetch (src/controllers/customerController.ts::listBagReplacementsHandler).
+  const [bagReplacementCount, setBagReplacementCount] = useState<number | null>(null);
+  const [bagActionLoading, setBagActionLoading] = useState(false);
+  const [bagError, setBagError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -81,6 +91,41 @@ export const CustomerManagementScreen: React.FC = () => {
     setDiscountEnabled(customer.discountEnabled);
     setDiscountPercentInput(customer.discountPercent ?? '0');
     setError(null);
+    setBagError(null);
+    setBagReplacementCount(null);
+    fetchBagReplacements(customer.id)
+      .then((charges) => setBagReplacementCount(charges.length))
+      .catch(() => setBagReplacementCount(null));
+  };
+
+  const handleIssueBag = async () => {
+    if (!editing) return;
+    setBagActionLoading(true);
+    setBagError(null);
+    try {
+      const updated = await markBagIssued(editing.id);
+      setEditing({ ...editing, bagIssued: updated.bagIssued, bagIssuedAt: updated.bagIssuedAt });
+      await load();
+    } catch (err) {
+      setBagError(err instanceof ApiError ? err.message : 'Could not mark the bag as issued.');
+    } finally {
+      setBagActionLoading(false);
+    }
+  };
+
+  const handleReportBagReplacement = async () => {
+    if (!editing) return;
+    setBagActionLoading(true);
+    setBagError(null);
+    try {
+      await reportBagReplacement(editing.id);
+      const charges = await fetchBagReplacements(editing.id);
+      setBagReplacementCount(charges.length);
+    } catch (err) {
+      setBagError(err instanceof ApiError ? err.message : 'Could not log the replacement charge.');
+    } finally {
+      setBagActionLoading(false);
+    }
   };
 
   const handleSave = async () => {
@@ -180,7 +225,53 @@ export const CustomerManagementScreen: React.FC = () => {
               ))}
             </View>
 
-            <Text style={styles.fieldLabel}>Discount</Text>
+            {/* CLAUDE.md "Laundry bag tracking" — free, issued once per
+                customer (not per order); a lost/damaged report logs a fixed
+                ₹350 AdditionalCharge without resetting bagIssued/bagIssuedAt,
+                since the customer already had their one free bag. */}
+            <View style={styles.secondaryDivider} />
+            <Text style={styles.secondaryLabel}>Laundry Bag</Text>
+            <Text style={styles.bagStatus}>
+              {editing?.bagIssued
+                ? `Issued${editing.bagIssuedAt ? ` on ${new Date(editing.bagIssuedAt).toLocaleDateString()}` : ''}`
+                : 'Not yet issued'}
+              {bagReplacementCount !== null && bagReplacementCount > 0
+                ? ` · Replaced ${bagReplacementCount} time${bagReplacementCount === 1 ? '' : 's'}`
+                : ''}
+            </Text>
+            {editing?.bagIssued ? (
+              <Pressable
+                style={[styles.bagActionButton, bagActionLoading && styles.saveButtonDisabled]}
+                onPress={handleReportBagReplacement}
+                disabled={bagActionLoading}
+              >
+                {bagActionLoading ? (
+                  <ActivityIndicator color={colors.danger} />
+                ) : (
+                  <Text style={styles.bagActionButtonText}>Report Lost / Damaged (₹350)</Text>
+                )}
+              </Pressable>
+            ) : (
+              <Pressable
+                style={[styles.bagActionButton, bagActionLoading && styles.saveButtonDisabled]}
+                onPress={handleIssueBag}
+                disabled={bagActionLoading}
+              >
+                {bagActionLoading ? (
+                  <ActivityIndicator color={colors.peachPrimary} />
+                ) : (
+                  <Text style={styles.bagActionButtonText}>Mark Bag Issued</Text>
+                )}
+              </Pressable>
+            )}
+            {bagError && <Text style={styles.error}>{bagError}</Text>}
+
+            {/* Visually secondary to Billing Mode above — per CLAUDE.md,
+                client framed this as "an occasional, as-needed admin action,
+                not a headline feature", not something to give equal
+                prominence in the layout. */}
+            <View style={styles.secondaryDivider} />
+            <Text style={styles.secondaryLabel}>Discount (optional)</Text>
             <View style={styles.toggleRow}>
               {[false, true].map((value) => (
                 <Pressable
@@ -327,6 +418,39 @@ const createStyles = (colors: ColorTokens) =>
       flexDirection: 'row',
       gap: spacing.xs,
       marginBottom: spacing.sm,
+    },
+    secondaryDivider: {
+      height: 1,
+      backgroundColor: colors.border,
+      marginTop: spacing.sm,
+      marginBottom: spacing.sm,
+    },
+    secondaryLabel: {
+      fontSize: 8.5,
+      fontWeight: '700',
+      textTransform: 'uppercase',
+      letterSpacing: 0.3,
+      color: colors.muted,
+      marginBottom: spacing.xs,
+    },
+    bagStatus: {
+      fontSize: 10.5,
+      color: colors.navyText,
+      marginBottom: spacing.xs,
+    },
+    bagActionButton: {
+      alignSelf: 'flex-start',
+      borderWidth: 1.5,
+      borderColor: colors.border,
+      borderRadius: radii.sm,
+      paddingVertical: spacing.xs,
+      paddingHorizontal: spacing.sm,
+      marginBottom: spacing.sm,
+    },
+    bagActionButtonText: {
+      color: colors.navyText,
+      fontWeight: '700',
+      fontSize: 10,
     },
     toggle: {
       flex: 1,

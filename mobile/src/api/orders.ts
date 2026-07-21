@@ -38,6 +38,7 @@ export interface Order {
   finalAmount: string;
   amountWasRevised: boolean;
   paymentStatus: string;
+  staffId: string | null;
   customer: OrderCustomer;
   orderItems: OrderItem[];
 }
@@ -74,4 +75,13 @@ export const reviseOrderAmount = (id: string, newAmount: number, reason: string)
   apiRequest<{ order: Order }>(`/api/v1/orders/${id}/amount`, {
     method: 'PATCH',
     body: { newAmount, reason },
+  }).then((res) => res.order);
+
+// Admin-only — CLAUDE.md "Staff-scoped order visibility" edge case,
+// resolved via a general (re)assignment control rather than a special
+// creation-time flow.
+export const assignOrderStaff = (id: string, staffId: string) =>
+  apiRequest<{ order: Order }>(`/api/v1/orders/${id}/assign`, {
+    method: 'PATCH',
+    body: { staffId },
   }).then((res) => res.order);

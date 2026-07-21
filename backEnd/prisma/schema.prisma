@@ -125,6 +125,11 @@ model GarmentCatalogue {
   // Deliberately a plain string, not a hard DB enum — see CLAUDE.md "Services —
   // RESOLVED". Seed values: wash_fold, ironing, dry_clean.
   serviceType  String   @default("wash_fold") @map("service_type") @db.VarChar(30)
+  // Orthogonal to serviceType (CLAUDE.md "requiresSpecialCare — RESOLVED") —
+  // special handling any garment can need regardless of which service tier
+  // it's priced under, not a service type of its own. Replaces the earlier
+  // (wrong) approach of folding a specialty_care service type into dry_clean.
+  requiresSpecialCare Boolean @default(false) @map("requires_special_care")
   // UI grouping only (e.g. "Women's Wear (Dry Cleaning)", "Accessories") —
   // distinct from serviceType, which is the operational service bucket.
   category     String?  @db.VarChar(60)
