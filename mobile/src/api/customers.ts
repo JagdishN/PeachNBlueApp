@@ -12,6 +12,10 @@ export interface Customer {
   billingMode: BillingMode;
   discountEnabled: boolean;
   discountPercent: string | null; // Prisma Decimal serializes as a string over JSON
+  // CLAUDE.md "Laundry bag tracking" — free, issued once per customer;
+  // bagIssuedAt never resets on a replacement (see bag-replacement below).
+  bagIssued: boolean;
+  bagIssuedAt: string | null;
 }
 
 // Admin-only (see CLAUDE.md "Known gaps"). Branch-scoped admins always get
@@ -66,4 +70,34 @@ export interface CreateCustomerInput {
 export const createCustomer = (input: CreateCustomerInput) =>
   apiRequest<{ customer: CustomerLookup }>('/api/v1/customers', { method: 'POST', body: input }).then(
     (res) => res.customer
+  );
+
+// Staff + admin — CLAUDE.md "Laundry bag tracking". Idempotent server-side:
+// safe to call even if the customer already has a bag.
+export const markBagIssued = (id: string) =>
+  apiRequest<{ customer: CustomerLookup }>(`/api/v1/customers/${id}/bag-issued`, { method: 'PATCH' }).then(
+    (res) => res.customer
+  );
+
+export interface BagReplacementCharge {
+  id: string;
+  amount: string;
+  description: string | null;
+  createdAt: string;
+}
+
+// Staff + admin — logs a ₹350 AdditionalCharge (chargeType: bag_replacement),
+// fixed fee, not entered by the caller. Fails with 400 if this customer was
+// never issued a bag in the first place.
+export const reportBagReplacement = (id: string, orderId?: string) =>
+  apiRequest<{ charge: BagReplacementCharge }>(`/api/v1/customers/${id}/bag-replacement`, {
+    method: 'POST',
+    body: orderId ? { orderId } : {},
+  }).then((res) => res.charge);
+
+// Admin-only — replacement history, e.g. to show a count on the Customer
+// Management screen.
+export const fetchBagReplacements = (id: string) =>
+  apiRequest<{ charges: BagReplacementCharge[] }>(`/api/v1/customers/${id}/bag-replacements`).then(
+    (res) => res.charges
   );

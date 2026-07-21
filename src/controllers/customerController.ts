@@ -4,6 +4,12 @@ import prisma from '../prisma/client';
 import { reissueAllOpenInvoicesForCustomer } from '../services/invoiceReissue.service';
 import { customerSelectForRole } from '../utils/roleAwareSelect';
 
+// CLAUDE.md "bag policy — RESOLVED": free for every customer, ₹350 only if
+// subsequently lost/damaged. Fixed, not admin/staff-entered — same "fixed
+// fee, not a free-text amount" treatment as other confirmed charges in this
+// codebase.
+const BAG_REPLACEMENT_FEE = 350;
+
 // Staff + admin (unlike the admin-only discount/billing endpoints below) —
 // CLAUDE.md "Customer creation — real gap": staff need to create/reuse a
 // customer record inline at the point of pickup, not through an admin-only
@@ -68,6 +74,83 @@ export const searchCustomersHandler = async (req: AuthRequest, res: Response): P
   });
 
   res.status(200).json({ customers });
+};
+
+// Staff + admin — CLAUDE.md "Laundry bag tracking": the bag is free and
+// issued once per customer (not per order), physically handed over by
+// whoever's at the pickup. Idempotent — marking an already-issued customer
+// again is a no-op (doesn't reset bagIssuedAt), matching the "first bag
+// free" framing: there is only ever one "issuance" per customer, tracked as
+// a single boolean+timestamp; anything after that is a *replacement* (see
+// reportBagReplacementHandler below), not a re-issuance.
+export const markBagIssuedHandler = async (req: AuthRequest, res: Response): Promise<void> => {
+  const customer = await prisma.customer.findUnique({ where: { id: req.params.id } });
+
+  if (!customer) {
+    res.status(404).json({ error: 'Customer not found' });
+    return;
+  }
+
+  if (customer.bagIssued) {
+    res.status(200).json({ customer });
+    return;
+  }
+
+  const updated = await prisma.customer.update({
+    where: { id: req.params.id },
+    data: { bagIssued: true, bagIssuedAt: new Date() },
+  });
+
+  res.status(200).json({ customer: updated });
+};
+
+// Staff + admin — CLAUDE.md "Laundry bag tracking": logs a lost/damaged
+// bag as a distinct ₹350 AdditionalCharge (chargeType: bag_replacement),
+// not a garment charge, and NOT a reset of bagIssued/bagIssuedAt — the
+// customer already had their one free bag; this row is the record of each
+// time it needed replacing. Requires a bag to have actually been issued
+// first (can't "lose" a bag that was never handed over). orderId is
+// optional — lets staff tie the report to the pickup/delivery they noticed
+// it at, but isn't required since a customer might report it separately.
+export const reportBagReplacementHandler = async (req: AuthRequest, res: Response): Promise<void> => {
+  const { orderId, description } = req.body;
+
+  const customer = await prisma.customer.findUnique({ where: { id: req.params.id } });
+
+  if (!customer) {
+    res.status(404).json({ error: 'Customer not found' });
+    return;
+  }
+
+  if (!customer.bagIssued) {
+    res.status(400).json({ error: 'This customer has not been issued a bag yet.' });
+    return;
+  }
+
+  const charge = await prisma.additionalCharge.create({
+    data: {
+      customerId: req.params.id,
+      orderId: orderId ?? null,
+      chargeType: 'bag_replacement',
+      amount: BAG_REPLACEMENT_FEE,
+      description: description ?? null,
+      createdById: req.auth!.userId,
+    },
+  });
+
+  res.status(201).json({ charge });
+};
+
+// Admin-only — CLAUDE.md "Laundry bag tracking": lets the Customer
+// Management screen show how many times a customer's bag has been
+// replaced, without pulling full AdditionalCharge rows.
+export const listBagReplacementsHandler = async (req: AuthRequest, res: Response): Promise<void> => {
+  const charges = await prisma.additionalCharge.findMany({
+    where: { customerId: req.params.id, chargeType: 'bag_replacement' },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  res.status(200).json({ charges });
 };
 
 // Admin-only — new for the Customer Management screen (CLAUDE.md "Known

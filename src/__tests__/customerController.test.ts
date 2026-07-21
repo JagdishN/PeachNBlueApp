@@ -339,3 +339,124 @@ describe('PATCH /:id/discount-enabled — fully admin-only, same treatment as di
     expect(prismaMock.customer.update).not.toHaveBeenCalled();
   });
 });
+
+// CLAUDE.md "Laundry bag tracking" — free bag issued once per customer,
+// ₹350 AdditionalCharge if subsequently lost/damaged.
+describe('PATCH /:id/bag-issued — staff AND admin, idempotent', () => {
+  it('rejects an unauthenticated request', async () => {
+    const res = await request(app).patch('/api/v1/customers/customer-1/bag-issued');
+
+    expect(res.status).toBe(401);
+  });
+
+  it('allows a staff-role token', async () => {
+    prismaMock.customer.findUnique.mockResolvedValue({ id: 'customer-1', bagIssued: false } as any);
+    prismaMock.customer.update.mockResolvedValue({ id: 'customer-1', bagIssued: true } as any);
+
+    const res = await request(app)
+      .patch('/api/v1/customers/customer-1/bag-issued')
+      .set('Authorization', `Bearer ${token('staff', 'branch-1')}`);
+
+    expect(res.status).toBe(200);
+    expect(prismaMock.customer.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'customer-1' }, data: expect.objectContaining({ bagIssued: true }) })
+    );
+  });
+
+  it('is a no-op (does not reset bagIssuedAt) when already issued', async () => {
+    prismaMock.customer.findUnique.mockResolvedValue({ id: 'customer-1', bagIssued: true, bagIssuedAt: new Date('2026-01-01') } as any);
+
+    const res = await request(app)
+      .patch('/api/v1/customers/customer-1/bag-issued')
+      .set('Authorization', `Bearer ${token('staff', 'branch-1')}`);
+
+    expect(res.status).toBe(200);
+    expect(prismaMock.customer.update).not.toHaveBeenCalled();
+  });
+
+  it('returns 404 for a customer that does not exist', async () => {
+    prismaMock.customer.findUnique.mockResolvedValue(null);
+
+    const res = await request(app)
+      .patch('/api/v1/customers/missing-customer/bag-issued')
+      .set('Authorization', `Bearer ${token('admin')}`);
+
+    expect(res.status).toBe(404);
+  });
+});
+
+describe('POST /:id/bag-replacement — staff AND admin, ₹350 fixed fee', () => {
+  it('rejects an unauthenticated request', async () => {
+    const res = await request(app).post('/api/v1/customers/customer-1/bag-replacement');
+
+    expect(res.status).toBe(401);
+  });
+
+  it('rejects when the customer was never issued a bag', async () => {
+    prismaMock.customer.findUnique.mockResolvedValue({ id: 'customer-1', bagIssued: false } as any);
+
+    const res = await request(app)
+      .post('/api/v1/customers/customer-1/bag-replacement')
+      .set('Authorization', `Bearer ${token('staff', 'branch-1')}`);
+
+    expect(res.status).toBe(400);
+    expect(prismaMock.additionalCharge.create).not.toHaveBeenCalled();
+  });
+
+  it('creates a fixed ₹350 bag_replacement charge for an issued customer (staff-role)', async () => {
+    prismaMock.customer.findUnique.mockResolvedValue({ id: 'customer-1', bagIssued: true } as any);
+    prismaMock.additionalCharge.create.mockResolvedValue({ id: 'charge-1', amount: 350, chargeType: 'bag_replacement' } as any);
+
+    const res = await request(app)
+      .post('/api/v1/customers/customer-1/bag-replacement')
+      .set('Authorization', `Bearer ${token('staff', 'branch-1')}`)
+      .send({ orderId: 'order-1' });
+
+    expect(res.status).toBe(201);
+    expect(prismaMock.additionalCharge.create).toHaveBeenCalledWith({
+      data: {
+        customerId: 'customer-1',
+        orderId: 'order-1',
+        chargeType: 'bag_replacement',
+        amount: 350,
+        description: null,
+        createdById: 'user-1',
+      },
+    });
+  });
+
+  it('returns 404 for a customer that does not exist', async () => {
+    prismaMock.customer.findUnique.mockResolvedValue(null);
+
+    const res = await request(app)
+      .post('/api/v1/customers/missing-customer/bag-replacement')
+      .set('Authorization', `Bearer ${token('admin')}`);
+
+    expect(res.status).toBe(404);
+  });
+});
+
+describe('GET /:id/bag-replacements — admin-only history', () => {
+  it('rejects a staff-role token', async () => {
+    const res = await request(app)
+      .get('/api/v1/customers/customer-1/bag-replacements')
+      .set('Authorization', `Bearer ${token('staff')}`);
+
+    expect(res.status).toBe(403);
+    expect(prismaMock.additionalCharge.findMany).not.toHaveBeenCalled();
+  });
+
+  it('lists bag_replacement charges for the customer', async () => {
+    prismaMock.additionalCharge.findMany.mockResolvedValue([{ id: 'charge-1', amount: 350 } as any]);
+
+    const res = await request(app)
+      .get('/api/v1/customers/customer-1/bag-replacements')
+      .set('Authorization', `Bearer ${token('admin')}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.charges).toHaveLength(1);
+    expect(prismaMock.additionalCharge.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { customerId: 'customer-1', chargeType: 'bag_replacement' } })
+    );
+  });
+});

@@ -10,6 +10,14 @@ export const createOrderHandler = async (req: AuthRequest, res: Response): Promi
     return;
   }
 
+  // CLAUDE.md "Staff-scoped order visibility": a staff caller must not be
+  // able to assign an order to a colleague by passing an arbitrary staffId
+  // in the body — that would silently defeat the ownership checks on
+  // listOrders/getOrder/updateStatus. Only an admin may set staffId
+  // explicitly (e.g. assigning a pickup to a specific staff member); a
+  // staff caller's own id always wins, regardless of what the body sends.
+  const effectiveStaffId = req.auth!.role === 'admin' ? staffId : req.auth!.userId;
+
   // Per-item shape check only — which of quantity/weightKg/chosenPrice is
   // actually required depends on the linked garment's pricingUnit and
   // isStartingPrice/priceMax, so that validation happens in orderService
@@ -36,7 +44,7 @@ export const createOrderHandler = async (req: AuthRequest, res: Response): Promi
   const order = await orderService.createOrder({
     createdById: req.auth!.userId,
     createdByRole: req.auth!.role,
-    staffId,
+    staffId: effectiveStaffId,
     branchId,
     customerName,
     customerPhoneNumber,
@@ -107,5 +115,21 @@ export const reviseAmountHandler = async (req: AuthRequest, res: Response): Prom
   }
 
   const order = await orderService.reviseAmount(req.params.id, Number(newAmount), reason, req.auth!.userId);
+  res.status(200).json({ order });
+};
+
+// Admin-only — CLAUDE.md "Staff-scoped order visibility" edge case,
+// resolved: rather than special-casing order creation, admin gets a general
+// (re)assignment control usable on any order regardless of who created it or
+// who it's currently assigned to.
+export const assignStaffHandler = async (req: AuthRequest, res: Response): Promise<void> => {
+  const { staffId } = req.body;
+
+  if (!staffId) {
+    res.status(400).json({ error: 'staffId is required' });
+    return;
+  }
+
+  const order = await orderService.assignStaff(req.params.id, staffId, req.auth!.role);
   res.status(200).json({ order });
 };

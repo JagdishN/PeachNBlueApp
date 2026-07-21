@@ -9,7 +9,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { fetchGarments, Garment } from '../../api/garments';
 import { createOrder } from '../../api/orders';
-import { searchCustomers, createCustomer, CustomerLookup } from '../../api/customers';
+import { searchCustomers, createCustomer, markBagIssued, CustomerLookup } from '../../api/customers';
 import { ApiError } from '../../api/client';
 import { ColorTokens, radii, spacing } from '../../theme/theme';
 import { getServiceTag, SPECIAL_CARE_TAG } from '../../theme/serviceTag';
@@ -57,6 +57,12 @@ export const NewOrderEntryScreen: React.FC = () => {
   // null = haven't searched yet; [] = searched, no matches (show new-customer form).
   const [searchResults, setSearchResults] = useState<CustomerLookup[] | null>(null);
   const [confirmingNewCustomer, setConfirmingNewCustomer] = useState(false);
+
+  // CLAUDE.md "Laundry bag tracking" — free bag, issued once per customer;
+  // surfaced here since staff is physically at the pickup handing it over.
+  const [confirmedCustomerId, setConfirmedCustomerId] = useState<string | null>(null);
+  const [bagIssued, setBagIssued] = useState(false);
+  const [issuingBag, setIssuingBag] = useState(false);
 
   useEffect(() => {
     fetchGarments()
@@ -245,6 +251,8 @@ export const NewOrderEntryScreen: React.FC = () => {
     setCustomerName(customer.fullName);
     setCustomerPhoneNumber(customer.phoneNumber);
     setLocationLabel(customer.locationLabel);
+    setConfirmedCustomerId(customer.id);
+    setBagIssued(customer.bagIssued);
     setCustomerConfirmed(true);
   };
 
@@ -264,12 +272,27 @@ export const NewOrderEntryScreen: React.FC = () => {
     setError(null);
     setConfirmingNewCustomer(true);
     try {
-      await createCustomer({ fullName: customerName, phoneNumber: customerPhoneNumber, locationLabel });
+      const customer = await createCustomer({ fullName: customerName, phoneNumber: customerPhoneNumber, locationLabel });
+      setConfirmedCustomerId(customer.id);
+      setBagIssued(customer.bagIssued);
       setCustomerConfirmed(true);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not save this customer.');
     } finally {
       setConfirmingNewCustomer(false);
+    }
+  };
+
+  const handleIssueBag = async () => {
+    if (!confirmedCustomerId) return;
+    setIssuingBag(true);
+    try {
+      await markBagIssued(confirmedCustomerId);
+      setBagIssued(true);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not mark the bag as issued.');
+    } finally {
+      setIssuingBag(false);
     }
   };
 
@@ -281,6 +304,8 @@ export const NewOrderEntryScreen: React.FC = () => {
     setCustomerName('');
     setCustomerPhoneNumber('');
     setLocationLabel('');
+    setConfirmedCustomerId(null);
+    setBagIssued(false);
   };
 
   const renderGarmentRow = (garment: Garment, isLast: boolean) => {
@@ -462,6 +487,23 @@ export const NewOrderEntryScreen: React.FC = () => {
               </Pressable>
             </View>
 
+            {/* CLAUDE.md "Laundry bag tracking" — free, issued once per
+                customer; staff is physically at the pickup, so this is the
+                natural moment to hand it over and record it. */}
+            <View style={styles.bagRow}>
+              {bagIssued ? (
+                <Tag label="Bag Issued" bg={colors.successBg} color={colors.success} />
+              ) : (
+                <Pressable style={styles.issueBagButton} onPress={handleIssueBag} disabled={issuingBag}>
+                  {issuingBag ? (
+                    <ActivityIndicator color={colors.peachPrimary} />
+                  ) : (
+                    <Text style={styles.issueBagButtonText}>Issue Laundry Bag (Free)</Text>
+                  )}
+                </Pressable>
+              )}
+            </View>
+
             <Text style={styles.sectionTitle}>Garments Collected</Text>
 
             {loading ? (
@@ -619,6 +661,22 @@ const createStyles = (colors: ColorTokens) =>
       color: colors.peachPrimary,
       fontWeight: '700',
       fontSize: 11,
+    },
+    bagRow: {
+      marginBottom: spacing.sm,
+    },
+    issueBagButton: {
+      alignSelf: 'flex-start',
+      borderWidth: 1.5,
+      borderColor: colors.peachPrimary,
+      borderRadius: radii.sm,
+      paddingVertical: spacing.xs,
+      paddingHorizontal: spacing.sm,
+    },
+    issueBagButtonText: {
+      color: colors.peachPrimary,
+      fontWeight: '700',
+      fontSize: 10.5,
     },
     body: {
       flex: 1,

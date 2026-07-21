@@ -7,6 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { fetchBranch, Branch } from '../../api/branches';
 import { listOrders, Order, InternalStatus } from '../../api/orders';
+import { getDisplayName } from '../../utils/displayName';
 import { ColorTokens, radii, spacing } from '../../theme/theme';
 import type { StaffStackParamList } from '../../navigation/StaffStack';
 
@@ -63,7 +64,7 @@ export const StaffHomeScreen: React.FC = () => {
           <View>
             <Text style={styles.title}>Today's Pickups</Text>
             <Text style={styles.subtitle}>
-              {user?.fullName} · {orders.length} collected today
+              {user?.fullName ? getDisplayName(user.fullName) : ''} · {orders.length} collected today
             </Text>
           </View>
           <Pressable style={styles.settingsButton} onPress={() => navigation.navigate('Settings')}>

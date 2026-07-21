@@ -6,7 +6,15 @@ import { NivenxaFooter } from '../../components/BrandComponents';
 import { PriceChip } from '../../components/PriceChip';
 import { Tag } from '../../components/Tag';
 import { useTheme } from '../../context/ThemeContext';
-import { fetchGarments, createGarment, updateGarment, deleteGarment, Garment, ServiceType } from '../../api/garments';
+import {
+  fetchGarments,
+  createGarment,
+  updateGarment,
+  deleteGarment,
+  Garment,
+  ServiceType,
+  PricingUnit,
+} from '../../api/garments';
 import { getServiceTag, SPECIAL_CARE_TAG } from '../../theme/serviceTag';
 import { ColorTokens, radii, spacing } from '../../theme/theme';
 
@@ -23,8 +31,12 @@ export const GarmentCatalogueScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Garment | 'new' | null>(null);
   const [itemName, setItemName] = useState('');
+  const [category, setCategory] = useState('');
   const [price, setPrice] = useState('');
+  const [priceMaxInput, setPriceMaxInput] = useState('');
+  const [pricingUnit, setPricingUnit] = useState<PricingUnit>('per_piece');
   const [serviceType, setServiceType] = useState<ServiceType>('wash_fold');
+  const [isStartingPrice, setIsStartingPrice] = useState(false);
   const [requiresSpecialCare, setRequiresSpecialCare] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,8 +59,12 @@ export const GarmentCatalogueScreen: React.FC = () => {
   const openNew = () => {
     setEditing('new');
     setItemName('');
+    setCategory('');
     setPrice('');
+    setPriceMaxInput('');
+    setPricingUnit('per_piece');
     setServiceType('wash_fold');
+    setIsStartingPrice(false);
     setRequiresSpecialCare(false);
     setError(null);
   };
@@ -56,8 +72,12 @@ export const GarmentCatalogueScreen: React.FC = () => {
   const openEdit = (garment: Garment) => {
     setEditing(garment);
     setItemName(garment.itemName);
+    setCategory(garment.category ?? '');
     setPrice(garment.price);
+    setPriceMaxInput(garment.priceMax ?? '');
+    setPricingUnit(garment.pricingUnit);
     setServiceType(garment.serviceType);
+    setIsStartingPrice(garment.isStartingPrice);
     setRequiresSpecialCare(garment.requiresSpecialCare);
     setError(null);
   };
@@ -68,13 +88,30 @@ export const GarmentCatalogueScreen: React.FC = () => {
       return;
     }
 
+    const priceMax = priceMaxInput ? Number(priceMaxInput) : null;
+    if (priceMax !== null && priceMax < Number(price)) {
+      setError('Price Max must be greater than or equal to Price.');
+      return;
+    }
+
+    const payload = {
+      itemName,
+      price: Number(price),
+      serviceType,
+      category: category || undefined,
+      pricingUnit,
+      priceMax,
+      isStartingPrice,
+      requiresSpecialCare,
+    };
+
     setSaving(true);
     setError(null);
     try {
       if (editing === 'new') {
-        await createGarment({ itemName, price: Number(price), serviceType, requiresSpecialCare });
+        await createGarment(payload);
       } else if (editing) {
-        await updateGarment(editing.id, { itemName, price: Number(price), serviceType, requiresSpecialCare });
+        await updateGarment(editing.id, payload);
       }
       setEditing(null);
       await load();
@@ -118,6 +155,9 @@ export const GarmentCatalogueScreen: React.FC = () => {
                 </View>
                 <PriceChip amount={Number(garment.price)} variant="navy" />
               </View>
+              {garment.category && <Text style={styles.categorySub}>{garment.category}</Text>}
+              {garment.pricingUnit === 'per_kg' && <Text style={styles.categorySub}>Priced per kg</Text>}
+              {garment.isStartingPrice && <Text style={styles.categorySub}>Starting price (onwards)</Text>}
             </Pressable>
           ))
         )}
@@ -141,7 +181,31 @@ export const GarmentCatalogueScreen: React.FC = () => {
               placeholderTextColor={colors.muted}
             />
 
-            <Text style={styles.fieldLabel}>Price (₹ per piece)</Text>
+            <Text style={styles.fieldLabel}>Category</Text>
+            <TextInput
+              style={styles.field}
+              value={category}
+              onChangeText={setCategory}
+              placeholder="Men's Wear (Dry Cleaning)"
+              placeholderTextColor={colors.muted}
+            />
+
+            <Text style={styles.fieldLabel}>Pricing Unit</Text>
+            <View style={styles.serviceToggleRow}>
+              {(['per_piece', 'per_kg'] as PricingUnit[]).map((unit) => (
+                <Pressable
+                  key={unit}
+                  style={[styles.serviceToggle, pricingUnit === unit && styles.serviceToggleActive]}
+                  onPress={() => setPricingUnit(unit)}
+                >
+                  <Text style={[styles.serviceToggleText, pricingUnit === unit && styles.serviceToggleTextActive]}>
+                    {unit === 'per_piece' ? 'Per Piece' : 'Per KG'}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <Text style={styles.fieldLabel}>Price {pricingUnit === 'per_kg' ? '(₹ per kg)' : '(₹ per piece)'}</Text>
             <TextInput
               style={styles.field}
               value={price}
@@ -150,6 +214,36 @@ export const GarmentCatalogueScreen: React.FC = () => {
               placeholder="25"
               placeholderTextColor={colors.muted}
             />
+
+            <Text style={styles.fieldLabel}>Price Max (optional — for range-priced items)</Text>
+            <TextInput
+              style={styles.field}
+              value={priceMaxInput}
+              onChangeText={setPriceMaxInput}
+              keyboardType="decimal-pad"
+              placeholder="e.g. 150"
+              placeholderTextColor={colors.muted}
+            />
+
+            <Text style={styles.fieldLabel}>Starting Price ("onwards" — no upper bound)</Text>
+            <View style={styles.serviceToggleRow}>
+              {[
+                { value: false, label: 'No' },
+                { value: true, label: 'Yes' },
+              ].map((opt) => (
+                <Pressable
+                  key={String(opt.value)}
+                  style={[styles.serviceToggle, isStartingPrice === opt.value && styles.serviceToggleActive]}
+                  onPress={() => setIsStartingPrice(opt.value)}
+                >
+                  <Text
+                    style={[styles.serviceToggleText, isStartingPrice === opt.value && styles.serviceToggleTextActive]}
+                  >
+                    {opt.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
 
             <Text style={styles.fieldLabel}>Service Type</Text>
             <View style={styles.serviceToggleRow}>
@@ -257,6 +351,11 @@ const createStyles = (colors: ColorTokens) =>
       fontSize: 11.5,
       fontWeight: '600',
       color: colors.navyText,
+    },
+    categorySub: {
+      fontSize: 9.5,
+      color: colors.muted,
+      marginTop: 2,
     },
     addButton: {
       backgroundColor: colors.peachPrimary,

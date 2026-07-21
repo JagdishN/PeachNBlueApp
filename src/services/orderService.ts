@@ -451,3 +451,39 @@ export const reviseAmount = async (
 
   return updatedOrder;
 };
+
+// Admin-only (route-gated) — CLAUDE.md "Staff-scoped order visibility" edge
+// case, resolved: rather than special-casing staffId at order creation
+// (which has no dedicated admin mobile flow anyway — see StaffStack/
+// AdminStack), admin gets a general (re)assignment control usable on any
+// order at any time, regardless of who created it or who it's currently
+// assigned to.
+export const assignStaff = async (orderId: string, staffId: string, role: UserRole) => {
+  const targetUser = await prisma.user.findUnique({ where: { id: staffId } });
+
+  if (!targetUser || targetUser.role !== 'staff') {
+    const err = new Error('staffId must reference an existing staff account.');
+    (err as any).status = 400;
+    throw err;
+  }
+
+  const order = await prisma.order.findUnique({ where: { id: orderId }, include: { customer: true } });
+
+  if (!order) {
+    const err = new Error('Order not found.');
+    (err as any).status = 404;
+    throw err;
+  }
+
+  if (targetUser.branchId !== order.customer.branchId) {
+    const err = new Error("This staff member is not assigned to the order's branch.");
+    (err as any).status = 400;
+    throw err;
+  }
+
+  return prisma.order.update({
+    where: { id: orderId },
+    data: { staffId },
+    include: { customer: { select: customerSelectForRole(role) }, orderItems: true },
+  });
+};

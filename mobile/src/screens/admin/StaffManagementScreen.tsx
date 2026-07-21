@@ -9,6 +9,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { ApiError } from '../../api/client';
 import { fetchUsers, createUser, StaffUser, UserRole } from '../../api/users';
 import { fetchBranches, Branch } from '../../api/branches';
+import { getDisplayName } from '../../utils/displayName';
 import { ColorTokens, radii, spacing } from '../../theme/theme';
 
 const UNSCOPED_KEY = '__unscoped__';
@@ -125,7 +126,7 @@ export const StaffManagementScreen: React.FC = () => {
                 <View key={u.id} style={styles.card}>
                   <View style={styles.cardRow}>
                     <View style={styles.nameRow}>
-                      <Text style={styles.userName}>{u.fullName}</Text>
+                      <Text style={styles.userName}>{getDisplayName(u.fullName)}</Text>
                       <Tag
                         label={u.role === 'admin' ? 'Admin' : 'Staff'}
                         bg={u.role === 'admin' ? colors.warningBg : colors.successBg}
