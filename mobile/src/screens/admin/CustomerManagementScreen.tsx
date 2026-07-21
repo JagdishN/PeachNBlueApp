@@ -180,7 +180,12 @@ export const CustomerManagementScreen: React.FC = () => {
               ))}
             </View>
 
-            <Text style={styles.fieldLabel}>Discount</Text>
+            {/* Visually secondary to Billing Mode above — per CLAUDE.md,
+                client framed this as "an occasional, as-needed admin action,
+                not a headline feature", not something to give equal
+                prominence in the layout. */}
+            <View style={styles.secondaryDivider} />
+            <Text style={styles.secondaryLabel}>Discount (optional)</Text>
             <View style={styles.toggleRow}>
               {[false, true].map((value) => (
                 <Pressable
@@ -327,6 +332,20 @@ const createStyles = (colors: ColorTokens) =>
       flexDirection: 'row',
       gap: spacing.xs,
       marginBottom: spacing.sm,
+    },
+    secondaryDivider: {
+      height: 1,
+      backgroundColor: colors.border,
+      marginTop: spacing.sm,
+      marginBottom: spacing.sm,
+    },
+    secondaryLabel: {
+      fontSize: 8.5,
+      fontWeight: '700',
+      textTransform: 'uppercase',
+      letterSpacing: 0.3,
+      color: colors.muted,
+      marginBottom: spacing.xs,
     },
     toggle: {
       flex: 1,

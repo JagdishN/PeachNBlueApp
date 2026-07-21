@@ -1,5 +1,5 @@
 {
-  "_comment": "SUPERSEDES the earlier garments-seed-data.json entirely. This is a comprehensive rate card from the client covering per-KG bulk laundry, per-piece dry cleaning (Women's/Men's/Kids), household items, accessories (new category), and a separate basic Wash & Iron per-piece tier. Two data anomalies transcribed as-is but flagged — see _note fields on Suit (2/3 Piece) and the Women's/Men's Wear caption-swap note in businessInfo below. This requires SCHEMA CHANGES, not just new rows — see CLAUDE.md 'Major pricing model update' section and the accompanying Claude Code prompts.",
+  "_comment": "SUPERSEDES the earlier garments-seed-data.json entirely. This is a comprehensive rate card from the client covering per-KG bulk laundry, per-piece dry cleaning (Women's/Men's/Kids), household items, accessories (new category), and a separate basic Wash & Iron per-piece tier. This requires SCHEMA CHANGES, not just new rows — see CLAUDE.md 'Major pricing model update' section and the accompanying Claude Code prompts. RESOLVED (2026-07-21): the Suit (2/3 Piece) price swap and the Accessories service-type mapping were both confirmed by the client — see CLAUDE.md.",
   "garments": [
     {
       "category": "Laundry Services (Per KG)",
@@ -296,16 +296,14 @@
       "itemName": "Suit (2 Piece)",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 999,
-      "_note": "Client's price list shows this HIGHER than Suit (3 Piece) — ₹999 vs ₹549 — which reads backwards. Transcribed as-is; confirm with client before treating as final."
+      "price": 549
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
       "itemName": "Suit (3 Piece)",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 549,
-      "_note": "See note on Suit (2 Piece) — this price is lower than the 2-piece suit, likely a swap in the client's price list. Confirm before finalizing."
+      "price": 999
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
@@ -583,8 +581,7 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 149,
-      "isStartingPrice": true,
-      "_note": "Accessories (bags/shoes/helmets) are not garments — tagged dry_clean as closest operational fit. Confirm this categorization with client if a distinct service type is wanted for non-garment items."
+      "isStartingPrice": true
     },
     {
       "category": "Accessories",
@@ -592,8 +589,7 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 599,
-      "isStartingPrice": true,
-      "_note": "Accessories (bags/shoes/helmets) are not garments — tagged dry_clean as closest operational fit. Confirm this categorization with client if a distinct service type is wanted for non-garment items."
+      "isStartingPrice": true
     },
     {
       "category": "Accessories",
@@ -601,8 +597,7 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 149,
-      "isStartingPrice": true,
-      "_note": "Accessories (bags/shoes/helmets) are not garments — tagged dry_clean as closest operational fit. Confirm this categorization with client if a distinct service type is wanted for non-garment items."
+      "isStartingPrice": true
     },
     {
       "category": "Accessories",
@@ -610,8 +605,7 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 299,
-      "isStartingPrice": true,
-      "_note": "Accessories (bags/shoes/helmets) are not garments — tagged dry_clean as closest operational fit. Confirm this categorization with client if a distinct service type is wanted for non-garment items."
+      "isStartingPrice": true
     },
     {
       "category": "Accessories",
