@@ -48,24 +48,35 @@ export const createOrderHandler = async (req: AuthRequest, res: Response): Promi
   res.status(201).json({ order });
 };
 
+// Shared by listOrdersHandler and getOrderHandler so both apply the same
+// branch scoping: a branch-scoped user (staff always, or a branch-scoped
+// admin) is locked to their own branchId; an unscoped admin may pass
+// ?branchId= to narrow the view or omit it to see every branch.
+const effectiveBranchIdFor = (req: AuthRequest, branchIdParam: unknown): string | undefined =>
+  req.auth!.role === 'admin' && !req.auth!.branchId
+    ? (typeof branchIdParam === 'string' ? branchIdParam : undefined)
+    : req.auth!.branchId ?? undefined;
+
 export const listOrdersHandler = async (req: AuthRequest, res: Response): Promise<void> => {
   const { branchId, date } = req.query;
 
-  const effectiveBranchId = req.auth!.role === 'admin' && !req.auth!.branchId
-    ? (typeof branchId === 'string' ? branchId : undefined)
-    : req.auth!.branchId ?? undefined;
-
   const orders = await orderService.listOrders({
-    branchId: effectiveBranchId,
+    branchId: effectiveBranchIdFor(req, branchId),
     date: typeof date === 'string' ? new Date(date) : new Date(),
     role: req.auth!.role,
+    // CLAUDE.md "Staff-scoped order visibility": staff only see their own
+    // assigned orders, not every order in the branch.
+    staffId: req.auth!.role === 'staff' ? req.auth!.userId : undefined,
   });
 
   res.status(200).json({ orders });
 };
 
 export const getOrderHandler = async (req: AuthRequest, res: Response): Promise<void> => {
-  const order = await orderService.getOrder(req.params.id, req.auth!.role);
+  const order = await orderService.getOrder(req.params.id, req.auth!.role, {
+    branchId: effectiveBranchIdFor(req, req.query.branchId),
+    staffId: req.auth!.role === 'staff' ? req.auth!.userId : undefined,
+  });
 
   if (!order) {
     res.status(404).json({ error: 'Order not found' });

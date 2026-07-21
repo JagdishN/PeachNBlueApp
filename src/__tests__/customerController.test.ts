@@ -105,6 +105,121 @@ describe('GET / — admin-only list, branch-scoped like listBranchesHandler', ()
   });
 });
 
+describe('POST / — customer create/lookup, staff AND admin (CLAUDE.md "Customer creation")', () => {
+  it('rejects an unauthenticated request', async () => {
+    const res = await request(app).post('/api/v1/customers').send({});
+
+    expect(res.status).toBe(401);
+  });
+
+  it('allows a staff-role token (unlike the admin-only endpoints above)', async () => {
+    prismaMock.customer.upsert.mockResolvedValue({ id: 'customer-1' } as any);
+
+    const res = await request(app)
+      .post('/api/v1/customers')
+      .set('Authorization', `Bearer ${token('staff', 'branch-1')}`)
+      .send({ fullName: 'Priya Menon', phoneNumber: '9999999999', locationLabel: 'A-101' });
+
+    expect(res.status).toBe(200);
+    expect(prismaMock.customer.upsert).toHaveBeenCalled();
+  });
+
+  it('rejects missing required fields', async () => {
+    const res = await request(app)
+      .post('/api/v1/customers')
+      .set('Authorization', `Bearer ${token('staff', 'branch-1')}`)
+      .send({ fullName: 'Priya Menon' });
+
+    expect(res.status).toBe(400);
+    expect(prismaMock.customer.upsert).not.toHaveBeenCalled();
+  });
+
+  it("locks a staff caller to their own branchId, ignoring any branchId in the body", async () => {
+    prismaMock.customer.upsert.mockResolvedValue({ id: 'customer-1' } as any);
+
+    await request(app)
+      .post('/api/v1/customers')
+      .set('Authorization', `Bearer ${token('staff', 'branch-1')}`)
+      .send({ fullName: 'Priya Menon', phoneNumber: '9999999999', locationLabel: 'A-101', branchId: 'branch-2' });
+
+    expect(prismaMock.customer.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          phoneNumber_branchId_locationLabel: {
+            phoneNumber: '9999999999',
+            branchId: 'branch-1',
+            locationLabel: 'A-101',
+          },
+        },
+      })
+    );
+  });
+
+  it('requires an explicit branchId from an unscoped admin', async () => {
+    const res = await request(app)
+      .post('/api/v1/customers')
+      .set('Authorization', `Bearer ${token('admin')}`)
+      .send({ fullName: 'Priya Menon', phoneNumber: '9999999999', locationLabel: 'A-101' });
+
+    expect(res.status).toBe(400);
+    expect(prismaMock.customer.upsert).not.toHaveBeenCalled();
+  });
+
+  it('never selects discountPercent/discountEnabled for a staff caller (primary defense)', async () => {
+    prismaMock.customer.upsert.mockResolvedValue({ id: 'customer-1' } as any);
+
+    await request(app)
+      .post('/api/v1/customers')
+      .set('Authorization', `Bearer ${token('staff', 'branch-1')}`)
+      .send({ fullName: 'Priya Menon', phoneNumber: '9999999999', locationLabel: 'A-101' });
+
+    const upsertArgs = prismaMock.customer.upsert.mock.calls[0][0] as any;
+    expect(upsertArgs.select).not.toHaveProperty('discountPercent');
+    expect(upsertArgs.select).not.toHaveProperty('discountEnabled');
+  });
+});
+
+describe('GET /search — phone lookup, staff AND admin', () => {
+  it('rejects an unauthenticated request', async () => {
+    const res = await request(app).get('/api/v1/customers/search?phone=9999999999');
+
+    expect(res.status).toBe(401);
+  });
+
+  it('requires a phone query parameter', async () => {
+    const res = await request(app)
+      .get('/api/v1/customers/search')
+      .set('Authorization', `Bearer ${token('staff', 'branch-1')}`);
+
+    expect(res.status).toBe(400);
+    expect(prismaMock.customer.findMany).not.toHaveBeenCalled();
+  });
+
+  it("scopes a staff caller's search to their own branch", async () => {
+    prismaMock.customer.findMany.mockResolvedValue([]);
+
+    await request(app)
+      .get('/api/v1/customers/search?phone=9999999999')
+      .set('Authorization', `Bearer ${token('staff', 'branch-1')}`);
+
+    expect(prismaMock.customer.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { phoneNumber: '9999999999', branchId: 'branch-1' } })
+    );
+  });
+
+  it('lets an unscoped admin search across every branch', async () => {
+    prismaMock.customer.findMany.mockResolvedValue([]);
+
+    await request(app)
+      .get('/api/v1/customers/search?phone=9999999999')
+      .set('Authorization', `Bearer ${token('admin')}`);
+
+    expect(prismaMock.customer.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { phoneNumber: '9999999999' } })
+    );
+  });
+});
+
 describe('PATCH /:id/billing-mode — admin-only write, staff can still read billingMode elsewhere', () => {
   it('rejects a staff-role token (role-gate check)', async () => {
     const res = await request(app)

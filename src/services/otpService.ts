@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import redis from '../lib/redis';
-import { sendSms, sendWhatsApp } from '../lib/twilioClient';
+import { sendSms, sendWhatsApp, formatTwilioError } from '../lib/twilioClient';
 import { MOCK_AUTH } from '../config';
 
 const OTP_KEY_PREFIX = 'otp:';
@@ -80,10 +80,10 @@ export const sendOtpViaChannels = async (phoneNumber: string, otp: string): Prom
   ]);
 
   if (whatsappResult.status === 'rejected') {
-    console.error(`Failed to send OTP via WhatsApp to ${phoneNumber}:`, whatsappResult.reason);
+    console.error(`Failed to send OTP via WhatsApp to ${phoneNumber}: ${formatTwilioError(whatsappResult.reason)}`);
   }
 
   if (smsResult.status === 'rejected') {
-    console.error(`Failed to send OTP via SMS to ${phoneNumber}:`, smsResult.reason);
+    console.error(`Failed to send OTP via SMS to ${phoneNumber}: ${formatTwilioError(smsResult.reason)}`);
   }
 };

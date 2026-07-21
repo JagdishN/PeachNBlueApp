@@ -7,10 +7,12 @@ import { PriceChip } from '../../components/PriceChip';
 import { Tag } from '../../components/Tag';
 import { useTheme } from '../../context/ThemeContext';
 import { fetchGarments, createGarment, updateGarment, deleteGarment, Garment, ServiceType } from '../../api/garments';
-import { getServiceTag } from '../../theme/serviceTag';
+import { getServiceTag, SPECIAL_CARE_TAG } from '../../theme/serviceTag';
 import { ColorTokens, radii, spacing } from '../../theme/theme';
 
-const SERVICE_TYPES: ServiceType[] = ['wash_fold', 'ironing', 'dry_clean', 'specialty_care'];
+// specialty_care is not a valid serviceType (CLAUDE.md "requiresSpecialCare
+// — RESOLVED") — special-care handling is the separate boolean toggle below.
+const SERVICE_TYPES: ServiceType[] = ['wash_fold', 'ironing', 'dry_clean'];
 
 export const GarmentCatalogueScreen: React.FC = () => {
   const { colors } = useTheme();
@@ -22,7 +24,8 @@ export const GarmentCatalogueScreen: React.FC = () => {
   const [editing, setEditing] = useState<Garment | 'new' | null>(null);
   const [itemName, setItemName] = useState('');
   const [price, setPrice] = useState('');
-  const [serviceType, setServiceType] = useState<ServiceType>('laundry');
+  const [serviceType, setServiceType] = useState<ServiceType>('wash_fold');
+  const [requiresSpecialCare, setRequiresSpecialCare] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,7 +48,8 @@ export const GarmentCatalogueScreen: React.FC = () => {
     setEditing('new');
     setItemName('');
     setPrice('');
-    setServiceType('laundry');
+    setServiceType('wash_fold');
+    setRequiresSpecialCare(false);
     setError(null);
   };
 
@@ -54,6 +58,7 @@ export const GarmentCatalogueScreen: React.FC = () => {
     setItemName(garment.itemName);
     setPrice(garment.price);
     setServiceType(garment.serviceType);
+    setRequiresSpecialCare(garment.requiresSpecialCare);
     setError(null);
   };
 
@@ -67,9 +72,9 @@ export const GarmentCatalogueScreen: React.FC = () => {
     setError(null);
     try {
       if (editing === 'new') {
-        await createGarment({ itemName, price: Number(price), serviceType });
+        await createGarment({ itemName, price: Number(price), serviceType, requiresSpecialCare });
       } else if (editing) {
-        await updateGarment(editing.id, { itemName, price: Number(price), serviceType });
+        await updateGarment(editing.id, { itemName, price: Number(price), serviceType, requiresSpecialCare });
       }
       setEditing(null);
       await load();
@@ -109,6 +114,7 @@ export const GarmentCatalogueScreen: React.FC = () => {
                 <View style={styles.nameRow}>
                   <Text style={styles.garmentName}>{garment.itemName}</Text>
                   <Tag {...serviceTag[garment.serviceType]} />
+                  {garment.requiresSpecialCare && <Tag {...SPECIAL_CARE_TAG} />}
                 </View>
                 <PriceChip amount={Number(garment.price)} variant="navy" />
               </View>
@@ -155,6 +161,29 @@ export const GarmentCatalogueScreen: React.FC = () => {
                 >
                   <Text style={[styles.serviceToggleText, serviceType === type && styles.serviceToggleTextActive]}>
                     {serviceTag[type].label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <Text style={styles.fieldLabel}>Requires Special Care</Text>
+            <View style={styles.serviceToggleRow}>
+              {[
+                { value: false, label: 'No' },
+                { value: true, label: 'Yes' },
+              ].map((opt) => (
+                <Pressable
+                  key={String(opt.value)}
+                  style={[styles.serviceToggle, requiresSpecialCare === opt.value && styles.serviceToggleActive]}
+                  onPress={() => setRequiresSpecialCare(opt.value)}
+                >
+                  <Text
+                    style={[
+                      styles.serviceToggleText,
+                      requiresSpecialCare === opt.value && styles.serviceToggleTextActive,
+                    ]}
+                  >
+                    {opt.label}
                   </Text>
                 </Pressable>
               ))}

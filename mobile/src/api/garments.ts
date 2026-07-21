@@ -1,7 +1,8 @@
 import { apiRequest } from './client';
 
 // Deliberately a plain string, not a fixed union — see CLAUDE.md "Services —
-// RESOLVED". Known values: wash_fold, ironing, dry_clean, specialty_care.
+// RESOLVED". Known values: wash_fold, ironing, dry_clean. There is no
+// specialty_care value — see requiresSpecialCare below.
 export type ServiceType = string;
 
 // UI grouping only (e.g. "Women's Wear (Dry Cleaning)", "Accessories") —
@@ -25,6 +26,11 @@ export interface Garment {
   // actual price at pickup (>= price, no upper bound). Mutually exclusive
   // with priceMax in practice: priceMax has a ceiling, this doesn't.
   isStartingPrice: boolean;
+  // Orthogonal to serviceType — special handling any garment can need
+  // regardless of which tier it's priced under (CLAUDE.md "requiresSpecialCare
+  // — RESOLVED"). Not yet surfaced in any screen — mirrored here for type
+  // accuracy since listGarmentsHandler already returns it.
+  requiresSpecialCare: boolean;
   isActive: boolean;
   displayOrder: number;
 }
@@ -37,6 +43,7 @@ export interface GarmentInput {
   price: number;
   priceMax?: number | null;
   isStartingPrice?: boolean;
+  requiresSpecialCare?: boolean;
   branchId?: string;
   displayOrder?: number;
 }

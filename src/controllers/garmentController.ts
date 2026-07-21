@@ -19,7 +19,7 @@ export const listGarmentsHandler = async (req: AuthRequest, res: Response): Prom
 };
 
 export const createGarmentHandler = async (req: AuthRequest, res: Response): Promise<void> => {
-  const { itemName, serviceType, price, branchId, displayOrder } = req.body;
+  const { itemName, serviceType, price, branchId, displayOrder, requiresSpecialCare } = req.body;
 
   if (!itemName || !serviceType || price === undefined) {
     res.status(400).json({ error: 'itemName, serviceType, and price are required' });
@@ -27,18 +27,18 @@ export const createGarmentHandler = async (req: AuthRequest, res: Response): Pro
   }
 
   const garment = await prisma.garmentCatalogue.create({
-    data: { itemName, serviceType, price, branchId, displayOrder: displayOrder ?? 0 },
+    data: { itemName, serviceType, price, branchId, displayOrder: displayOrder ?? 0, requiresSpecialCare },
   });
 
   res.status(201).json({ garment });
 };
 
 export const updateGarmentHandler = async (req: AuthRequest, res: Response): Promise<void> => {
-  const { itemName, serviceType, price, displayOrder, isActive } = req.body;
+  const { itemName, serviceType, price, displayOrder, isActive, requiresSpecialCare } = req.body;
 
   const garment = await prisma.garmentCatalogue.update({
     where: { id: req.params.id },
-    data: { itemName, serviceType, price, displayOrder, isActive },
+    data: { itemName, serviceType, price, displayOrder, isActive, requiresSpecialCare },
   });
 
   res.status(200).json({ garment });

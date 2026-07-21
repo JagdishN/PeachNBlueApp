@@ -1,5 +1,5 @@
 {
-  "_comment": "SUPERSEDES the earlier garments-seed-data.json entirely. This is a comprehensive rate card from the client covering per-KG bulk laundry, per-piece dry cleaning (Women's/Men's/Kids), household items, accessories (new category), and a separate basic Wash & Iron per-piece tier. This requires SCHEMA CHANGES, not just new rows — see CLAUDE.md 'Major pricing model update' section and the accompanying Claude Code prompts. RESOLVED (2026-07-21): the Suit (2/3 Piece) price swap and the Accessories service-type mapping were both confirmed by the client — see CLAUDE.md.",
+  "_comment": "v3 — augments v2 (106 items, unchanged pricing/mapping decisions preserved) with two fixes: (1) requiresSpecialCare is now an orthogonal boolean flag on any item, not a folded-in service type — client confirmed 'special care' means special handling for ANY garment, not a distinct pricing tier; (2) reintroduces the client's FIRST price chart as a standalone 'Iron Only' tier (serviceType: ironing, no wash component) — this closes a real gap where no standalone iron-only price existed. See CLAUDE.md 'Iron-only tier reintroduced' section for what still needs client confirmation (which sub-sections of the first chart are actually meant to be iron-only vs the whole thing).",
   "garments": [
     {
       "category": "Laundry Services (Per KG)",
@@ -7,7 +7,8 @@
       "serviceType": "wash_fold",
       "pricingUnit": "per_kg",
       "price": 125,
-      "_note": "Per KG bulk pricing, minimum 5kg per order (see businessInfo.laundryMinimumKg)"
+      "_note": "Per KG bulk pricing, minimum 5kg per order (see businessInfo.laundryMinimumKg)",
+      "requiresSpecialCare": false
     },
     {
       "category": "Laundry Services (Per KG)",
@@ -15,7 +16,8 @@
       "serviceType": "ironing",
       "pricingUnit": "per_kg",
       "price": 150,
-      "_note": "Per KG bulk pricing, minimum 5kg per order"
+      "_note": "Per KG bulk pricing, minimum 5kg per order",
+      "requiresSpecialCare": false
     },
     {
       "category": "Laundry Services (Per KG)",
@@ -23,525 +25,602 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_kg",
       "price": 200,
-      "_note": "Tagged dry_clean as closest fit — client's confirmed 3-service list (Ironing/Dry Cleaning/Wash & Fold) doesn't have an exact match for 'Premium Laundry'. CONFIRM WITH CLIENT before treating this mapping as final."
+      "_note": "Tagged dry_clean as closest fit — client's confirmed 3-service list (Ironing/Dry Cleaning/Wash & Fold) doesn't have an exact match for 'Premium Laundry'. CONFIRM WITH CLIENT before treating this mapping as final.",
+      "requiresSpecialCare": false
     },
     {
       "category": "Women's Wear (Dry Cleaning)",
       "itemName": "Shirt (Cotton)",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 199
+      "price": 199,
+      "requiresSpecialCare": false
     },
     {
       "category": "Women's Wear (Dry Cleaning)",
       "itemName": "Saree Silk",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 299
+      "price": 299,
+      "requiresSpecialCare": false
     },
     {
       "category": "Women's Wear (Dry Cleaning)",
       "itemName": "Saree Party Wear",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 349
+      "price": 349,
+      "requiresSpecialCare": false
     },
     {
       "category": "Women's Wear (Dry Cleaning)",
       "itemName": "Saree Wedding Wear",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 899
+      "price": 899,
+      "requiresSpecialCare": false
     },
     {
       "category": "Women's Wear (Dry Cleaning)",
       "itemName": "Blouse Cotton",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 99
+      "price": 99,
+      "requiresSpecialCare": false
     },
     {
       "category": "Women's Wear (Dry Cleaning)",
       "itemName": "Blouse Silk",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 129
+      "price": 129,
+      "requiresSpecialCare": false
     },
     {
       "category": "Women's Wear (Dry Cleaning)",
       "itemName": "Blouse Party Wear",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 149
+      "price": 149,
+      "requiresSpecialCare": false
     },
     {
       "category": "Women's Wear (Dry Cleaning)",
       "itemName": "Blouse Wedding Wear",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 299
+      "price": 299,
+      "requiresSpecialCare": false
     },
     {
       "category": "Women's Wear (Dry Cleaning)",
       "itemName": "Half Saree Cotton",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 399
+      "price": 399,
+      "requiresSpecialCare": false
     },
     {
       "category": "Women's Wear (Dry Cleaning)",
       "itemName": "Half Saree Silk",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 499
+      "price": 499,
+      "requiresSpecialCare": false
     },
     {
       "category": "Women's Wear (Dry Cleaning)",
       "itemName": "Half Saree Party Wear",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 549
+      "price": 549,
+      "requiresSpecialCare": false
     },
     {
       "category": "Women's Wear (Dry Cleaning)",
       "itemName": "Dress Cotton",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 249
+      "price": 249,
+      "requiresSpecialCare": false
     },
     {
       "category": "Women's Wear (Dry Cleaning)",
       "itemName": "Dress Silk",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 349
+      "price": 349,
+      "requiresSpecialCare": false
     },
     {
       "category": "Women's Wear (Dry Cleaning)",
       "itemName": "Dress Party Wear",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 449
+      "price": 449,
+      "requiresSpecialCare": false
     },
     {
       "category": "Women's Wear (Dry Cleaning)",
       "itemName": "Dress Wedding Wear",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 699
+      "price": 699,
+      "requiresSpecialCare": false
     },
     {
       "category": "Women's Wear (Dry Cleaning)",
       "itemName": "Lehenga Cotton",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 299
+      "price": 299,
+      "requiresSpecialCare": false
     },
     {
       "category": "Women's Wear (Dry Cleaning)",
       "itemName": "Lehenga Silk",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 399
+      "price": 399,
+      "requiresSpecialCare": false
     },
     {
       "category": "Women's Wear (Dry Cleaning)",
       "itemName": "Kurti Wedding",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 449
+      "price": 449,
+      "requiresSpecialCare": false
     },
     {
       "category": "Women's Wear (Dry Cleaning)",
       "itemName": "Anarkali Silk",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 599
+      "price": 599,
+      "requiresSpecialCare": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
       "itemName": "Shirt (Cotton)",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 129
+      "price": 129,
+      "requiresSpecialCare": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
       "itemName": "Shirt (Silk)",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 149
+      "price": 149,
+      "requiresSpecialCare": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
       "itemName": "T-Shirt",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 129
+      "price": 129,
+      "requiresSpecialCare": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
       "itemName": "Jeans",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 129
+      "price": 129,
+      "requiresSpecialCare": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
       "itemName": "Pants",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 129
+      "price": 129,
+      "requiresSpecialCare": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
       "itemName": "Formal Pants",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 149
+      "price": 149,
+      "requiresSpecialCare": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
       "itemName": "Silk Pants",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 199
+      "price": 199,
+      "requiresSpecialCare": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
       "itemName": "Shorts",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 99
+      "price": 99,
+      "requiresSpecialCare": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
       "itemName": "Kurta Cotton",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 149
+      "price": 149,
+      "requiresSpecialCare": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
       "itemName": "Kurta Silk",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 249
+      "price": 249,
+      "requiresSpecialCare": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
       "itemName": "Designer Kurta",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 349
+      "price": 349,
+      "requiresSpecialCare": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
       "itemName": "Silk Dhoti",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 199
+      "price": 199,
+      "requiresSpecialCare": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
       "itemName": "Designer Dhoti",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 249
+      "price": 249,
+      "requiresSpecialCare": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
       "itemName": "Sherwani",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 349
+      "price": 349,
+      "requiresSpecialCare": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
       "itemName": "Party Sherwani",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 449
+      "price": 449,
+      "requiresSpecialCare": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
       "itemName": "Wedding Sherwani",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 999
+      "price": 999,
+      "requiresSpecialCare": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
       "itemName": "Blazer",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 349
+      "price": 349,
+      "requiresSpecialCare": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
       "itemName": "Party Blazer",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 449
+      "price": 449,
+      "requiresSpecialCare": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
       "itemName": "Safari Suit",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 599
+      "price": 599,
+      "requiresSpecialCare": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
       "itemName": "Suit (2 Piece)",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 549
+      "price": 549,
+      "_note": "RESOLVED: client confirmed the original prices were reversed. Corrected to ₹549 (was ₹999).",
+      "requiresSpecialCare": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
       "itemName": "Suit (3 Piece)",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 999
+      "price": 999,
+      "_note": "RESOLVED: client confirmed the original prices were reversed. Corrected to ₹999 (was ₹549).",
+      "requiresSpecialCare": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
       "itemName": "Jacket",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 289
+      "price": 289,
+      "requiresSpecialCare": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
       "itemName": "Leather Jacket",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 649
+      "price": 649,
+      "requiresSpecialCare": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
       "itemName": "Hoodie",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 249
+      "price": 249,
+      "requiresSpecialCare": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
       "itemName": "Sweater",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 249
+      "price": 249,
+      "requiresSpecialCare": false
     },
     {
       "category": "Kids Wear (Dry Cleaning)",
       "itemName": "Shirt",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 89
+      "price": 89,
+      "requiresSpecialCare": false
     },
     {
       "category": "Kids Wear (Dry Cleaning)",
       "itemName": "T-Shirt",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 89
+      "price": 89,
+      "requiresSpecialCare": false
     },
     {
       "category": "Kids Wear (Dry Cleaning)",
       "itemName": "Jeans",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 89
+      "price": 89,
+      "requiresSpecialCare": false
     },
     {
       "category": "Kids Wear (Dry Cleaning)",
       "itemName": "Pants",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 89
+      "price": 89,
+      "requiresSpecialCare": false
     },
     {
       "category": "Kids Wear (Dry Cleaning)",
       "itemName": "Kurta Cotton",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 99
+      "price": 99,
+      "requiresSpecialCare": false
     },
     {
       "category": "Kids Wear (Dry Cleaning)",
       "itemName": "Kurta Silk",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 189
+      "price": 189,
+      "requiresSpecialCare": false
     },
     {
       "category": "Kids Wear (Dry Cleaning)",
       "itemName": "Designer Kurta",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 229
+      "price": 229,
+      "requiresSpecialCare": false
     },
     {
       "category": "Kids Wear (Dry Cleaning)",
       "itemName": "Sherwani",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 229
+      "price": 229,
+      "requiresSpecialCare": false
     },
     {
       "category": "Kids Wear (Dry Cleaning)",
       "itemName": "Party Sherwani",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 299
+      "price": 299,
+      "requiresSpecialCare": false
     },
     {
       "category": "Kids Wear (Dry Cleaning)",
       "itemName": "Blazer",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 199
+      "price": 199,
+      "requiresSpecialCare": false
     },
     {
       "category": "Kids Wear (Dry Cleaning)",
       "itemName": "Suit (3 Piece)",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 359
+      "price": 359,
+      "requiresSpecialCare": false
     },
     {
       "category": "Kids Wear (Dry Cleaning)",
       "itemName": "Jacket",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 189
+      "price": 189,
+      "requiresSpecialCare": false
     },
     {
       "category": "Kids Wear (Dry Cleaning)",
       "itemName": "Hoodie",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 169
+      "price": 169,
+      "requiresSpecialCare": false
     },
     {
       "category": "Kids Wear (Dry Cleaning)",
       "itemName": "Sweater",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 169
+      "price": 169,
+      "requiresSpecialCare": false
     },
     {
       "category": "Kids Wear (Dry Cleaning)",
       "itemName": "Dress Cotton",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 169
+      "price": 169,
+      "requiresSpecialCare": false
     },
     {
       "category": "Kids Wear (Dry Cleaning)",
       "itemName": "Dress Silk",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 229
+      "price": 229,
+      "requiresSpecialCare": false
     },
     {
       "category": "Kids Wear (Dry Cleaning)",
       "itemName": "Dress Party Wear",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 299
+      "price": 299,
+      "requiresSpecialCare": false
     },
     {
       "category": "Kids Wear (Dry Cleaning)",
       "itemName": "Dress Wedding Wear",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 459
+      "price": 459,
+      "requiresSpecialCare": false
     },
     {
       "category": "Household Items",
       "itemName": "Single Bed Sheet",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 149
+      "price": 149,
+      "requiresSpecialCare": false
     },
     {
       "category": "Household Items",
       "itemName": "Double Bed Sheet",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 249
+      "price": 249,
+      "requiresSpecialCare": false
     },
     {
       "category": "Household Items",
       "itemName": "Extra Double Bed Sheet",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 299
+      "price": 299,
+      "requiresSpecialCare": false
     },
     {
       "category": "Household Items",
       "itemName": "Single Blanket",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 299
+      "price": 299,
+      "requiresSpecialCare": false
     },
     {
       "category": "Household Items",
       "itemName": "Double Blanket",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 399
+      "price": 399,
+      "requiresSpecialCare": false
     },
     {
       "category": "Household Items",
       "itemName": "Single Quilt",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 399
+      "price": 399,
+      "requiresSpecialCare": false
     },
     {
       "category": "Household Items",
       "itemName": "Double Quilt",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 499
+      "price": 499,
+      "requiresSpecialCare": false
     },
     {
       "category": "Household Items",
       "itemName": "Curtain (Window Panel)",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 199
+      "price": 199,
+      "requiresSpecialCare": true
     },
     {
       "category": "Household Items",
       "itemName": "Curtain (Door Panel)",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 349
+      "price": 349,
+      "requiresSpecialCare": true
     },
     {
       "category": "Household Items",
       "itemName": "Curtain (Balcony Panel)",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 499
+      "price": 499,
+      "requiresSpecialCare": true
     },
     {
       "category": "Household Items",
       "itemName": "Pillow Small",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 199
+      "price": 199,
+      "requiresSpecialCare": false
     },
     {
       "category": "Household Items",
       "itemName": "Pillow Large",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 299
+      "price": 299,
+      "requiresSpecialCare": false
     },
     {
       "category": "Household Items",
@@ -549,7 +628,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 99,
-      "isStartingPrice": true
+      "isStartingPrice": true,
+      "requiresSpecialCare": false
     },
     {
       "category": "Household Items",
@@ -557,7 +637,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 49,
-      "isStartingPrice": true
+      "isStartingPrice": true,
+      "requiresSpecialCare": false
     },
     {
       "category": "Household Items",
@@ -565,7 +646,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 249,
-      "isStartingPrice": true
+      "isStartingPrice": true,
+      "requiresSpecialCare": true
     },
     {
       "category": "Household Items",
@@ -573,7 +655,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 499,
-      "isStartingPrice": true
+      "isStartingPrice": true,
+      "requiresSpecialCare": true
     },
     {
       "category": "Accessories",
@@ -581,7 +664,9 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 149,
-      "isStartingPrice": true
+      "isStartingPrice": true,
+      "_note": "RESOLVED: client confirmed the current dry_clean mapping for Accessories is fine as-is — no change needed.",
+      "requiresSpecialCare": false
     },
     {
       "category": "Accessories",
@@ -589,7 +674,9 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 599,
-      "isStartingPrice": true
+      "isStartingPrice": true,
+      "_note": "RESOLVED: client confirmed the current dry_clean mapping for Accessories is fine as-is — no change needed.",
+      "requiresSpecialCare": false
     },
     {
       "category": "Accessories",
@@ -597,7 +684,9 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 149,
-      "isStartingPrice": true
+      "isStartingPrice": true,
+      "_note": "RESOLVED: client confirmed the current dry_clean mapping for Accessories is fine as-is — no change needed.",
+      "requiresSpecialCare": false
     },
     {
       "category": "Accessories",
@@ -605,49 +694,57 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 299,
-      "isStartingPrice": true
+      "isStartingPrice": true,
+      "_note": "RESOLVED: client confirmed the current dry_clean mapping for Accessories is fine as-is — no change needed.",
+      "requiresSpecialCare": false
     },
     {
       "category": "Accessories",
       "itemName": "Backpack",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 249
+      "price": 249,
+      "requiresSpecialCare": false
     },
     {
       "category": "Accessories",
       "itemName": "Laptop Bag",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 299
+      "price": 299,
+      "requiresSpecialCare": false
     },
     {
       "category": "Accessories",
       "itemName": "Leather Shoes",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 599
+      "price": 599,
+      "requiresSpecialCare": false
     },
     {
       "category": "Accessories",
       "itemName": "Sandals",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 199
+      "price": 199,
+      "requiresSpecialCare": false
     },
     {
       "category": "Accessories",
       "itemName": "Crocs",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 199
+      "price": 199,
+      "requiresSpecialCare": false
     },
     {
       "category": "Accessories",
       "itemName": "Slippers",
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
-      "price": 99
+      "price": 99,
+      "requiresSpecialCare": false
     },
     {
       "category": "Wash & Iron (Per Piece)",
@@ -655,7 +752,8 @@
       "serviceType": "ironing",
       "pricingUnit": "per_piece",
       "price": 49,
-      "_note": "Basic wash+iron tier — same garment names may also appear in the Dry Cleaning tier above at a different (higher) price. This is intentional: same item, different service level, not a duplicate."
+      "_note": "Basic wash+iron tier — same garment names may also appear in the Dry Cleaning tier above at a different (higher) price. This is intentional: same item, different service level, not a duplicate.",
+      "requiresSpecialCare": false
     },
     {
       "category": "Wash & Iron (Per Piece)",
@@ -663,7 +761,8 @@
       "serviceType": "ironing",
       "pricingUnit": "per_piece",
       "price": 49,
-      "_note": "Basic wash+iron tier — same garment names may also appear in the Dry Cleaning tier above at a different (higher) price. This is intentional: same item, different service level, not a duplicate."
+      "_note": "Basic wash+iron tier — same garment names may also appear in the Dry Cleaning tier above at a different (higher) price. This is intentional: same item, different service level, not a duplicate.",
+      "requiresSpecialCare": false
     },
     {
       "category": "Wash & Iron (Per Piece)",
@@ -671,7 +770,8 @@
       "serviceType": "ironing",
       "pricingUnit": "per_piece",
       "price": 49,
-      "_note": "Basic wash+iron tier — same garment names may also appear in the Dry Cleaning tier above at a different (higher) price. This is intentional: same item, different service level, not a duplicate."
+      "_note": "Basic wash+iron tier — same garment names may also appear in the Dry Cleaning tier above at a different (higher) price. This is intentional: same item, different service level, not a duplicate.",
+      "requiresSpecialCare": false
     },
     {
       "category": "Wash & Iron (Per Piece)",
@@ -679,7 +779,8 @@
       "serviceType": "ironing",
       "pricingUnit": "per_piece",
       "price": 49,
-      "_note": "Basic wash+iron tier — same garment names may also appear in the Dry Cleaning tier above at a different (higher) price. This is intentional: same item, different service level, not a duplicate."
+      "_note": "Basic wash+iron tier — same garment names may also appear in the Dry Cleaning tier above at a different (higher) price. This is intentional: same item, different service level, not a duplicate.",
+      "requiresSpecialCare": false
     },
     {
       "category": "Wash & Iron (Per Piece)",
@@ -687,7 +788,8 @@
       "serviceType": "ironing",
       "pricingUnit": "per_piece",
       "price": 69,
-      "_note": "Basic wash+iron tier — same garment names may also appear in the Dry Cleaning tier above at a different (higher) price. This is intentional: same item, different service level, not a duplicate."
+      "_note": "Basic wash+iron tier — same garment names may also appear in the Dry Cleaning tier above at a different (higher) price. This is intentional: same item, different service level, not a duplicate.",
+      "requiresSpecialCare": false
     },
     {
       "category": "Wash & Iron (Per Piece)",
@@ -695,7 +797,8 @@
       "serviceType": "ironing",
       "pricingUnit": "per_piece",
       "price": 49,
-      "_note": "Basic wash+iron tier — same garment names may also appear in the Dry Cleaning tier above at a different (higher) price. This is intentional: same item, different service level, not a duplicate."
+      "_note": "Basic wash+iron tier — same garment names may also appear in the Dry Cleaning tier above at a different (higher) price. This is intentional: same item, different service level, not a duplicate.",
+      "requiresSpecialCare": false
     },
     {
       "category": "Wash & Iron (Per Piece)",
@@ -703,7 +806,8 @@
       "serviceType": "ironing",
       "pricingUnit": "per_piece",
       "price": 49,
-      "_note": "Basic wash+iron tier — same garment names may also appear in the Dry Cleaning tier above at a different (higher) price. This is intentional: same item, different service level, not a duplicate."
+      "_note": "Basic wash+iron tier — same garment names may also appear in the Dry Cleaning tier above at a different (higher) price. This is intentional: same item, different service level, not a duplicate.",
+      "requiresSpecialCare": false
     },
     {
       "category": "Wash & Iron (Per Piece)",
@@ -711,7 +815,8 @@
       "serviceType": "ironing",
       "pricingUnit": "per_piece",
       "price": 49,
-      "_note": "Basic wash+iron tier — same garment names may also appear in the Dry Cleaning tier above at a different (higher) price. This is intentional: same item, different service level, not a duplicate."
+      "_note": "Basic wash+iron tier — same garment names may also appear in the Dry Cleaning tier above at a different (higher) price. This is intentional: same item, different service level, not a duplicate.",
+      "requiresSpecialCare": false
     },
     {
       "category": "Wash & Iron (Per Piece)",
@@ -719,7 +824,8 @@
       "serviceType": "ironing",
       "pricingUnit": "per_piece",
       "price": 39,
-      "_note": "Basic wash+iron tier — same garment names may also appear in the Dry Cleaning tier above at a different (higher) price. This is intentional: same item, different service level, not a duplicate."
+      "_note": "Basic wash+iron tier — same garment names may also appear in the Dry Cleaning tier above at a different (higher) price. This is intentional: same item, different service level, not a duplicate.",
+      "requiresSpecialCare": false
     },
     {
       "category": "Wash & Iron (Per Piece)",
@@ -727,7 +833,8 @@
       "serviceType": "ironing",
       "pricingUnit": "per_piece",
       "price": 39,
-      "_note": "Basic wash+iron tier — same garment names may also appear in the Dry Cleaning tier above at a different (higher) price. This is intentional: same item, different service level, not a duplicate."
+      "_note": "Basic wash+iron tier — same garment names may also appear in the Dry Cleaning tier above at a different (higher) price. This is intentional: same item, different service level, not a duplicate.",
+      "requiresSpecialCare": false
     },
     {
       "category": "Wash & Iron (Per Piece)",
@@ -735,7 +842,8 @@
       "serviceType": "ironing",
       "pricingUnit": "per_piece",
       "price": 39,
-      "_note": "Basic wash+iron tier — same garment names may also appear in the Dry Cleaning tier above at a different (higher) price. This is intentional: same item, different service level, not a duplicate."
+      "_note": "Basic wash+iron tier — same garment names may also appear in the Dry Cleaning tier above at a different (higher) price. This is intentional: same item, different service level, not a duplicate.",
+      "requiresSpecialCare": false
     },
     {
       "category": "Wash & Iron (Per Piece)",
@@ -743,7 +851,8 @@
       "serviceType": "ironing",
       "pricingUnit": "per_piece",
       "price": 39,
-      "_note": "Basic wash+iron tier — same garment names may also appear in the Dry Cleaning tier above at a different (higher) price. This is intentional: same item, different service level, not a duplicate."
+      "_note": "Basic wash+iron tier — same garment names may also appear in the Dry Cleaning tier above at a different (higher) price. This is intentional: same item, different service level, not a duplicate.",
+      "requiresSpecialCare": false
     },
     {
       "category": "Wash & Iron (Per Piece)",
@@ -751,7 +860,8 @@
       "serviceType": "ironing",
       "pricingUnit": "per_piece",
       "price": 69,
-      "_note": "Basic wash+iron tier — same garment names may also appear in the Dry Cleaning tier above at a different (higher) price. This is intentional: same item, different service level, not a duplicate."
+      "_note": "Basic wash+iron tier — same garment names may also appear in the Dry Cleaning tier above at a different (higher) price. This is intentional: same item, different service level, not a duplicate.",
+      "requiresSpecialCare": false
     },
     {
       "category": "Wash & Iron (Per Piece)",
@@ -759,7 +869,8 @@
       "serviceType": "ironing",
       "pricingUnit": "per_piece",
       "price": 89,
-      "_note": "Basic wash+iron tier — same garment names may also appear in the Dry Cleaning tier above at a different (higher) price. This is intentional: same item, different service level, not a duplicate."
+      "_note": "Basic wash+iron tier — same garment names may also appear in the Dry Cleaning tier above at a different (higher) price. This is intentional: same item, different service level, not a duplicate.",
+      "requiresSpecialCare": false
     },
     {
       "category": "Wash & Iron (Per Piece)",
@@ -767,7 +878,438 @@
       "serviceType": "ironing",
       "pricingUnit": "per_piece",
       "price": 89,
-      "isStartingPrice": true
+      "isStartingPrice": true,
+      "requiresSpecialCare": false
+    },
+    {
+      "category": "Iron Services — Women's Wear",
+      "itemName": "Kurti",
+      "serviceType": "ironing",
+      "pricingUnit": "per_piece",
+      "price": 15,
+      "requiresSpecialCare": false,
+      "_tier": "iron_only",
+      "_note": "Reintroduced from the client's FIRST price chart as the iron-only tier. RESOLVED: client confirmed all 5 sections (Women's Wear, Men's Wear, Kids Wear, Delicate & Premium Wear, Home Linen) are genuinely iron-only, not just the two under the literal banner."
+    },
+    {
+      "category": "Iron Services — Women's Wear",
+      "itemName": "Leggings",
+      "serviceType": "ironing",
+      "pricingUnit": "per_piece",
+      "price": 12,
+      "requiresSpecialCare": false,
+      "_tier": "iron_only",
+      "_note": "Reintroduced from the client's FIRST price chart as the iron-only tier. RESOLVED: client confirmed all 5 sections (Women's Wear, Men's Wear, Kids Wear, Delicate & Premium Wear, Home Linen) are genuinely iron-only, not just the two under the literal banner."
+    },
+    {
+      "category": "Iron Services — Women's Wear",
+      "itemName": "Palazzo",
+      "serviceType": "ironing",
+      "pricingUnit": "per_piece",
+      "price": 18,
+      "requiresSpecialCare": false,
+      "_tier": "iron_only",
+      "_note": "Reintroduced from the client's FIRST price chart as the iron-only tier. RESOLVED: client confirmed all 5 sections (Women's Wear, Men's Wear, Kids Wear, Delicate & Premium Wear, Home Linen) are genuinely iron-only, not just the two under the literal banner."
+    },
+    {
+      "category": "Iron Services — Women's Wear",
+      "itemName": "Top",
+      "serviceType": "ironing",
+      "pricingUnit": "per_piece",
+      "price": 15,
+      "requiresSpecialCare": false,
+      "_tier": "iron_only",
+      "_note": "Reintroduced from the client's FIRST price chart as the iron-only tier. RESOLVED: client confirmed all 5 sections (Women's Wear, Men's Wear, Kids Wear, Delicate & Premium Wear, Home Linen) are genuinely iron-only, not just the two under the literal banner."
+    },
+    {
+      "category": "Iron Services — Women's Wear",
+      "itemName": "Cotton Saree",
+      "serviceType": "ironing",
+      "pricingUnit": "per_piece",
+      "price": 40,
+      "requiresSpecialCare": false,
+      "_tier": "iron_only",
+      "_note": "Reintroduced from the client's FIRST price chart as the iron-only tier. RESOLVED: client confirmed all 5 sections (Women's Wear, Men's Wear, Kids Wear, Delicate & Premium Wear, Home Linen) are genuinely iron-only, not just the two under the literal banner."
+    },
+    {
+      "category": "Iron Services — Women's Wear",
+      "itemName": "Silk Saree",
+      "serviceType": "ironing",
+      "pricingUnit": "per_piece",
+      "price": 80,
+      "requiresSpecialCare": false,
+      "_tier": "iron_only",
+      "_note": "Reintroduced from the client's FIRST price chart as the iron-only tier. RESOLVED: client confirmed all 5 sections (Women's Wear, Men's Wear, Kids Wear, Delicate & Premium Wear, Home Linen) are genuinely iron-only, not just the two under the literal banner."
+    },
+    {
+      "category": "Iron Services — Women's Wear",
+      "itemName": "Designer Saree",
+      "serviceType": "ironing",
+      "pricingUnit": "per_piece",
+      "price": 100,
+      "requiresSpecialCare": false,
+      "_tier": "iron_only",
+      "_note": "Reintroduced from the client's FIRST price chart as the iron-only tier. RESOLVED: client confirmed all 5 sections (Women's Wear, Men's Wear, Kids Wear, Delicate & Premium Wear, Home Linen) are genuinely iron-only, not just the two under the literal banner."
+    },
+    {
+      "category": "Iron Services — Women's Wear",
+      "itemName": "Salwar Suit (Complete Set)",
+      "serviceType": "ironing",
+      "pricingUnit": "per_piece",
+      "price": 40,
+      "requiresSpecialCare": false,
+      "_tier": "iron_only",
+      "_note": "Reintroduced from the client's FIRST price chart as the iron-only tier. RESOLVED: client confirmed all 5 sections (Women's Wear, Men's Wear, Kids Wear, Delicate & Premium Wear, Home Linen) are genuinely iron-only, not just the two under the literal banner."
+    },
+    {
+      "category": "Iron Services — Women's Wear",
+      "itemName": "Dupatta",
+      "serviceType": "ironing",
+      "pricingUnit": "per_piece",
+      "price": 12,
+      "requiresSpecialCare": false,
+      "_tier": "iron_only",
+      "_note": "Reintroduced from the client's FIRST price chart as the iron-only tier. RESOLVED: client confirmed all 5 sections (Women's Wear, Men's Wear, Kids Wear, Delicate & Premium Wear, Home Linen) are genuinely iron-only, not just the two under the literal banner."
+    },
+    {
+      "category": "Iron Services — Women's Wear",
+      "itemName": "Gown",
+      "serviceType": "ironing",
+      "pricingUnit": "per_piece",
+      "price": 50,
+      "requiresSpecialCare": false,
+      "_tier": "iron_only",
+      "_note": "Reintroduced from the client's FIRST price chart as the iron-only tier. RESOLVED: client confirmed all 5 sections (Women's Wear, Men's Wear, Kids Wear, Delicate & Premium Wear, Home Linen) are genuinely iron-only, not just the two under the literal banner."
+    },
+    {
+      "category": "Iron Services — Women's Wear",
+      "itemName": "Lehenga",
+      "serviceType": "ironing",
+      "pricingUnit": "per_piece",
+      "price": 120,
+      "requiresSpecialCare": false,
+      "_tier": "iron_only",
+      "_note": "Reintroduced from the client's FIRST price chart as the iron-only tier. RESOLVED: client confirmed all 5 sections (Women's Wear, Men's Wear, Kids Wear, Delicate & Premium Wear, Home Linen) are genuinely iron-only, not just the two under the literal banner."
+    },
+    {
+      "category": "Iron Services — Home Linen",
+      "itemName": "Hand Towel",
+      "serviceType": "ironing",
+      "pricingUnit": "per_piece",
+      "price": 10,
+      "requiresSpecialCare": false,
+      "_tier": "iron_only",
+      "_note": "Reintroduced from the client's FIRST price chart as the iron-only tier. RESOLVED: client confirmed all 5 sections (Women's Wear, Men's Wear, Kids Wear, Delicate & Premium Wear, Home Linen) are genuinely iron-only, not just the two under the literal banner."
+    },
+    {
+      "category": "Iron Services — Home Linen",
+      "itemName": "Bath Towel",
+      "serviceType": "ironing",
+      "pricingUnit": "per_piece",
+      "price": 20,
+      "requiresSpecialCare": false,
+      "_tier": "iron_only",
+      "_note": "Reintroduced from the client's FIRST price chart as the iron-only tier. RESOLVED: client confirmed all 5 sections (Women's Wear, Men's Wear, Kids Wear, Delicate & Premium Wear, Home Linen) are genuinely iron-only, not just the two under the literal banner."
+    },
+    {
+      "category": "Iron Services — Home Linen",
+      "itemName": "Pillow Cover",
+      "serviceType": "ironing",
+      "pricingUnit": "per_piece",
+      "price": 10,
+      "requiresSpecialCare": false,
+      "_tier": "iron_only",
+      "_note": "Reintroduced from the client's FIRST price chart as the iron-only tier. RESOLVED: client confirmed all 5 sections (Women's Wear, Men's Wear, Kids Wear, Delicate & Premium Wear, Home Linen) are genuinely iron-only, not just the two under the literal banner."
+    },
+    {
+      "category": "Iron Services — Home Linen",
+      "itemName": "Bed Sheet (Single)",
+      "serviceType": "ironing",
+      "pricingUnit": "per_piece",
+      "price": 25,
+      "requiresSpecialCare": false,
+      "_tier": "iron_only",
+      "_note": "Reintroduced from the client's FIRST price chart as the iron-only tier. RESOLVED: client confirmed all 5 sections (Women's Wear, Men's Wear, Kids Wear, Delicate & Premium Wear, Home Linen) are genuinely iron-only, not just the two under the literal banner."
+    },
+    {
+      "category": "Iron Services — Home Linen",
+      "itemName": "Bed Sheet (Double)",
+      "serviceType": "ironing",
+      "pricingUnit": "per_piece",
+      "price": 35,
+      "requiresSpecialCare": false,
+      "_tier": "iron_only",
+      "_note": "Reintroduced from the client's FIRST price chart as the iron-only tier. RESOLVED: client confirmed all 5 sections (Women's Wear, Men's Wear, Kids Wear, Delicate & Premium Wear, Home Linen) are genuinely iron-only, not just the two under the literal banner."
+    },
+    {
+      "category": "Iron Services — Home Linen",
+      "itemName": "Blanket",
+      "serviceType": "ironing",
+      "pricingUnit": "per_piece",
+      "price": 80,
+      "requiresSpecialCare": false,
+      "_tier": "iron_only",
+      "_note": "Reintroduced from the client's FIRST price chart, confirmed as the iron-only tier (no wash component) — fills the gap flagged earlier: no standalone 'iron only, customer already washed it' price existed until now. Client's own label says 'Ironing only if suitable' — strong signal this section IS iron-only, consistent with the tier."
+    },
+    {
+      "category": "Iron Services — Home Linen",
+      "itemName": "Curtain (Per Panel)",
+      "serviceType": "ironing",
+      "pricingUnit": "per_piece",
+      "price": 40,
+      "requiresSpecialCare": true,
+      "_tier": "iron_only",
+      "_note": "Reintroduced from the client's FIRST price chart, confirmed as the iron-only tier (no wash component)."
+    },
+    {
+      "category": "Iron Services — Men's Wear",
+      "itemName": "T-Shirt",
+      "serviceType": "ironing",
+      "pricingUnit": "per_piece",
+      "price": 14,
+      "requiresSpecialCare": false,
+      "_tier": "iron_only",
+      "_note": "Reintroduced from the client's FIRST price chart, confirmed as the iron-only tier (no wash component)."
+    },
+    {
+      "category": "Iron Services — Men's Wear",
+      "itemName": "Shirt",
+      "serviceType": "ironing",
+      "pricingUnit": "per_piece",
+      "price": 14,
+      "requiresSpecialCare": false,
+      "_tier": "iron_only",
+      "_note": "Reintroduced from the client's FIRST price chart, confirmed as the iron-only tier (no wash component)."
+    },
+    {
+      "category": "Iron Services — Men's Wear",
+      "itemName": "Polo T-Shirt",
+      "serviceType": "ironing",
+      "pricingUnit": "per_piece",
+      "price": 16,
+      "requiresSpecialCare": false,
+      "_tier": "iron_only",
+      "_note": "Reintroduced from the client's FIRST price chart, confirmed as the iron-only tier (no wash component)."
+    },
+    {
+      "category": "Iron Services — Men's Wear",
+      "itemName": "Jeans",
+      "serviceType": "ironing",
+      "pricingUnit": "per_piece",
+      "price": 18,
+      "requiresSpecialCare": false,
+      "_tier": "iron_only",
+      "_note": "Reintroduced from the client's FIRST price chart, confirmed as the iron-only tier (no wash component)."
+    },
+    {
+      "category": "Iron Services — Men's Wear",
+      "itemName": "Cotton Pants",
+      "serviceType": "ironing",
+      "pricingUnit": "per_piece",
+      "price": 18,
+      "requiresSpecialCare": false,
+      "_tier": "iron_only",
+      "_note": "Reintroduced from the client's FIRST price chart, confirmed as the iron-only tier (no wash component)."
+    },
+    {
+      "category": "Iron Services — Men's Wear",
+      "itemName": "Trousers/Formals",
+      "serviceType": "ironing",
+      "pricingUnit": "per_piece",
+      "price": 18,
+      "requiresSpecialCare": false,
+      "_tier": "iron_only",
+      "_note": "Reintroduced from the client's FIRST price chart, confirmed as the iron-only tier (no wash component)."
+    },
+    {
+      "category": "Iron Services — Men's Wear",
+      "itemName": "Shorts",
+      "serviceType": "ironing",
+      "pricingUnit": "per_piece",
+      "price": 12,
+      "requiresSpecialCare": false,
+      "_tier": "iron_only",
+      "_note": "Reintroduced from the client's FIRST price chart, confirmed as the iron-only tier (no wash component)."
+    },
+    {
+      "category": "Iron Services — Men's Wear",
+      "itemName": "Kurta",
+      "serviceType": "ironing",
+      "pricingUnit": "per_piece",
+      "price": 20,
+      "requiresSpecialCare": false,
+      "_tier": "iron_only",
+      "_note": "Reintroduced from the client's FIRST price chart, confirmed as the iron-only tier (no wash component)."
+    },
+    {
+      "category": "Iron Services — Men's Wear",
+      "itemName": "Blazer",
+      "serviceType": "ironing",
+      "pricingUnit": "per_piece",
+      "price": 80,
+      "requiresSpecialCare": false,
+      "_tier": "iron_only",
+      "_note": "Reintroduced from the client's FIRST price chart, confirmed as the iron-only tier (no wash component)."
+    },
+    {
+      "category": "Iron Services — Men's Wear",
+      "itemName": "Suit (2-Piece)",
+      "serviceType": "ironing",
+      "pricingUnit": "per_piece",
+      "price": 120,
+      "requiresSpecialCare": false,
+      "_tier": "iron_only",
+      "_note": "Already resolved in an earlier round: confirmed as a distinct item, not the pricing-inversion typo found later in the v2 catalogue's Men's Wear Dry Cleaning section (that was ₹999/₹549 — a different, separate occurrence)."
+    },
+    {
+      "category": "Iron Services — Men's Wear",
+      "itemName": "Suit (3-Piece)",
+      "serviceType": "ironing",
+      "pricingUnit": "per_piece",
+      "price": 150,
+      "requiresSpecialCare": false,
+      "_tier": "iron_only",
+      "_note": "Reintroduced from the client's FIRST price chart, confirmed as the iron-only tier (no wash component)."
+    },
+    {
+      "category": "Iron Services — Men's Wear",
+      "itemName": "Waistcoat",
+      "serviceType": "ironing",
+      "pricingUnit": "per_piece",
+      "price": 35,
+      "requiresSpecialCare": false,
+      "_tier": "iron_only",
+      "_note": "Reintroduced from the client's FIRST price chart, confirmed as the iron-only tier (no wash component)."
+    },
+    {
+      "category": "Iron Services — Kids Wear",
+      "itemName": "T-Shirt",
+      "serviceType": "ironing",
+      "pricingUnit": "per_piece",
+      "price": 10,
+      "requiresSpecialCare": false,
+      "_tier": "iron_only",
+      "_note": "Reintroduced from the client's FIRST price chart, confirmed as the iron-only tier (no wash component)."
+    },
+    {
+      "category": "Iron Services — Kids Wear",
+      "itemName": "Shirt",
+      "serviceType": "ironing",
+      "pricingUnit": "per_piece",
+      "price": 10,
+      "requiresSpecialCare": false,
+      "_tier": "iron_only",
+      "_note": "Reintroduced from the client's FIRST price chart, confirmed as the iron-only tier (no wash component)."
+    },
+    {
+      "category": "Iron Services — Kids Wear",
+      "itemName": "Shorts",
+      "serviceType": "ironing",
+      "pricingUnit": "per_piece",
+      "price": 10,
+      "requiresSpecialCare": false,
+      "_tier": "iron_only",
+      "_note": "Reintroduced from the client's FIRST price chart, confirmed as the iron-only tier (no wash component)."
+    },
+    {
+      "category": "Iron Services — Kids Wear",
+      "itemName": "Pants",
+      "serviceType": "ironing",
+      "pricingUnit": "per_piece",
+      "price": 10,
+      "requiresSpecialCare": false,
+      "_tier": "iron_only",
+      "_note": "Reintroduced from the client's FIRST price chart, confirmed as the iron-only tier (no wash component)."
+    },
+    {
+      "category": "Iron Services — Kids Wear",
+      "itemName": "Frock",
+      "serviceType": "ironing",
+      "pricingUnit": "per_piece",
+      "price": 15,
+      "requiresSpecialCare": false,
+      "_tier": "iron_only",
+      "_note": "Reintroduced from the client's FIRST price chart, confirmed as the iron-only tier (no wash component)."
+    },
+    {
+      "category": "Iron Services — Kids Wear",
+      "itemName": "School Uniform (Shirt + Pant/Skirt)",
+      "serviceType": "ironing",
+      "pricingUnit": "per_piece",
+      "price": 20,
+      "requiresSpecialCare": false,
+      "_tier": "iron_only",
+      "_note": "Reintroduced from the client's FIRST price chart, confirmed as the iron-only tier (no wash component)."
+    },
+    {
+      "category": "Iron Services — Delicate & Premium Wear",
+      "itemName": "Silk Shirt",
+      "serviceType": "ironing",
+      "pricingUnit": "per_piece",
+      "price": 30,
+      "requiresSpecialCare": true,
+      "_tier": "iron_only",
+      "_note": "Reintroduced from the client's FIRST price chart as the iron-only tier. RESOLVED: client confirmed all 5 sections (Women's Wear, Men's Wear, Kids Wear, Delicate & Premium Wear, Home Linen) are genuinely iron-only, not just the two under the literal banner."
+    },
+    {
+      "category": "Iron Services — Delicate & Premium Wear",
+      "itemName": "Linen Shirt",
+      "serviceType": "ironing",
+      "pricingUnit": "per_piece",
+      "price": 25,
+      "requiresSpecialCare": true,
+      "_tier": "iron_only",
+      "_note": "Reintroduced from the client's FIRST price chart as the iron-only tier. RESOLVED: client confirmed all 5 sections (Women's Wear, Men's Wear, Kids Wear, Delicate & Premium Wear, Home Linen) are genuinely iron-only, not just the two under the literal banner."
+    },
+    {
+      "category": "Iron Services — Delicate & Premium Wear",
+      "itemName": "Khadi Kurta",
+      "serviceType": "ironing",
+      "pricingUnit": "per_piece",
+      "price": 25,
+      "requiresSpecialCare": true,
+      "_tier": "iron_only",
+      "_note": "Reintroduced from the client's FIRST price chart as the iron-only tier. RESOLVED: client confirmed all 5 sections (Women's Wear, Men's Wear, Kids Wear, Delicate & Premium Wear, Home Linen) are genuinely iron-only, not just the two under the literal banner."
+    },
+    {
+      "category": "Iron Services — Delicate & Premium Wear",
+      "itemName": "Wool Coat",
+      "serviceType": "ironing",
+      "pricingUnit": "per_piece",
+      "price": 100,
+      "requiresSpecialCare": true,
+      "_tier": "iron_only",
+      "_note": "Reintroduced from the client's FIRST price chart as the iron-only tier. RESOLVED: client confirmed all 5 sections (Women's Wear, Men's Wear, Kids Wear, Delicate & Premium Wear, Home Linen) are genuinely iron-only, not just the two under the literal banner."
+    },
+    {
+      "category": "Iron Services — Delicate & Premium Wear",
+      "itemName": "Sherwani",
+      "serviceType": "ironing",
+      "pricingUnit": "per_piece",
+      "price": 150,
+      "requiresSpecialCare": true,
+      "_tier": "iron_only",
+      "_note": "Reintroduced from the client's FIRST price chart as the iron-only tier. RESOLVED: client confirmed all 5 sections (Women's Wear, Men's Wear, Kids Wear, Delicate & Premium Wear, Home Linen) are genuinely iron-only, not just the two under the literal banner."
+    },
+    {
+      "category": "Iron Services — Delicate & Premium Wear",
+      "itemName": "Bridal Dupatta",
+      "serviceType": "ironing",
+      "pricingUnit": "per_piece",
+      "price": 80,
+      "requiresSpecialCare": true,
+      "_tier": "iron_only",
+      "_note": "Reintroduced from the client's FIRST price chart as the iron-only tier. RESOLVED: client confirmed all 5 sections (Women's Wear, Men's Wear, Kids Wear, Delicate & Premium Wear, Home Linen) are genuinely iron-only, not just the two under the literal banner."
+    },
+    {
+      "category": "Iron Services — Delicate & Premium Wear",
+      "itemName": "Designer Dress",
+      "serviceType": "ironing",
+      "pricingUnit": "per_piece",
+      "price": 100,
+      "requiresSpecialCare": true,
+      "_tier": "iron_only",
+      "_note": "Already resolved in an earlier round: client confirmed a FIXED ₹100, not the ₹80-150 range shown on this chart. Carried forward as-is, not re-opened."
     }
   ],
   "businessInfo": {
@@ -779,6 +1321,6 @@
     "_laundryMinimumNote": "Client's rate card states 'Minimum 5 Kg applicable for laundry services' for the per-KG tier (Wash & Fold / Wash & Steam Iron / Premium Laundry). This is an ORDER-level minimum charge rule, not per-item — an order containing per-KG items should be charged for at least 5kg total even if actual weight is less.",
     "freeBagPolicyWording": "FREE LAUNDRY BAG FOR EVERY CUSTOMER",
     "_freeBagNote": "New rate card says 'every customer' — earlier confirmed business rule was 'first bag free for every NEW customer' plus a ₹350 lost/damaged replacement fee. Worth confirming with client whether this is a wording simplification or an actual policy change (bag given every order vs just once per customer).",
-    "captionSwapNote": "RESOLVED (2026-07-20): client confirmed the footer captions were swapped between sections in the rate card by mistake (Women's Wear had 'And many more men's dresses & winter wear'; Men's Wear had 'And many more women's dresses & ethnic wear'). No application data was affected — these captions were never ingested as GarmentCatalogue fields or rendered anywhere in the app, so this note is informational only, kept for the record."
+    "captionSwapNote": "Client's rate card appears to have the footer captions swapped between sections: the Women's Wear section's caption reads 'And many more men's dresses & winter wear', while the Men's Wear (Dry Cleaning) section's caption reads 'And many more women's dresses & ethnic wear'. Transcribed faithfully, not corrected — flag to client."
   }
 }

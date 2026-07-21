@@ -81,7 +81,7 @@ Customers reference a branch (`customers.branch_id`) and a `location_label` (fre
 
 Client's explicit process description confirms **three services: Ironing, Dry Cleaning, Wash & Fold.** Pickup & Delivery is doorstep logistics, not a billable service type.
 
-`garment_catalogue.serviceType` is a plain string (not a hard DB enum, deliberately) — seed values: `wash_fold`, `ironing`, `dry_clean`. The earlier 4th tag (`specialty_care`) has been folded into `dry_clean` — that's how delicate items are operationally handled anyway.
+`garment_catalogue.serviceType` is a plain string (not a hard DB enum, deliberately) — seed values: `wash_fold`, `ironing`, `dry_clean`. **Superseded (2026-07-21) — see "`requiresSpecialCare` — RESOLVED" below**: the earlier 4th tag (`specialty_care`) was folded into `dry_clean` as a service type; client later clarified special care isn't a service tier at all, it's an orthogonal attribute any garment can have — replaced by a separate `requiresSpecialCare` boolean, not a `serviceType` value.
 
 **Both data points flagged earlier are now resolved:**
 - "Suit (2-Piece)" and "Suit (3-Piece)" (from the FIRST price list) are confirmed as intentionally distinct items, not a typo.
@@ -225,7 +225,8 @@ Both features go live now (previously "future, not yet built" / "gated, not reac
 - `schema.prisma` has been reconciled against the live database via introspection: every model has `@@map`, every field that differs from its DB column gets `@map`, and every enum-like field is `String @db.VarChar(n)` (matching the DB's varchar+CHECK design) instead of a Prisma `enum` — Prisma enums always force a native Postgres enum type on push, which would have diverged from `database_schema_v3.sql`. TS-side type safety for these fields lives in `src/types/enums.ts`.
 - The pricing-model columns from "Major pricing model update" (`pricingUnit`, `category`, `isStartingPrice`, `priceMax`, `OrderItem.weightKg`/`pricePerKg`) plus the `device_tokens` and `additional_charges` tables have been pushed to the live DB (`npx prisma db push`).
 - **Two CHECK constraints were found stale and corrected** to match what this file already documented as resolved: `garment_catalogue_service_type_check` (was `laundry|iron|both`, now `wash_fold|ironing|dry_clean`) and `orders_payment_method_check` / `payments_payment_method_check` (was `qr_online|cash`, now `cash|upi|net_banking|credit_card` per the order workflow section above). Prisma doesn't manage CHECK constraints — any future enum-like value set change needs a manual `ALTER TABLE ... DROP/ADD CONSTRAINT`, not just a schema.prisma edit.
-- The 106-item v2 garment catalogue (`garments-seed-data-v2.json`) has been seeded into the live DB — 106 active rows confirmed. The seed script matches existing rows by `(itemName, category)`, not `itemName` alone — 18 items intentionally share a name across categories at different prices (see "Major pricing model update" point 5); matching on `itemName` alone silently collapses those into one row.
+- The garment catalogue (`garments-seed-data-v2.json`, now v3 in substance — file not renamed) has been seeded into the live DB — **149 active rows confirmed** (106 original + 43 reintroduced Iron Services items, see "Iron-only tier reintroduced" below). The seed script matches existing rows by `(itemName, category)`, not `itemName` alone — several items intentionally share a name across categories at different prices (see "Major pricing model update" point 5); matching on `itemName` alone silently collapses those into one row.
+- `GarmentCatalogue.requiresSpecialCare` (Boolean, default `false`) pushed live (`npx prisma db push`) — see "`requiresSpecialCare` — RESOLVED" below. 13 rows confirmed `true` post-seed.
 - `Customer.discountPercent` (Decimal, nullable, default 0) has been pushed live, with a `customers_discount_percent_check` CHECK constraint enforcing 0–100. `PATCH /api/v1/customers/:id/discount` (admin-only) is live in `src/controllers/customerController.ts` / `src/routes/customers.ts`.
 - `Customer.discountEnabled` (Boolean, default `false`) has been pushed live (`npx prisma db push`) — see "Monthly billing + discount: now live" below. `npx prisma generate`'s Prisma Client type/JS output regenerated successfully (confirmed present in `node_modules/.prisma/client/index.d.ts`); its native `query_engine-windows.dll.node` binary specifically failed to rewrite (`EPERM`, file held open by the already-running dev server process — traced to an untraceable-by-PID handle, not a stray process this session started) — harmless, since the engine binary version didn't change and doesn't encode model-specific fields; only the generated JS/TS (which did update) does.
 - Application tables (customers, orders, payments, etc.) are still empty except for `branches` (1 row: Attapur) and `users` (3 rows: the admin/test accounts above) — no order/customer/payment data exists yet, so schema changes there still carry no data-loss risk. This won't be true indefinitely.
@@ -241,6 +242,97 @@ Both features go live now (previously "future, not yet built" / "gated, not reac
 - All secrets in environment variables / hosting platform's secret manager — never committed, never in chat, never in this file
 - Parameterized queries throughout (Prisma handles this by default — don't drop to raw SQL without care)
 - India's DPDP Act: reasonable security safeguards are a live obligation now, not deferred to 2027 — see Technical Design Document Section 6.3
+
+---
+
+## Twilio trial mode — real constraints, not just a config detail
+
+**Now true (2026-07-21): real trial-tier credentials added to `.env`.** WhatsApp/SMS sending was already fully implemented in code (`src/lib/twilioClient.ts`, `src/services/notificationService.ts`, `src/services/otpService.ts`) from an earlier pass — the only gap was missing real credentials, now filled in. **No new client/job/util files were created** — a prompt describing this as new work (`src/utils/twilioClient.ts`, `src/jobs/notifications.job.ts`, `src/utils/otp.ts`, stub `sendWhatsApp`/`sendSms` functions to replace) didn't match this codebase's actual structure; the real files are `src/lib/twilioClient.ts` (already real Twilio SDK calls, not stubs) and `src/services/otpService.ts`'s `sendOtpViaChannels` (already wired into `authController.ts::requestOtp`).
+
+One correction to the credential values as originally provided: `TWILIO_WHATSAPP_FROM` must be the **bare number**, no `whatsapp:` prefix — `twilioClient.ts` already prepends that itself (`` `whatsapp:${TWILIO_WHATSAPP_FROM}` ``). Setting the env var to `whatsapp:+14155238886` (as first given) would have doubled the prefix and broken every outbound WhatsApp send; set to `+14155238886` instead.
+
+**Tested (2026-07-21) via a direct call to `sendSms`/`sendWhatsApp`** (not the full `/api/auth/request-otp` endpoint — the currently-running dev server's Redis-backed OTP rate-limiting has no local Redis instance to connect to right now, a separate pre-existing gap, unrelated to Twilio; see "Redis setup" in the README):
+- **SMS to +919949300888 failed**: Twilio error 21608, "unverified number" — this phone number is not yet verified in the Twilio Console's Verified Caller IDs. Expected trial-mode behavior, not a bug — verify it there if you want to test SMS with this number.
+- **WhatsApp to +919949300888: Twilio accepted the request** (API call succeeded) — this confirms the number has joined the Sandbox, OR at minimum that Twilio's API didn't reject it outright. API acceptance doesn't guarantee the message was actually delivered/received — please confirm on your end whether it actually arrived in WhatsApp.
+
+Improved error surfacing per this integration: `src/lib/twilioClient.ts` now exports `formatTwilioError(err)`, extracting Twilio's specific `code`/`message`/`moreInfo` (e.g. "Twilio error 21608: ...") instead of a raw error object dump — used by both `notificationService.ts` and `otpService.ts`'s rejection logging. Test: `src/__tests__/twilioClient.test.ts`.
+
+Two real limitations apply on the trial tier, both matter for testing expectations:
+
+- **SMS** only reaches phone numbers manually verified in the Twilio Console (Console → Phone Numbers → Verified Caller IDs). Cannot reach arbitrary real customer numbers yet.
+- **WhatsApp** uses Twilio's **Sandbox**, not real production WhatsApp Business messaging — this is separate from the Meta WhatsApp Business API approval process already documented in the Technical Design Document's Section 9. Recipients must first text a join code to Twilio's sandbox number before they can receive anything.
+
+**"Client sets up pro" is two separate upgrades, not one**: (1) Twilio billing upgrade (removes trial SMS restrictions/prefix), and (2) WhatsApp Business API production approval through Meta (separate process, 1–3 weeks, doesn't happen automatically from the Twilio billing upgrade alone). Don't conflate these when talking to the client about timeline.
+
+---
+
+## `requiresSpecialCare` — RESOLVED, replaces the earlier `specialty_care` service type
+
+Client confirmed: "special care" is **not a service tier**, it's an attribute any garment can have regardless of which tier it's priced under (a silk saree could be dry-cleaned AND need special handling; a wool coat could be on the wash & iron tier and still need care). This replaces the earlier decision to fold `specialty_care` into `dry_clean` as a service type (see the now-corrected note in "Services — RESOLVED" above).
+
+**Implemented (2026-07-21).** `GarmentCatalogue.requiresSpecialCare` (Boolean, default `false`), independent of `serviceType` — added to `schema.prisma`, pushed to the live DB (`npx prisma db push`). `backEnd/prisma/seed.ts`'s `SeedGarment` interface and upsert `data` object both updated to read/persist it (previously would have silently dropped the field even once present in the seed JSON). Seed data sets this `true` by default on curtains, bridal dupatta, sofa cover, carpet, and everything in the Delicate & Premium Wear category — sensible defaults, not locked values. Verified against the live DB post-seed: 13 rows with `requiresSpecialCare: true`, 136 with `false` (149 total, see "Iron-only tier reintroduced" below for why the total isn't 106 anymore).
+
+**Known gap, not yet built**: the admin Garment Catalogue screen's create/update flow (`garmentController.ts`'s `createGarmentHandler`/`updateGarmentHandler`, `mobile/src/screens/admin/GarmentCatalogueScreen.tsx`) only handles `itemName`/`price`/`serviceType` today — `category`, `pricingUnit`, `priceMax`, `isStartingPrice`, and now `requiresSpecialCare` are all seed-managed only, not yet editable via the admin UI/API. This predates `requiresSpecialCare` (the other four fields already had this gap) — flagging it here since CLAUDE.md's framing above ("admin can toggle per item") describes the intent, not something already wired up. Didn't expand scope to fix all five fields' CRUD support as a side effect of this prompt — a dedicated task if wanted.
+
+---
+
+## Iron-only tier reintroduced — RESOLVED, all 5 sections confirmed
+
+The client's original first price chart (Women's Wear / Home Linen / "Iron Services" banner over Men's & Kids Wear / Delicate & Premium Wear) was previously treated as fully superseded when the second, larger rate card came in. **That was wrong** — it represents a genuine standalone **iron-only tier** (no wash component), which was missing: the v2 catalogue's "Wash & Iron (Per Piece)" tier is a wash+iron *combo*, and there was no price for a customer who says "I already washed it, just iron it." Reintroduced as 43 items, `serviceType: ironing`, `pricingUnit: per_piece`, category prefix `"Iron Services — "`.
+
+**RESOLVED: client confirmed all 5 sections are genuinely iron-only** — Women's Wear, Men's Wear, Kids Wear, Delicate & Premium Wear, and Home Linen, not just the two (Men's/Kids) that carried the literal "IRON SERVICES" banner in the artwork. Nothing here is still open.
+
+**Two items in this reintroduced data were already resolved in earlier rounds and were NOT reopened**: Suit (2-Piece)/(3-Piece) from this chart (₹120/₹150 — a different, separate occurrence from the ₹999/₹549 inversion found later in the v2 Dry Cleaning tier), and Designer Dress (fixed ₹100, not the ₹80–150 range shown on this chart). Both verified against the live DB post-seed and hold as expected.
+
+**Implemented and seeded (2026-07-21).** All 43 items confirmed live: `garment_catalogue` now has 149 active rows total (106 original + 43 Iron Services), verified directly against the DB post-seed (`Iron Services —` category count = 43, exact match).
+
+**Checked (2026-07-21): the "three near-identical Shirt entries" navigability concern raised above.** Read `NewOrderEntryScreen.tsx`'s actual rendering — garments group by `category` (`groupedGarments`, a `Map` keyed on the category string) with a bold uppercase `categoryHeader` per section; the three "Shirt" occurrences for Men's Wear are never ambiguous in practice: "Shirt (Cotton)" sits under "MEN'S WEAR (DRY CLEANING)" (₹129), "Men's Shirt" sits under "WASH & IRON (PER PIECE)" (₹49), and "Shirt" sits under "IRON SERVICES — MEN'S WEAR" (₹14) — three different item-name strings, three different clearly-labeled sections, never rendered adjacent to each other without a header boundary between them. **The grouping does scale correctly for disambiguation** — no code change needed there. The real consequence of this data update is list **length**, not clarity: the catalogue grew from 106 to 149 items across several new large category sections, with no search/filter in this screen — scrolling to find a specific item during a live pickup will take noticeably longer than before. Worth a search/filter affordance if that becomes a real complaint from staff using it; not built, since it wasn't asked for and isn't a correctness issue.
+
+---
+
+## Customer creation — RESOLVED, ground-truth check corrected an earlier assumption
+
+**Correction to the earlier version of this note**: it claimed `createOrder` "requires an existing `customerId`" — that was backwards. `orderService.ts::createOrder` has always done a `customer.upsert` keyed on `(phoneNumber, branchId, locationLabel)` internally; it never reads a `customerId` at all. The real gap was narrower: there was no way to *look up* a customer ahead of submitting an order (so staff couldn't tell "existing customer" from "new" before hitting confirm), and no standalone search/create endpoint.
+
+**Implemented.** `POST /api/v1/customers` (staff **and** admin — unlike the admin-only discount/billing endpoints) and `GET /api/v1/customers/search?phone=` in `src/controllers/customerController.ts` / `src/routes/customers.ts`. Both use `customerSelectForRole(role)` (primary defense, same as the order-derived customer data) since a staff-role caller reaches these directly, not just through order creation. `POST /` is idempotent on the same unique constraint `createOrder` already upserts on; a staff caller is locked to their own `branchId` (any `branchId` in the body is ignored), an admin must supply one explicitly (falls back to their own if branch-scoped). `GET /search` is branch-scoped the same way `listCustomersHandler` is.
+
+Mobile: `mobile/src/screens/staff/NewOrderEntryScreen.tsx` now opens with a phone-search step (`searchCustomers`) instead of three raw text fields — a match shows existing customers at that number (tap to select, with a "Monthly" tag if `billingMode === 'monthly_billing'`, surfaced here since staff can read but not change billingMode) plus a "new customer / location for this number" link; no match shows an inline name+location form that calls `createCustomer` to confirm. Only once a customer is confirmed does the garment picker and "Confirm Pickup" unlock — one continuous flow, no screen detour. Final order submission still goes through the existing `createOrder` (unchanged contract), which upserts the same record the search/create step already resolved. `mobile/src/api/customers.ts` gained `searchCustomers`/`createCustomer`/`CustomerLookup` (a `Customer` variant without the `branch` relation, which these endpoints don't join). Tests: `src/__tests__/customerController.test.ts`'s new "POST /" and "GET /search" blocks (role gate, branch-locking for staff, required-branchId for admin, primary-defense select assertions).
+
+---
+
+## Order status — RESOLVED, `GET /orders/:id` exists but had a real scoping bug
+
+Ground-truth check confirmed `GET /api/v1/orders/:id` (`getOrderHandler` → `orderService.getOrder`) does exist and does apply the staff-hidden-fields protection (`customerSelectForRole(role)`) — but **it applied zero branch or staff scoping**, worse than the "Staff-scoped order visibility" gap below assumed: any authenticated staff or admin could fetch any order by id, from any branch, not just their own. Fixed as part of that same work — see below.
+
+---
+
+## Staff-scoped order visibility — RESOLVED and implemented, including the branch-scoping bug in `getOrder`
+
+**Confirmed requirement**: each staff member sees/manages only their own assigned orders (`staffId`), not every order in the branch. Admin visibility is unchanged (branch-scoped or unscoped, per the existing admin model).
+
+**Implemented, read side.** `orderService.ts::listOrders` now accepts an optional `staffId` and filters `where: { staffId }` when the caller's role is `'staff'`. `orderService.ts::getOrder` was changed from `prisma.order.findUnique` to `findFirst` so it can filter by `scope.branchId` (`customer.branchId`) and `scope.staffId` at the query level — an out-of-scope order now comes back as `null` (indistinguishable from "doesn't exist"), rather than the previous zero-scoping behavior. `orderController.ts` computes the same `effectiveBranchId` logic (branch-scoped user's own `branchId` always wins; unscoped admin may pass `?branchId=` or omit it) for **both** `listOrdersHandler` and `getOrderHandler` now — previously only `listOrdersHandler` had it, so this also fixes a branch-scoped admin's ability to fetch orders outside their branch via the single-order endpoint, which was open before this change too.
+
+**Implemented, write side.** `orderService.ts::updateStatus` now does an ownership pre-check for `role === 'staff'`: fetches the order's `staffId` and 403s (`Forbidden: you can only update orders assigned to you`) if it doesn't match the requester's own id (`changedById`) — there's no separate "acting staffId" concept for a status update the way `createOrder` has one for admin-assigning-to-staff, so the requester's own id doubles as the ownership check. 404s if the order doesn't exist. Admin is unaffected — the pre-check only runs for `role === 'staff'`.
+
+**Edge case (admin-created order, `staffId` null) — left as flagged, not resolved.** Still true: an admin-created order has `staffId: null` and wouldn't be visible to any staff member under this rule. Not hit in practice yet (staff always create orders at pickup, per the confirmed workflow) — no explicit "assign to staff" step was added.
+
+Tests: `src/__tests__/orderService.test.ts`'s new "getOrder / listOrders — staff-scoped visibility" block (query-construction-level assertions for both) and "updateStatus — staff ownership check" block (403 for a non-owning staff member, 200 for the owner, 404 for a missing order, no pre-check at all for admin) — plus the existing "updateStatus — delivery billingMode branch" tests were updated to mock the new ownership-check query since they call `updateStatus` with `role: 'staff'`.
+
+---
+
+## Staff/Admin account management — RESOLVED, and the existing `GET /users` route was a bug
+
+Ground-truth check found `routes/users.ts` had `GET /me` and `GET /` (admin-only) both wired to the **same** `getCurrentUser` handler — `GET /` looked like a user-listing endpoint but actually just echoed back the requester's own decoded token, admin-gated or not. No creation endpoint existed at all.
+
+**Implemented.** `src/controllers/userController.ts` gained `listUsersHandler` (admin-only, branch-scoped the same way `listCustomersHandler`/`listBranchesHandler` are) and `createUserHandler` (admin-only; `fullName`, `phoneNumber`, `role` (`'staff' | 'admin'`), `branchId` — required for staff, optional/null for admin per the existing unscoped-admin pattern; 409s on a duplicate `phoneNumber`; no password field, since auth is OTP-only). `routes/users.ts`'s `GET /` now points at the real list handler, and a `POST /` route was added — `GET /me` is untouched. Mobile: `mobile/src/api/users.ts` (`fetchUsers`, `createUser`) and a new `mobile/src/screens/admin/StaffManagementScreen.tsx` (list grouped by branch, plus an "All Branches (Unscoped Admin)" section — role tag per account, "+ Add Staff / Admin" opens a create-only modal with a role toggle and a branch-chip picker, the chip row gaining an "All Branches" option only when Admin is selected). Reachable via a new "Staff" tab in `AdminTabs.tsx` (after Branches) — not added to any staff-facing navigation. This screen is create-and-list only; no edit/deactivate flow was built (not asked for).
+
+Tests: `src/__tests__/userController.test.ts` (new file — role gate on both routes, confirms `GET /` returns real `findMany` results rather than the requester's own token payload, branch-scoping precedence, role/branchId validation, 409 on duplicate phone).
+
+---
+
+## Ad-hoc / custom catalogue items — not yet decided
+
+If a customer brings something genuinely not in the 149-item catalogue, staff currently has no way to add a custom-priced line item — `createOrder` only accepts references to existing `GarmentCatalogue` rows. Not building this speculatively; flagged in case it turns out to matter in practice once real pickups start happening.
 
 ---
 

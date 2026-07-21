@@ -1,6 +1,6 @@
 import { CommunicationMessageType } from '../types/enums';
 import prisma from '../prisma/client';
-import { sendSms, sendWhatsApp } from '../lib/twilioClient';
+import { sendSms, sendWhatsApp, formatTwilioError } from '../lib/twilioClient';
 
 interface NotifiableCustomer {
   id: string;
@@ -51,10 +51,14 @@ export const sendNotification = async (
   ]);
 
   if (whatsappResult.status === 'rejected') {
-    console.error(`Failed to send ${messageType} via WhatsApp to customer ${customer.id}:`, whatsappResult.reason);
+    console.error(
+      `Failed to send ${messageType} via WhatsApp to customer ${customer.id}: ${formatTwilioError(whatsappResult.reason)}`
+    );
   }
 
   if (smsResult.status === 'rejected') {
-    console.error(`Failed to send ${messageType} via SMS to customer ${customer.id}:`, smsResult.reason);
+    console.error(
+      `Failed to send ${messageType} via SMS to customer ${customer.id}: ${formatTwilioError(smsResult.reason)}`
+    );
   }
 };
