@@ -4,7 +4,16 @@ import { RouteProp, useRoute } from '@react-navigation/native';
 import { AppScreen } from '../../components/AppScreen';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
-import { getOrder, updateOrderStatus, reviseOrderAmount, assignOrderStaff, Order, InternalStatus } from '../../api/orders';
+import {
+  getOrder,
+  updateOrderStatus,
+  recordOrderPayment,
+  reviseOrderAmount,
+  assignOrderStaff,
+  Order,
+  InternalStatus,
+  PaymentMethod,
+} from '../../api/orders';
 import { fetchUsers, StaffUser } from '../../api/users';
 import { getDisplayName } from '../../utils/displayName';
 import { ApiError } from '../../api/client';
@@ -30,6 +39,17 @@ const nextStatusLabel: Partial<Record<InternalStatus, string>> = {
   ready: 'Out for Delivery',
   out_for_delivery: 'Delivered',
 };
+
+// CLAUDE.md "Payment marking — real gap": the four confirmed payment modes,
+// bundled into the same "mark Delivered" action for daily customers —
+// monthly-billing customers are settled via the ledger instead (see
+// orderService.ts's recordPayment, which 400s if attempted for one).
+const PAYMENT_METHOD_OPTIONS: { value: PaymentMethod; label: string }[] = [
+  { value: 'cash', label: 'Cash' },
+  { value: 'upi', label: 'UPI' },
+  { value: 'net_banking', label: 'Net Banking' },
+  { value: 'credit_card', label: 'Credit Card' },
+];
 
 // Shared by both stacks. The admin-only amount-revision card (Section D)
 // renders below the status track when user.role === 'admin' — staff never
@@ -58,6 +78,10 @@ export const OrderStatusScreen: React.FC = () => {
   const [branchStaff, setBranchStaff] = useState<StaffUser[]>([]);
   const [assigning, setAssigning] = useState(false);
   const [assignError, setAssignError] = useState<string | null>(null);
+
+  // CLAUDE.md "Payment marking — real gap" — only relevant for the
+  // pending -> delivered transition on a daily-billing customer.
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod | null>(null);
 
   const loadOrder = useCallback(async () => {
     setLoading(true);
@@ -98,15 +122,35 @@ export const OrderStatusScreen: React.FC = () => {
     }
   };
 
+  // A daily-billing customer needs a payment method picked before the
+  // delivered transition fires; a monthly-billing customer is settled via
+  // the ledger instead (orderService.ts's billingMode branch), so there's
+  // nothing to pick.
+  const requiresPaymentMethod =
+    order?.customer.billingMode !== 'monthly_billing' &&
+    STATUS_SEQUENCE[STATUS_SEQUENCE.indexOf(order?.internalStatus ?? 'picked_up') + 1] === 'delivered';
+
   const handleAdvanceStatus = async () => {
     if (!order) return;
     const currentIndex = STATUS_SEQUENCE.indexOf(order.internalStatus);
     const next = STATUS_SEQUENCE[currentIndex + 1];
     if (!next) return;
 
+    if (next === 'delivered' && requiresPaymentMethod && !selectedPaymentMethod) {
+      setError('Select how the customer paid before marking this order delivered.');
+      return;
+    }
+
     setUpdating(true);
     setError(null);
     try {
+      // CLAUDE.md order workflow step 7: "verifies payment status and marks
+      // the order both Delivered and Payment Received" — one bundled action,
+      // not two separate screens. Payment recorded first so a failure there
+      // doesn't leave the order marked delivered with no payment logged.
+      if (next === 'delivered' && requiresPaymentMethod && selectedPaymentMethod) {
+        await recordOrderPayment(order.id, selectedPaymentMethod);
+      }
       const updated = await updateOrderStatus(order.id, next);
       setOrder(updated);
     } catch (err) {
@@ -183,11 +227,44 @@ export const OrderStatusScreen: React.FC = () => {
           ))}
         </View>
 
+        {order.paymentStatus === 'paid' && (
+          <Text style={styles.hint}>
+            Payment received{order.paymentMethod ? ` · ${PAYMENT_METHOD_OPTIONS.find((o) => o.value === order.paymentMethod)?.label ?? order.paymentMethod}` : ''}
+          </Text>
+        )}
+
         {error && <Text style={styles.error}>{error}</Text>}
+
+        {nextLabel === 'Delivered' && requiresPaymentMethod && (
+          <View style={styles.paymentMethodBlock}>
+            <Text style={styles.fieldLabel}>Payment Method</Text>
+            <View style={styles.toggleRow}>
+              {PAYMENT_METHOD_OPTIONS.map((option) => (
+                <Pressable
+                  key={option.value}
+                  style={[styles.toggle, selectedPaymentMethod === option.value && styles.toggleActive]}
+                  onPress={() => setSelectedPaymentMethod(option.value)}
+                >
+                  <Text
+                    style={[styles.toggleText, selectedPaymentMethod === option.value && styles.toggleTextActive]}
+                  >
+                    {option.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        )}
 
         {nextLabel && (
           <Pressable style={[styles.advanceButton, updating && styles.advanceButtonDisabled]} onPress={handleAdvanceStatus} disabled={updating}>
-            {updating ? <ActivityIndicator color={colors.white} /> : <Text style={styles.advanceButtonText}>Mark as {nextLabel}</Text>}
+            {updating ? (
+              <ActivityIndicator color={colors.white} />
+            ) : (
+              <Text style={styles.advanceButtonText}>
+                {nextLabel === 'Delivered' ? 'Mark Delivered & Payment Received' : `Mark as ${nextLabel}`}
+              </Text>
+            )}
           </Pressable>
         )}
 
@@ -338,6 +415,9 @@ const createStyles = (colors: ColorTokens) =>
       color: colors.white,
       fontWeight: '700',
       fontSize: 11.5,
+    },
+    paymentMethodBlock: {
+      marginTop: spacing.sm,
     },
     revisionCard: {
       backgroundColor: colors.peachCard,

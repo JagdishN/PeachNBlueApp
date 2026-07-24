@@ -10,6 +10,7 @@ import {
   markBagIssuedHandler,
   reportBagReplacementHandler,
   listBagReplacementsHandler,
+  listDiscountAuditHandler,
 } from '../controllers/customerController';
 
 const router = Router();
@@ -21,6 +22,7 @@ router.get('/search', requireRole(['staff', 'admin']), searchCustomersHandler);
 router.post('/', requireRole(['staff', 'admin']), createCustomerHandler);
 router.patch('/:id/discount', requireRole(['admin']), updateDiscountHandler);
 router.patch('/:id/discount-enabled', requireRole(['admin']), updateDiscountEnabledHandler);
+router.get('/:id/discount-audit', requireRole(['admin']), listDiscountAuditHandler);
 router.patch('/:id/billing-mode', requireRole(['admin']), updateBillingModeHandler);
 router.patch('/:id/bag-issued', requireRole(['staff', 'admin']), markBagIssuedHandler);
 router.post('/:id/bag-replacement', requireRole(['staff', 'admin']), reportBagReplacementHandler);

@@ -56,6 +56,9 @@ beforeEach(() => {
   uploadInvoicePdfMock.mockResolvedValue('https://storage.example/invoices/PB-INV-TEST.pdf');
   prismaMock.invoice.upsert.mockImplementation(((args: any) =>
     Promise.resolve({ id: 'invoice-1', ...args.create, ...args.update })) as any);
+  // Default: no bag-replacement charges tied to this order (CLAUDE.md
+  // "Bag-replacement ₹350 charge" wiring) — overridden per-test below.
+  prismaMock.additionalCharge.findMany.mockResolvedValue([]);
 });
 
 describe('generateInvoice — fresh invoice (no prior Invoice row)', () => {
@@ -111,6 +114,55 @@ describe('generateInvoice — fresh invoice (no prior Invoice row)', () => {
     const upsertArgs = prismaMock.invoice.upsert.mock.calls[0][0] as any;
     expect(upsertArgs.create.version).toBe(1);
     expect(upsertArgs.create.invoiceNumber).not.toMatch(/-R\d+$/);
+  });
+});
+
+// CLAUDE.md "Bag-replacement ₹350 charge" — wired to the invoice as a flat,
+// non-discounted add-on, only for charges tied to THIS order via orderId.
+describe('generateInvoice — bag-replacement charges tied to this order', () => {
+  it('adds a single bag_replacement charge on top of the (undiscounted) subtotal', async () => {
+    prismaMock.order.findUnique.mockResolvedValue(BASE_ORDER as any);
+    prismaMock.additionalCharge.findMany.mockResolvedValue([{ amount: 350 }] as any);
+
+    const result = await generateInvoice('order-1');
+
+    expect(result.amount).toBe(1350);
+    expect(createPaymentLinkMock).toHaveBeenCalledWith(expect.objectContaining({ amount: 1350 }));
+    expect(prismaMock.additionalCharge.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { orderId: 'order-1', chargeType: 'bag_replacement' } })
+    );
+  });
+
+  it('sums multiple bag_replacement charges tied to the same order', async () => {
+    prismaMock.order.findUnique.mockResolvedValue(BASE_ORDER as any);
+    prismaMock.additionalCharge.findMany.mockResolvedValue([{ amount: 350 }, { amount: 350 }] as any);
+
+    const result = await generateInvoice('order-1');
+
+    expect(result.amount).toBe(1700);
+  });
+
+  it('adds the flat charge AFTER discount, not before (charge itself is never discounted)', async () => {
+    prismaMock.order.findUnique.mockResolvedValue({
+      ...BASE_ORDER,
+      customer: { ...BASE_ORDER.customer, discountPercent: 10, discountEnabled: true },
+    } as any);
+    prismaMock.additionalCharge.findMany.mockResolvedValue([{ amount: 350 }] as any);
+
+    const result = await generateInvoice('order-1');
+
+    // 1000 subtotal -> 900 after 10% discount, then +350 flat = 1250, NOT
+    // (1000 + 350) * 0.9 = 1215.
+    expect(result.amount).toBe(1250);
+  });
+
+  it('does not add anything when there are no bag-replacement charges tied to this order', async () => {
+    prismaMock.order.findUnique.mockResolvedValue(BASE_ORDER as any);
+    prismaMock.additionalCharge.findMany.mockResolvedValue([]);
+
+    const result = await generateInvoice('order-1');
+
+    expect(result.amount).toBe(1000);
   });
 });
 

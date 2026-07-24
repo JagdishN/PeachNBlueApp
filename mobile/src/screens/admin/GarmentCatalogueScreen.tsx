@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { AppScreen } from '../../components/AppScreen';
 import { NivenxaFooter } from '../../components/BrandComponents';
@@ -38,6 +39,7 @@ export const GarmentCatalogueScreen: React.FC = () => {
   const [serviceType, setServiceType] = useState<ServiceType>('wash_fold');
   const [isStartingPrice, setIsStartingPrice] = useState(false);
   const [requiresSpecialCare, setRequiresSpecialCare] = useState(false);
+  const [iconKey, setIconKey] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -66,6 +68,7 @@ export const GarmentCatalogueScreen: React.FC = () => {
     setServiceType('wash_fold');
     setIsStartingPrice(false);
     setRequiresSpecialCare(false);
+    setIconKey('');
     setError(null);
   };
 
@@ -79,6 +82,7 @@ export const GarmentCatalogueScreen: React.FC = () => {
     setServiceType(garment.serviceType);
     setIsStartingPrice(garment.isStartingPrice);
     setRequiresSpecialCare(garment.requiresSpecialCare);
+    setIconKey(garment.iconKey ?? '');
     setError(null);
   };
 
@@ -103,6 +107,7 @@ export const GarmentCatalogueScreen: React.FC = () => {
       priceMax,
       isStartingPrice,
       requiresSpecialCare,
+      iconKey: iconKey || null,
     };
 
     setSaving(true);
@@ -149,6 +154,12 @@ export const GarmentCatalogueScreen: React.FC = () => {
             <Pressable key={garment.id} style={styles.card} onPress={() => openEdit(garment)}>
               <View style={styles.cardRow}>
                 <View style={styles.nameRow}>
+                  <MaterialCommunityIcons
+                    name={(garment.iconKey ?? 'hanger') as any}
+                    size={16}
+                    color={colors.muted}
+                    style={styles.garmentIcon}
+                  />
                   <Text style={styles.garmentName}>{garment.itemName}</Text>
                   <Tag {...serviceTag[garment.serviceType]} />
                   {garment.requiresSpecialCare && <Tag {...SPECIAL_CARE_TAG} />}
@@ -283,6 +294,24 @@ export const GarmentCatalogueScreen: React.FC = () => {
               ))}
             </View>
 
+            <Text style={styles.fieldLabel}>Icon (MaterialCommunityIcons name, optional override)</Text>
+            <View style={styles.iconFieldRow}>
+              <MaterialCommunityIcons
+                name={(iconKey || 'hanger') as any}
+                size={22}
+                color={colors.navyDeep}
+                style={styles.iconFieldPreview}
+              />
+              <TextInput
+                style={[styles.field, styles.iconField]}
+                value={iconKey}
+                onChangeText={setIconKey}
+                placeholder="tshirt-crew"
+                placeholderTextColor={colors.muted}
+                autoCapitalize="none"
+              />
+            </View>
+
             {error && <Text style={styles.error}>{error}</Text>}
 
             <Pressable style={[styles.saveButton, saving && styles.saveButtonDisabled]} onPress={handleSave} disabled={saving}>
@@ -347,6 +376,9 @@ const createStyles = (colors: ColorTokens) =>
       flexDirection: 'row',
       alignItems: 'center',
     },
+    garmentIcon: {
+      marginRight: spacing.xs,
+    },
     garmentName: {
       fontSize: 11.5,
       fontWeight: '600',
@@ -402,6 +434,19 @@ const createStyles = (colors: ColorTokens) =>
       fontSize: 13,
       color: colors.navyText,
       marginBottom: spacing.sm,
+    },
+    iconFieldRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+    },
+    iconFieldPreview: {
+      backgroundColor: colors.peachBg,
+      borderRadius: radii.sm,
+      padding: spacing.xs,
+    },
+    iconField: {
+      flex: 1,
     },
     serviceToggleRow: {
       flexDirection: 'row',

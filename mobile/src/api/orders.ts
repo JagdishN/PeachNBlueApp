@@ -20,12 +20,18 @@ export interface OrderItem {
   lineTotal: string;
 }
 
+export type PaymentMethod = 'cash' | 'upi' | 'net_banking' | 'credit_card';
+
 export interface OrderCustomer {
   id: string;
   fullName: string;
   phoneNumber: string;
   locationLabel: string;
   branchId: string;
+  // Staff can see this (unlike discountPercent/discountEnabled) — CLAUDE.md
+  // "Monthly billing + discount": needed to know whether a delivery expects
+  // a per-order payment (daily) or posts to the ledger instead (monthly_billing).
+  billingMode: string;
 }
 
 export interface Order {
@@ -38,6 +44,7 @@ export interface Order {
   finalAmount: string;
   amountWasRevised: boolean;
   paymentStatus: string;
+  paymentMethod: PaymentMethod | null;
   staffId: string | null;
   customer: OrderCustomer;
   orderItems: OrderItem[];
@@ -70,6 +77,14 @@ export const updateOrderStatus = (id: string, status: InternalStatus) =>
   apiRequest<{ order: Order }>(`/api/v1/orders/${id}/status`, { method: 'PATCH', body: { status } }).then(
     (res) => res.order
   );
+
+// CLAUDE.md "Payment marking — real gap" — bundled into the same delivery
+// action as updateOrderStatus(id, 'delivered'), not a separate screen.
+export const recordOrderPayment = (id: string, paymentMethod: PaymentMethod) =>
+  apiRequest<{ order: Order }>(`/api/v1/orders/${id}/payment`, {
+    method: 'PATCH',
+    body: { paymentMethod },
+  }).then((res) => res.order);
 
 export const reviseOrderAmount = (id: string, newAmount: number, reason: string) =>
   apiRequest<{ order: Order }>(`/api/v1/orders/${id}/amount`, {

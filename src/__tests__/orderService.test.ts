@@ -23,7 +23,7 @@ jest.mock('../services/ledgerService', () => ({
 }));
 
 import prisma from '../prisma/client';
-import { createOrder, listOrders, getOrder, updateStatus, assignStaff } from '../services/orderService';
+import { createOrder, listOrders, getOrder, updateStatus, assignStaff, recordPayment } from '../services/orderService';
 import { generateInvoice } from '../services/invoiceService';
 import { sendNotification } from '../services/notificationService';
 import { recordCharge } from '../services/ledgerService';
@@ -523,6 +523,105 @@ describe('updateStatus — staff ownership check', () => {
     await expect(updateStatus('order-1', 'washing', 'admin-1', 'admin')).resolves.toBeDefined();
     // The staffId pre-check query only runs for role === 'staff'.
     expect(prismaMock.order.findUnique).not.toHaveBeenCalled();
+  });
+});
+
+// CLAUDE.md "Payment marking — real gap": closes the gap where
+// order.paymentStatus never got flipped and no payment method was recorded.
+describe('recordPayment', () => {
+  it('rejects an invalid paymentMethod before touching the database', async () => {
+    await expect(recordPayment('order-1', 'bitcoin' as any, 'staff-1', 'staff')).rejects.toMatchObject({
+      status: 400,
+    });
+    expect(prismaMock.order.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('rejects with 404 when the order does not exist', async () => {
+    prismaMock.order.findUnique.mockResolvedValue(null);
+
+    await expect(recordPayment('missing-order', 'cash', 'staff-1', 'staff')).rejects.toMatchObject({
+      status: 404,
+    });
+  });
+
+  it("rejects with 403 when a staff member records payment for an order that isn't theirs", async () => {
+    prismaMock.order.findUnique.mockResolvedValue({
+      id: 'order-1',
+      staffId: 'staff-1',
+      finalAmount: 500,
+      customer: { id: 'customer-1', billingMode: 'daily', discountEnabled: false, discountPercent: 0 },
+    } as any);
+
+    await expect(recordPayment('order-1', 'cash', 'staff-2', 'staff')).rejects.toMatchObject({ status: 403 });
+    expect(prismaMock.payment.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects a monthly-billing customer — settled via the ledger, not per-order payment', async () => {
+    prismaMock.order.findUnique.mockResolvedValue({
+      id: 'order-1',
+      staffId: 'staff-1',
+      finalAmount: 500,
+      customer: { id: 'customer-1', billingMode: 'monthly_billing', discountEnabled: false, discountPercent: 0 },
+    } as any);
+
+    await expect(recordPayment('order-1', 'cash', 'staff-1', 'staff')).rejects.toMatchObject({ status: 400 });
+    expect(prismaMock.payment.create).not.toHaveBeenCalled();
+  });
+
+  it('creates a Payment row and flips the order to paid with the given method, for a daily customer', async () => {
+    prismaMock.order.findUnique.mockResolvedValue({
+      id: 'order-1',
+      customerId: 'customer-1',
+      staffId: 'staff-1',
+      finalAmount: 500,
+      customer: { id: 'customer-1', billingMode: 'daily', discountEnabled: false, discountPercent: 0 },
+    } as any);
+    prismaMock.payment.create.mockResolvedValue({} as any);
+    prismaMock.order.update.mockResolvedValue({
+      id: 'order-1',
+      paymentStatus: 'paid',
+      paymentMethod: 'upi',
+    } as any);
+
+    await recordPayment('order-1', 'upi', 'staff-1', 'staff');
+
+    expect(prismaMock.payment.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          orderId: 'order-1',
+          customerId: 'customer-1',
+          amount: 500,
+          paymentType: 'order_payment',
+          paymentMethod: 'upi',
+          status: 'success',
+          recordedById: 'staff-1',
+        }),
+      })
+    );
+    expect(prismaMock.order.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'order-1' },
+        data: { paymentMethod: 'upi', paymentStatus: 'paid' },
+      })
+    );
+  });
+
+  it('records the discount-adjusted amount, not the raw finalAmount, when the customer has a discount', async () => {
+    prismaMock.order.findUnique.mockResolvedValue({
+      id: 'order-1',
+      customerId: 'customer-1',
+      staffId: 'staff-1',
+      finalAmount: 500,
+      customer: { id: 'customer-1', billingMode: 'daily', discountEnabled: true, discountPercent: 10 },
+    } as any);
+    prismaMock.payment.create.mockResolvedValue({} as any);
+    prismaMock.order.update.mockResolvedValue({} as any);
+
+    await recordPayment('order-1', 'cash', 'staff-1', 'staff');
+
+    expect(prismaMock.payment.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ amount: 450 }) })
+    );
   });
 });
 

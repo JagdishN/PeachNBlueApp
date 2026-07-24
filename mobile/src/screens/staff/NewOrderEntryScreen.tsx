@@ -1,5 +1,6 @@
  import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { AppScreen } from '../../components/AppScreen';
@@ -82,15 +83,52 @@ export const NewOrderEntryScreen: React.FC = () => {
       .finally(() => setLoading(false));
   }, []);
 
-  const groupedGarments = useMemo(() => {
-    const groups = new Map<string, Garment[]>();
-    for (const garment of garments) {
-      const key = garment.category ?? 'Other';
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key)!.push(garment);
+  // CLAUDE.md "Garment picker restructuring — service-type as parent" —
+  // serviceType is now the top-level, expandable grouping (categories nest
+  // underneath, same as before), with Ironing default-expanded since it's
+  // staff's most common case. SERVICE_ORDER fixes the display order; any
+  // future serviceType not in this list is appended alphabetically rather
+  // than silently dropped.
+  const SERVICE_ORDER = ['ironing', 'wash_fold', 'dry_clean'];
+  const [expandedServices, setExpandedServices] = useState<Record<string, boolean>>({ ironing: true });
+  // CLAUDE.md "Iron-only tier reintroduced" flagged this: the catalogue grew
+  // to 192 items with no way to jump straight to one during a live pickup.
+  // Filters by itemName only (not category/serviceType) — that's the thing
+  // staff actually knows the customer said.
+  const [garmentQuery, setGarmentQuery] = useState('');
+
+  const filteredGarments = useMemo(() => {
+    const query = garmentQuery.trim().toLowerCase();
+    if (!query) return garments;
+    return garments.filter((g) => g.itemName.toLowerCase().includes(query));
+  }, [garments, garmentQuery]);
+
+  const groupedByService = useMemo(() => {
+    const serviceGroups = new Map<string, Garment[]>();
+    for (const garment of filteredGarments) {
+      if (!serviceGroups.has(garment.serviceType)) serviceGroups.set(garment.serviceType, []);
+      serviceGroups.get(garment.serviceType)!.push(garment);
     }
-    return Array.from(groups.entries());
-  }, [garments]);
+
+    const orderedKeys = [
+      ...SERVICE_ORDER.filter((key) => serviceGroups.has(key)),
+      ...Array.from(serviceGroups.keys()).filter((key) => !SERVICE_ORDER.includes(key)).sort(),
+    ];
+
+    return orderedKeys.map((serviceType) => {
+      const categoryGroups = new Map<string, Garment[]>();
+      for (const garment of serviceGroups.get(serviceType)!) {
+        const key = garment.category ?? 'Other';
+        if (!categoryGroups.has(key)) categoryGroups.set(key, []);
+        categoryGroups.get(key)!.push(garment);
+      }
+      return { serviceType, categories: Array.from(categoryGroups.entries()) };
+    });
+  }, [filteredGarments]);
+
+  const toggleService = (serviceType: string) => {
+    setExpandedServices((prev) => ({ ...prev, [serviceType]: !prev[serviceType] }));
+  };
 
   const adjustQuantity = (garmentId: string, delta: number) => {
     setQuantities((prev) => {
@@ -316,6 +354,12 @@ export const NewOrderEntryScreen: React.FC = () => {
         <View key={garment.id} style={[styles.garmentRow, isLast && styles.garmentRowLast]}>
           <View style={styles.garmentInfo}>
             <View style={styles.garmentNameRow}>
+              <MaterialCommunityIcons
+                name={(garment.iconKey ?? 'hanger') as any}
+                size={15}
+                color={colors.muted}
+                style={styles.garmentIcon}
+              />
               <Text style={styles.garmentName}>{garment.itemName}</Text>
               <Tag {...serviceTag[garment.serviceType]} />
               {garment.requiresSpecialCare && <Tag {...SPECIAL_CARE_TAG} />}
@@ -341,6 +385,12 @@ export const NewOrderEntryScreen: React.FC = () => {
       <View key={garment.id} style={[styles.garmentRow, isLast && styles.garmentRowLast]}>
         <View style={styles.garmentInfo}>
           <View style={styles.garmentNameRow}>
+            <MaterialCommunityIcons
+              name={(garment.iconKey ?? 'hanger') as any}
+              size={15}
+              color={colors.muted}
+              style={styles.garmentIcon}
+            />
             <Text style={styles.garmentName}>{garment.itemName}</Text>
             <Tag {...serviceTag[garment.serviceType]} />
             {garment.requiresSpecialCare && <Tag {...SPECIAL_CARE_TAG} />}
@@ -506,18 +556,64 @@ export const NewOrderEntryScreen: React.FC = () => {
 
             <Text style={styles.sectionTitle}>Garments Collected</Text>
 
+            <TextInput
+              style={styles.field}
+              value={garmentQuery}
+              onChangeText={setGarmentQuery}
+              placeholder="Search garments (e.g. Shirt, Saree)"
+              placeholderTextColor={colors.muted}
+            />
+
             {loading ? (
               <ActivityIndicator color={colors.peachPrimary} style={{ marginTop: spacing.lg }} />
             ) : (
               <ScrollView style={styles.garmentScroll} showsVerticalScrollIndicator={false}>
-                {groupedGarments.map(([category, items]) => (
-                  <View key={category} style={styles.categoryBlock}>
-                    <Text style={styles.categoryHeader}>{category}</Text>
-                    <View style={styles.garmentCard}>
-                      {items.map((garment, index) => renderGarmentRow(garment, index === items.length - 1))}
+                {groupedByService.length === 0 && garmentQuery.trim() !== '' && (
+                  <Text style={styles.noResultsText}>No garments match "{garmentQuery.trim()}".</Text>
+                )}
+
+                {groupedByService.map(({ serviceType, categories }) => {
+                  // While actively searching, every matching section is
+                  // shown open regardless of its collapsed/expanded state —
+                  // staff shouldn't have to also expand a section by hand to
+                  // see why it matched.
+                  const searching = garmentQuery.trim() !== '';
+                  const expanded = searching || (expandedServices[serviceType] ?? false);
+                  const itemCount = categories.reduce((sum, [, items]) => sum + items.length, 0);
+                  const tag = serviceTag[serviceType] ?? { label: serviceType, bg: colors.peachCard, color: colors.navyText };
+
+                  return (
+                    <View key={serviceType} style={styles.serviceBlock}>
+                      <Pressable
+                        style={styles.serviceHeader}
+                        onPress={() => toggleService(serviceType)}
+                        disabled={searching}
+                      >
+                        <View style={styles.serviceHeaderLeft}>
+                          <Text style={styles.serviceHeaderTitle}>{tag.label}</Text>
+                          <Text style={styles.serviceHeaderCount}>{itemCount} items</Text>
+                        </View>
+                        {!searching && (
+                          <MaterialCommunityIcons
+                            name={expanded ? 'chevron-up' : 'chevron-down'}
+                            size={20}
+                            color={colors.navyText}
+                          />
+                        )}
+                      </Pressable>
+
+                      {expanded &&
+                        categories.map(([category, items]) => (
+                          <View key={category} style={styles.categoryBlock}>
+                            <Text style={styles.categoryHeader}>{category}</Text>
+                            <View style={styles.garmentCard}>
+                              {items.map((garment, index) => renderGarmentRow(garment, index === items.length - 1))}
+                            </View>
+                          </View>
+                        ))}
                     </View>
-                  </View>
-                ))}
+                  );
+                })}
               </ScrollView>
             )}
 
@@ -709,6 +805,39 @@ const createStyles = (colors: ColorTokens) =>
     garmentScroll: {
       flex: 1,
     },
+    noResultsText: {
+      fontSize: 11,
+      color: colors.muted,
+      textAlign: 'center',
+      marginTop: spacing.lg,
+    },
+    serviceBlock: {
+      marginBottom: spacing.sm,
+    },
+    serviceHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      backgroundColor: colors.chrome,
+      borderRadius: radii.md,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+      marginBottom: spacing.xs,
+    },
+    serviceHeaderLeft: {
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      gap: spacing.xs,
+    },
+    serviceHeaderTitle: {
+      fontSize: 12.5,
+      fontWeight: '700',
+      color: colors.cream,
+    },
+    serviceHeaderCount: {
+      fontSize: 10,
+      color: '#C8A67B',
+    },
     categoryBlock: {
       marginBottom: spacing.md,
     },
@@ -746,6 +875,9 @@ const createStyles = (colors: ColorTokens) =>
     garmentNameRow: {
       flexDirection: 'row',
       alignItems: 'center',
+    },
+    garmentIcon: {
+      marginRight: spacing.xs,
     },
     garmentName: {
       fontSize: 11.5,

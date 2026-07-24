@@ -1310,6 +1310,436 @@
       "requiresSpecialCare": true,
       "_tier": "iron_only",
       "_note": "Already resolved in an earlier round: client confirmed a FIXED ₹100, not the ₹80-150 range shown on this chart. Carried forward as-is, not re-opened."
+    },
+    {
+      "category": "Wash Services — Women's Wear",
+      "itemName": "Kurti",
+      "serviceType": "wash_fold",
+      "pricingUnit": "per_piece",
+      "price": 23,
+      "requiresSpecialCare": false,
+      "_tier": "wash_only",
+      "_note": "Generated at 1.5x the Ironing price (₹15 -> ₹23, rounded up). Per CLAUDE.md: this is a ONE-TIME calculation, not a live formula — editable independently afterward like any other catalogue entry. Confirm this interpretation with client."
+    },
+    {
+      "category": "Wash Services — Women's Wear",
+      "itemName": "Leggings",
+      "serviceType": "wash_fold",
+      "pricingUnit": "per_piece",
+      "price": 18,
+      "requiresSpecialCare": false,
+      "_tier": "wash_only",
+      "_note": "Generated at 1.5x the Ironing price (₹12 -> ₹18, rounded up). Per CLAUDE.md: this is a ONE-TIME calculation, not a live formula — editable independently afterward like any other catalogue entry. Confirm this interpretation with client."
+    },
+    {
+      "category": "Wash Services — Women's Wear",
+      "itemName": "Palazzo",
+      "serviceType": "wash_fold",
+      "pricingUnit": "per_piece",
+      "price": 27,
+      "requiresSpecialCare": false,
+      "_tier": "wash_only",
+      "_note": "Generated at 1.5x the Ironing price (₹18 -> ₹27, rounded up). Per CLAUDE.md: this is a ONE-TIME calculation, not a live formula — editable independently afterward like any other catalogue entry. Confirm this interpretation with client."
+    },
+    {
+      "category": "Wash Services — Women's Wear",
+      "itemName": "Top",
+      "serviceType": "wash_fold",
+      "pricingUnit": "per_piece",
+      "price": 23,
+      "requiresSpecialCare": false,
+      "_tier": "wash_only",
+      "_note": "Generated at 1.5x the Ironing price (₹15 -> ₹23, rounded up). Per CLAUDE.md: this is a ONE-TIME calculation, not a live formula — editable independently afterward like any other catalogue entry. Confirm this interpretation with client."
+    },
+    {
+      "category": "Wash Services — Women's Wear",
+      "itemName": "Cotton Saree",
+      "serviceType": "wash_fold",
+      "pricingUnit": "per_piece",
+      "price": 60,
+      "requiresSpecialCare": false,
+      "_tier": "wash_only",
+      "_note": "Generated at 1.5x the Ironing price (₹40 -> ₹60, rounded up). Per CLAUDE.md: this is a ONE-TIME calculation, not a live formula — editable independently afterward like any other catalogue entry. Confirm this interpretation with client."
+    },
+    {
+      "category": "Wash Services — Women's Wear",
+      "itemName": "Silk Saree",
+      "serviceType": "wash_fold",
+      "pricingUnit": "per_piece",
+      "price": 120,
+      "requiresSpecialCare": false,
+      "_tier": "wash_only",
+      "_note": "Generated at 1.5x the Ironing price (₹80 -> ₹120, rounded up). Per CLAUDE.md: this is a ONE-TIME calculation, not a live formula — editable independently afterward like any other catalogue entry. Confirm this interpretation with client."
+    },
+    {
+      "category": "Wash Services — Women's Wear",
+      "itemName": "Designer Saree",
+      "serviceType": "wash_fold",
+      "pricingUnit": "per_piece",
+      "price": 150,
+      "requiresSpecialCare": false,
+      "_tier": "wash_only",
+      "_note": "Generated at 1.5x the Ironing price (₹100 -> ₹150, rounded up). Per CLAUDE.md: this is a ONE-TIME calculation, not a live formula — editable independently afterward like any other catalogue entry. Confirm this interpretation with client."
+    },
+    {
+      "category": "Wash Services — Women's Wear",
+      "itemName": "Salwar Suit (Complete Set)",
+      "serviceType": "wash_fold",
+      "pricingUnit": "per_piece",
+      "price": 60,
+      "requiresSpecialCare": false,
+      "_tier": "wash_only",
+      "_note": "Generated at 1.5x the Ironing price (₹40 -> ₹60, rounded up). Per CLAUDE.md: this is a ONE-TIME calculation, not a live formula — editable independently afterward like any other catalogue entry. Confirm this interpretation with client."
+    },
+    {
+      "category": "Wash Services — Women's Wear",
+      "itemName": "Dupatta",
+      "serviceType": "wash_fold",
+      "pricingUnit": "per_piece",
+      "price": 18,
+      "requiresSpecialCare": false,
+      "_tier": "wash_only",
+      "_note": "Generated at 1.5x the Ironing price (₹12 -> ₹18, rounded up). Per CLAUDE.md: this is a ONE-TIME calculation, not a live formula — editable independently afterward like any other catalogue entry. Confirm this interpretation with client."
+    },
+    {
+      "category": "Wash Services — Women's Wear",
+      "itemName": "Gown",
+      "serviceType": "wash_fold",
+      "pricingUnit": "per_piece",
+      "price": 75,
+      "requiresSpecialCare": false,
+      "_tier": "wash_only",
+      "_note": "Generated at 1.5x the Ironing price (₹50 -> ₹75, rounded up). Per CLAUDE.md: this is a ONE-TIME calculation, not a live formula — editable independently afterward like any other catalogue entry. Confirm this interpretation with client."
+    },
+    {
+      "category": "Wash Services — Women's Wear",
+      "itemName": "Lehenga",
+      "serviceType": "wash_fold",
+      "pricingUnit": "per_piece",
+      "price": 180,
+      "requiresSpecialCare": false,
+      "_tier": "wash_only",
+      "_note": "Generated at 1.5x the Ironing price (₹120 -> ₹180, rounded up). Per CLAUDE.md: this is a ONE-TIME calculation, not a live formula — editable independently afterward like any other catalogue entry. Confirm this interpretation with client."
+    },
+    {
+      "category": "Wash Services — Home Linen",
+      "itemName": "Hand Towel",
+      "serviceType": "wash_fold",
+      "pricingUnit": "per_piece",
+      "price": 15,
+      "requiresSpecialCare": false,
+      "_tier": "wash_only",
+      "_note": "Generated at 1.5x the Ironing price (₹10 -> ₹15, rounded up). Per CLAUDE.md: this is a ONE-TIME calculation, not a live formula — editable independently afterward like any other catalogue entry. Confirm this interpretation with client."
+    },
+    {
+      "category": "Wash Services — Home Linen",
+      "itemName": "Bath Towel",
+      "serviceType": "wash_fold",
+      "pricingUnit": "per_piece",
+      "price": 30,
+      "requiresSpecialCare": false,
+      "_tier": "wash_only",
+      "_note": "Generated at 1.5x the Ironing price (₹20 -> ₹30, rounded up). Per CLAUDE.md: this is a ONE-TIME calculation, not a live formula — editable independently afterward like any other catalogue entry. Confirm this interpretation with client."
+    },
+    {
+      "category": "Wash Services — Home Linen",
+      "itemName": "Pillow Cover",
+      "serviceType": "wash_fold",
+      "pricingUnit": "per_piece",
+      "price": 15,
+      "requiresSpecialCare": false,
+      "_tier": "wash_only",
+      "_note": "Generated at 1.5x the Ironing price (₹10 -> ₹15, rounded up). Per CLAUDE.md: this is a ONE-TIME calculation, not a live formula — editable independently afterward like any other catalogue entry. Confirm this interpretation with client."
+    },
+    {
+      "category": "Wash Services — Home Linen",
+      "itemName": "Bed Sheet (Single)",
+      "serviceType": "wash_fold",
+      "pricingUnit": "per_piece",
+      "price": 38,
+      "requiresSpecialCare": false,
+      "_tier": "wash_only",
+      "_note": "Generated at 1.5x the Ironing price (₹25 -> ₹38, rounded up). Per CLAUDE.md: this is a ONE-TIME calculation, not a live formula — editable independently afterward like any other catalogue entry. Confirm this interpretation with client."
+    },
+    {
+      "category": "Wash Services — Home Linen",
+      "itemName": "Bed Sheet (Double)",
+      "serviceType": "wash_fold",
+      "pricingUnit": "per_piece",
+      "price": 53,
+      "requiresSpecialCare": false,
+      "_tier": "wash_only",
+      "_note": "Generated at 1.5x the Ironing price (₹35 -> ₹53, rounded up). Per CLAUDE.md: this is a ONE-TIME calculation, not a live formula — editable independently afterward like any other catalogue entry. Confirm this interpretation with client."
+    },
+    {
+      "category": "Wash Services — Home Linen",
+      "itemName": "Blanket",
+      "serviceType": "wash_fold",
+      "pricingUnit": "per_piece",
+      "price": 120,
+      "requiresSpecialCare": false,
+      "_tier": "wash_only",
+      "_note": "Generated at 1.5x the Ironing price (₹80 -> ₹120, rounded up). Per CLAUDE.md: this is a ONE-TIME calculation, not a live formula — editable independently afterward like any other catalogue entry. Confirm this interpretation with client."
+    },
+    {
+      "category": "Wash Services — Home Linen",
+      "itemName": "Curtain (Per Panel)",
+      "serviceType": "wash_fold",
+      "pricingUnit": "per_piece",
+      "price": 60,
+      "requiresSpecialCare": true,
+      "_tier": "wash_only",
+      "_note": "Generated at 1.5x the Ironing price (₹40 -> ₹60, rounded up). Per CLAUDE.md: this is a ONE-TIME calculation, not a live formula — editable independently afterward like any other catalogue entry. Confirm this interpretation with client."
+    },
+    {
+      "category": "Wash Services — Men's Wear",
+      "itemName": "T-Shirt",
+      "serviceType": "wash_fold",
+      "pricingUnit": "per_piece",
+      "price": 21,
+      "requiresSpecialCare": false,
+      "_tier": "wash_only",
+      "_note": "Generated at 1.5x the Ironing price (₹14 -> ₹21, rounded up). Per CLAUDE.md: this is a ONE-TIME calculation, not a live formula — editable independently afterward like any other catalogue entry. Confirm this interpretation with client."
+    },
+    {
+      "category": "Wash Services — Men's Wear",
+      "itemName": "Shirt",
+      "serviceType": "wash_fold",
+      "pricingUnit": "per_piece",
+      "price": 21,
+      "requiresSpecialCare": false,
+      "_tier": "wash_only",
+      "_note": "Generated at 1.5x the Ironing price (₹14 -> ₹21, rounded up). Per CLAUDE.md: this is a ONE-TIME calculation, not a live formula — editable independently afterward like any other catalogue entry. Confirm this interpretation with client."
+    },
+    {
+      "category": "Wash Services — Men's Wear",
+      "itemName": "Polo T-Shirt",
+      "serviceType": "wash_fold",
+      "pricingUnit": "per_piece",
+      "price": 24,
+      "requiresSpecialCare": false,
+      "_tier": "wash_only",
+      "_note": "Generated at 1.5x the Ironing price (₹16 -> ₹24, rounded up). Per CLAUDE.md: this is a ONE-TIME calculation, not a live formula — editable independently afterward like any other catalogue entry. Confirm this interpretation with client."
+    },
+    {
+      "category": "Wash Services — Men's Wear",
+      "itemName": "Jeans",
+      "serviceType": "wash_fold",
+      "pricingUnit": "per_piece",
+      "price": 27,
+      "requiresSpecialCare": false,
+      "_tier": "wash_only",
+      "_note": "Generated at 1.5x the Ironing price (₹18 -> ₹27, rounded up). Per CLAUDE.md: this is a ONE-TIME calculation, not a live formula — editable independently afterward like any other catalogue entry. Confirm this interpretation with client."
+    },
+    {
+      "category": "Wash Services — Men's Wear",
+      "itemName": "Cotton Pants",
+      "serviceType": "wash_fold",
+      "pricingUnit": "per_piece",
+      "price": 27,
+      "requiresSpecialCare": false,
+      "_tier": "wash_only",
+      "_note": "Generated at 1.5x the Ironing price (₹18 -> ₹27, rounded up). Per CLAUDE.md: this is a ONE-TIME calculation, not a live formula — editable independently afterward like any other catalogue entry. Confirm this interpretation with client."
+    },
+    {
+      "category": "Wash Services — Men's Wear",
+      "itemName": "Trousers/Formals",
+      "serviceType": "wash_fold",
+      "pricingUnit": "per_piece",
+      "price": 27,
+      "requiresSpecialCare": false,
+      "_tier": "wash_only",
+      "_note": "Generated at 1.5x the Ironing price (₹18 -> ₹27, rounded up). Per CLAUDE.md: this is a ONE-TIME calculation, not a live formula — editable independently afterward like any other catalogue entry. Confirm this interpretation with client."
+    },
+    {
+      "category": "Wash Services — Men's Wear",
+      "itemName": "Shorts",
+      "serviceType": "wash_fold",
+      "pricingUnit": "per_piece",
+      "price": 18,
+      "requiresSpecialCare": false,
+      "_tier": "wash_only",
+      "_note": "Generated at 1.5x the Ironing price (₹12 -> ₹18, rounded up). Per CLAUDE.md: this is a ONE-TIME calculation, not a live formula — editable independently afterward like any other catalogue entry. Confirm this interpretation with client."
+    },
+    {
+      "category": "Wash Services — Men's Wear",
+      "itemName": "Kurta",
+      "serviceType": "wash_fold",
+      "pricingUnit": "per_piece",
+      "price": 30,
+      "requiresSpecialCare": false,
+      "_tier": "wash_only",
+      "_note": "Generated at 1.5x the Ironing price (₹20 -> ₹30, rounded up). Per CLAUDE.md: this is a ONE-TIME calculation, not a live formula — editable independently afterward like any other catalogue entry. Confirm this interpretation with client."
+    },
+    {
+      "category": "Wash Services — Men's Wear",
+      "itemName": "Blazer",
+      "serviceType": "wash_fold",
+      "pricingUnit": "per_piece",
+      "price": 120,
+      "requiresSpecialCare": false,
+      "_tier": "wash_only",
+      "_note": "Generated at 1.5x the Ironing price (₹80 -> ₹120, rounded up). Per CLAUDE.md: this is a ONE-TIME calculation, not a live formula — editable independently afterward like any other catalogue entry. Confirm this interpretation with client."
+    },
+    {
+      "category": "Wash Services — Men's Wear",
+      "itemName": "Suit (2-Piece)",
+      "serviceType": "wash_fold",
+      "pricingUnit": "per_piece",
+      "price": 180,
+      "requiresSpecialCare": false,
+      "_tier": "wash_only",
+      "_note": "Generated at 1.5x the Ironing price (₹120 -> ₹180, rounded up). Per CLAUDE.md: this is a ONE-TIME calculation, not a live formula — editable independently afterward like any other catalogue entry. Confirm this interpretation with client."
+    },
+    {
+      "category": "Wash Services — Men's Wear",
+      "itemName": "Suit (3-Piece)",
+      "serviceType": "wash_fold",
+      "pricingUnit": "per_piece",
+      "price": 225,
+      "requiresSpecialCare": false,
+      "_tier": "wash_only",
+      "_note": "Generated at 1.5x the Ironing price (₹150 -> ₹225, rounded up). Per CLAUDE.md: this is a ONE-TIME calculation, not a live formula — editable independently afterward like any other catalogue entry. Confirm this interpretation with client."
+    },
+    {
+      "category": "Wash Services — Men's Wear",
+      "itemName": "Waistcoat",
+      "serviceType": "wash_fold",
+      "pricingUnit": "per_piece",
+      "price": 53,
+      "requiresSpecialCare": false,
+      "_tier": "wash_only",
+      "_note": "Generated at 1.5x the Ironing price (₹35 -> ₹53, rounded up). Per CLAUDE.md: this is a ONE-TIME calculation, not a live formula — editable independently afterward like any other catalogue entry. Confirm this interpretation with client."
+    },
+    {
+      "category": "Wash Services — Kids Wear",
+      "itemName": "T-Shirt",
+      "serviceType": "wash_fold",
+      "pricingUnit": "per_piece",
+      "price": 15,
+      "requiresSpecialCare": false,
+      "_tier": "wash_only",
+      "_note": "Generated at 1.5x the Ironing price (₹10 -> ₹15, rounded up). Per CLAUDE.md: this is a ONE-TIME calculation, not a live formula — editable independently afterward like any other catalogue entry. Confirm this interpretation with client."
+    },
+    {
+      "category": "Wash Services — Kids Wear",
+      "itemName": "Shirt",
+      "serviceType": "wash_fold",
+      "pricingUnit": "per_piece",
+      "price": 15,
+      "requiresSpecialCare": false,
+      "_tier": "wash_only",
+      "_note": "Generated at 1.5x the Ironing price (₹10 -> ₹15, rounded up). Per CLAUDE.md: this is a ONE-TIME calculation, not a live formula — editable independently afterward like any other catalogue entry. Confirm this interpretation with client."
+    },
+    {
+      "category": "Wash Services — Kids Wear",
+      "itemName": "Shorts",
+      "serviceType": "wash_fold",
+      "pricingUnit": "per_piece",
+      "price": 15,
+      "requiresSpecialCare": false,
+      "_tier": "wash_only",
+      "_note": "Generated at 1.5x the Ironing price (₹10 -> ₹15, rounded up). Per CLAUDE.md: this is a ONE-TIME calculation, not a live formula — editable independently afterward like any other catalogue entry. Confirm this interpretation with client."
+    },
+    {
+      "category": "Wash Services — Kids Wear",
+      "itemName": "Pants",
+      "serviceType": "wash_fold",
+      "pricingUnit": "per_piece",
+      "price": 15,
+      "requiresSpecialCare": false,
+      "_tier": "wash_only",
+      "_note": "Generated at 1.5x the Ironing price (₹10 -> ₹15, rounded up). Per CLAUDE.md: this is a ONE-TIME calculation, not a live formula — editable independently afterward like any other catalogue entry. Confirm this interpretation with client."
+    },
+    {
+      "category": "Wash Services — Kids Wear",
+      "itemName": "Frock",
+      "serviceType": "wash_fold",
+      "pricingUnit": "per_piece",
+      "price": 23,
+      "requiresSpecialCare": false,
+      "_tier": "wash_only",
+      "_note": "Generated at 1.5x the Ironing price (₹15 -> ₹23, rounded up). Per CLAUDE.md: this is a ONE-TIME calculation, not a live formula — editable independently afterward like any other catalogue entry. Confirm this interpretation with client."
+    },
+    {
+      "category": "Wash Services — Kids Wear",
+      "itemName": "School Uniform (Shirt + Pant/Skirt)",
+      "serviceType": "wash_fold",
+      "pricingUnit": "per_piece",
+      "price": 30,
+      "requiresSpecialCare": false,
+      "_tier": "wash_only",
+      "_note": "Generated at 1.5x the Ironing price (₹20 -> ₹30, rounded up). Per CLAUDE.md: this is a ONE-TIME calculation, not a live formula — editable independently afterward like any other catalogue entry. Confirm this interpretation with client."
+    },
+    {
+      "category": "Wash Services — Delicate & Premium Wear",
+      "itemName": "Silk Shirt",
+      "serviceType": "wash_fold",
+      "pricingUnit": "per_piece",
+      "price": 45,
+      "requiresSpecialCare": true,
+      "_tier": "wash_only",
+      "_note": "Generated at 1.5x the Ironing price (₹30 -> ₹45, rounded up). Per CLAUDE.md: this is a ONE-TIME calculation, not a live formula — editable independently afterward like any other catalogue entry. Confirm this interpretation with client."
+    },
+    {
+      "category": "Wash Services — Delicate & Premium Wear",
+      "itemName": "Linen Shirt",
+      "serviceType": "wash_fold",
+      "pricingUnit": "per_piece",
+      "price": 38,
+      "requiresSpecialCare": true,
+      "_tier": "wash_only",
+      "_note": "Generated at 1.5x the Ironing price (₹25 -> ₹38, rounded up). Per CLAUDE.md: this is a ONE-TIME calculation, not a live formula — editable independently afterward like any other catalogue entry. Confirm this interpretation with client."
+    },
+    {
+      "category": "Wash Services — Delicate & Premium Wear",
+      "itemName": "Khadi Kurta",
+      "serviceType": "wash_fold",
+      "pricingUnit": "per_piece",
+      "price": 38,
+      "requiresSpecialCare": true,
+      "_tier": "wash_only",
+      "_note": "Generated at 1.5x the Ironing price (₹25 -> ₹38, rounded up). Per CLAUDE.md: this is a ONE-TIME calculation, not a live formula — editable independently afterward like any other catalogue entry. Confirm this interpretation with client."
+    },
+    {
+      "category": "Wash Services — Delicate & Premium Wear",
+      "itemName": "Wool Coat",
+      "serviceType": "wash_fold",
+      "pricingUnit": "per_piece",
+      "price": 150,
+      "requiresSpecialCare": true,
+      "_tier": "wash_only",
+      "_note": "Generated at 1.5x the Ironing price (₹100 -> ₹150, rounded up). Per CLAUDE.md: this is a ONE-TIME calculation, not a live formula — editable independently afterward like any other catalogue entry. Confirm this interpretation with client."
+    },
+    {
+      "category": "Wash Services — Delicate & Premium Wear",
+      "itemName": "Sherwani",
+      "serviceType": "wash_fold",
+      "pricingUnit": "per_piece",
+      "price": 225,
+      "requiresSpecialCare": true,
+      "_tier": "wash_only",
+      "_note": "Generated at 1.5x the Ironing price (₹150 -> ₹225, rounded up). Per CLAUDE.md: this is a ONE-TIME calculation, not a live formula — editable independently afterward like any other catalogue entry. Confirm this interpretation with client."
+    },
+    {
+      "category": "Wash Services — Delicate & Premium Wear",
+      "itemName": "Bridal Dupatta",
+      "serviceType": "wash_fold",
+      "pricingUnit": "per_piece",
+      "price": 120,
+      "requiresSpecialCare": true,
+      "_tier": "wash_only",
+      "_note": "Generated at 1.5x the Ironing price (₹80 -> ₹120, rounded up). Per CLAUDE.md: this is a ONE-TIME calculation, not a live formula — editable independently afterward like any other catalogue entry. Confirm this interpretation with client."
+    },
+    {
+      "category": "Wash Services — Delicate & Premium Wear",
+      "itemName": "Designer Dress",
+      "serviceType": "wash_fold",
+      "pricingUnit": "per_piece",
+      "price": 150,
+      "requiresSpecialCare": true,
+      "_tier": "wash_only",
+      "_note": "Generated at 1.5x the Ironing price (₹100 -> ₹150, rounded up). Per CLAUDE.md: this is a ONE-TIME calculation, not a live formula — editable independently afterward like any other catalogue entry. Confirm this interpretation with client."
     }
   ],
   "businessInfo": {

@@ -106,6 +106,20 @@ export const updateStatusHandler = async (req: AuthRequest, res: Response): Prom
   res.status(200).json({ order });
 };
 
+// CLAUDE.md "Payment marking — real gap" — records which of the four
+// confirmed payment modes was used and flips paymentStatus to 'paid'.
+export const recordPaymentHandler = async (req: AuthRequest, res: Response): Promise<void> => {
+  const { paymentMethod } = req.body;
+
+  if (!paymentMethod) {
+    res.status(400).json({ error: 'paymentMethod is required' });
+    return;
+  }
+
+  const order = await orderService.recordPayment(req.params.id, paymentMethod, req.auth!.userId, req.auth!.role);
+  res.status(200).json({ order });
+};
+
 export const reviseAmountHandler = async (req: AuthRequest, res: Response): Promise<void> => {
   const { newAmount, reason } = req.body;
 

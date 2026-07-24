@@ -40,6 +40,9 @@ const validatePricingFields = (body: any): string | undefined => {
   if (body.requiresSpecialCare !== undefined && typeof body.requiresSpecialCare !== 'boolean') {
     return 'requiresSpecialCare must be a boolean';
   }
+  if (body.iconKey !== undefined && body.iconKey !== null && typeof body.iconKey !== 'string') {
+    return 'iconKey must be a string';
+  }
   return undefined;
 };
 
@@ -55,6 +58,7 @@ export const createGarmentHandler = async (req: AuthRequest, res: Response): Pro
     priceMax,
     isStartingPrice,
     requiresSpecialCare,
+    iconKey,
   } = req.body;
 
   if (!itemName || !serviceType || price === undefined) {
@@ -80,6 +84,7 @@ export const createGarmentHandler = async (req: AuthRequest, res: Response): Pro
       priceMax,
       isStartingPrice,
       requiresSpecialCare,
+      iconKey,
     },
   });
 
@@ -98,6 +103,7 @@ export const updateGarmentHandler = async (req: AuthRequest, res: Response): Pro
     priceMax,
     isStartingPrice,
     requiresSpecialCare,
+    iconKey,
   } = req.body;
 
   const validationError = validatePricingFields(req.body);
@@ -119,6 +125,7 @@ export const updateGarmentHandler = async (req: AuthRequest, res: Response): Pro
       priceMax,
       isStartingPrice,
       requiresSpecialCare,
+      iconKey,
     },
   });
 
