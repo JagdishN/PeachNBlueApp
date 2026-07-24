@@ -63,7 +63,21 @@ export const generateInvoice = async (orderId: string): Promise<GeneratedInvoice
   // never disagree on what the customer actually owes.
   const discountPercent = order.customer.discountEnabled ? Number(order.customer.discountPercent ?? 0) : 0;
   const subtotal = Number(order.finalAmount);
-  const amount = calculatePayableAmount(subtotal, order.customer);
+  const discountedSubtotal = calculatePayableAmount(subtotal, order.customer);
+
+  // CLAUDE.md "Bag-replacement ₹350 charge": wired to the invoice from the
+  // customer's first actual replacement onward (the free initial bag
+  // issuance was never a charge to begin with, so there's nothing to
+  // exclude) — a flat add-on, not discounted, since it isn't a laundry
+  // service. Only charges tied to THIS order via orderId are included;
+  // untied reports (customer calls in separately, no order context) aren't
+  // attached to any invoice yet — see CLAUDE.md for why that's still open.
+  const bagCharges = await prisma.additionalCharge.findMany({
+    where: { orderId: order.id, chargeType: 'bag_replacement' },
+  });
+  const additionalChargesTotal = bagCharges.reduce((sum, charge) => sum + Number(charge.amount), 0);
+
+  const amount = discountedSubtotal + additionalChargesTotal;
 
   const paymentLink = await createPaymentLink({
     amount,
@@ -100,6 +114,7 @@ export const generateInvoice = async (orderId: string): Promise<GeneratedInvoice
     })),
     subtotal,
     discountPercent,
+    additionalChargesTotal,
     amount,
     paymentLinkUrl: paymentLink.shortUrl,
     turnaroundLabel: TURNAROUND_LABEL,

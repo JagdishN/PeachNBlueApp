@@ -43,6 +43,12 @@ export const LoginScreen: React.FC = () => {
     }
   };
 
+  const handleChangeNumber = () => {
+    setError(null);
+    setOtp('');
+    setStep('phone');
+  };
+
   const handleSignIn = async () => {
     setError(null);
     setLoading(true);
@@ -78,7 +84,14 @@ export const LoginScreen: React.FC = () => {
         </Pressable>
       </View>
 
-      <Text style={styles.fieldLabel}>Phone Number</Text>
+      <View style={styles.fieldLabelRow}>
+        <Text style={styles.fieldLabel}>Phone Number</Text>
+        {step === 'otp' && (
+          <Pressable onPress={handleChangeNumber} hitSlop={8}>
+            <Text style={styles.changeNumberText}>Change number</Text>
+          </Pressable>
+        )}
+      </View>
       <View style={styles.phoneRow}>
         <View style={styles.countryCode}>
           <Text style={styles.countryCodeText}>{COUNTRY_CODE}</Text>
@@ -169,6 +182,17 @@ const createStyles = (colors: ColorTokens) =>
       fontSize: 9.5,
       fontWeight: '700',
       color: colors.navyText,
+      marginBottom: spacing.xs,
+    },
+    fieldLabelRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    changeNumberText: {
+      fontSize: 9.5,
+      fontWeight: '700',
+      color: colors.peachPrimary,
       marginBottom: spacing.xs,
     },
     field: {

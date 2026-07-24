@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import prisma from '../prisma/client';
-import { reissueAllOpenInvoicesForCustomer } from '../services/invoiceReissue.service';
+import { reissueAllOpenInvoicesForCustomer, reissueInvoice } from '../services/invoiceReissue.service';
 import { customerSelectForRole } from '../utils/roleAwareSelect';
 
 // CLAUDE.md "bag policy — RESOLVED": free for every customer, ₹350 only if
@@ -138,6 +138,22 @@ export const reportBagReplacementHandler = async (req: AuthRequest, res: Respons
     },
   });
 
+  // CLAUDE.md "Bag-replacement ₹350 charge": if this report is tied to a
+  // specific order (orderId given) and that order's invoice hasn't been
+  // superseded by delivery/payment yet, reissue it now — invoiceService's
+  // generateInvoice picks up this exact charge via its own
+  // additionalCharge lookup, so the customer's payment link reflects the
+  // ₹350 immediately rather than only on some later unrelated reissue.
+  if (orderId) {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: { internalStatus: true, paymentStatus: true },
+    });
+    if (order && order.internalStatus !== 'delivered' && order.paymentStatus !== 'paid') {
+      await reissueInvoice(orderId);
+    }
+  }
+
   res.status(201).json({ charge });
 };
 
@@ -178,6 +194,21 @@ export const listCustomersHandler = async (req: AuthRequest, res: Response): Pro
   res.status(200).json({ customers });
 };
 
+// Admin-only — CLAUDE.md "Per-flat discounts — RESOLVED": lets the Customer
+// Management screen show who changed this customer's discount and when,
+// since discountPercent/discountEnabled otherwise update silently with no
+// other record of it (unlike order_amount_revisions, which has always had
+// this for order-level amount changes).
+export const listDiscountAuditHandler = async (req: AuthRequest, res: Response): Promise<void> => {
+  const audits = await prisma.customerDiscountAudit.findMany({
+    where: { customerId: req.params.id },
+    include: { changedBy: { select: { fullName: true, phoneNumber: true } } },
+    orderBy: { changedAt: 'desc' },
+  });
+
+  res.status(200).json({ audits });
+};
+
 // Admin-only, deliberately separate from order creation's customer
 // upsert (src/services/orderService.ts) — staff must never be able to
 // reach this through the customer flow they already use.
@@ -199,6 +230,19 @@ export const updateDiscountHandler = async (req: AuthRequest, res: Response): Pr
   const updated = await prisma.customer.update({
     where: { id: req.params.id },
     data: { discountPercent },
+  });
+
+  // CLAUDE.md "Per-flat discounts — RESOLVED": who changed the discount and
+  // when — same purpose as OrderAmountRevision, since discountPercent is
+  // real financial data with no other audit trail otherwise.
+  await prisma.customerDiscountAudit.create({
+    data: {
+      customerId: req.params.id,
+      field: 'discountPercent',
+      oldValue: String(customer.discountPercent ?? 0),
+      newValue: String(discountPercent),
+      changedById: req.auth!.userId,
+    },
   });
 
   // CLAUDE.md "Per-flat discounts — RESOLVED": a discount change reissues
@@ -234,6 +278,16 @@ export const updateDiscountEnabledHandler = async (req: AuthRequest, res: Respon
   const updated = await prisma.customer.update({
     where: { id: req.params.id },
     data: { discountEnabled },
+  });
+
+  await prisma.customerDiscountAudit.create({
+    data: {
+      customerId: req.params.id,
+      field: 'discountEnabled',
+      oldValue: String(customer.discountEnabled),
+      newValue: String(discountEnabled),
+      changedById: req.auth!.userId,
+    },
   });
 
   await reissueAllOpenInvoicesForCustomer(updated.id);

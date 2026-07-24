@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { PrismaClient } from '@prisma/client';
+import { resolveIconKey } from './iconMapping';
 
 const prisma = new PrismaClient();
 
@@ -13,6 +14,10 @@ interface SeedGarment {
   priceMax?: number;
   isStartingPrice?: boolean;
   requiresSpecialCare?: boolean;
+  // Optional per-item override — if present, wins over the auto keyword
+  // match below (CLAUDE.md "Icons for garment types": admin/seed-data can
+  // override an item the auto-mapping guesses wrong on).
+  iconKey?: string;
   _note?: string;
   _tier?: string;
 }
@@ -52,11 +57,18 @@ async function main() {
 
   let created = 0;
   let updated = 0;
+  const weakIconMatches: { itemName: string; category: string; iconKey: string }[] = [];
 
   for (const garment of seedData.garments) {
     const existing = await prisma.garmentCatalogue.findFirst({
       where: { itemName: garment.itemName, category: garment.category, branchId: null },
     });
+
+    const iconMatch = resolveIconKey(garment.itemName);
+    const iconKey = garment.iconKey ?? iconMatch.iconKey;
+    if (!garment.iconKey && iconMatch.confidence === 'weak') {
+      weakIconMatches.push({ itemName: garment.itemName, category: garment.category, iconKey });
+    }
 
     // branchId left null — matches garment_catalogue's null-means-global
     // convention (CLAUDE.md / seed-data _comment), so these apply to every
@@ -70,6 +82,7 @@ async function main() {
       priceMax: garment.priceMax ?? null,
       isStartingPrice: garment.isStartingPrice ?? false,
       requiresSpecialCare: garment.requiresSpecialCare ?? false,
+      iconKey,
       isActive: true,
       branchId: null,
     };
@@ -100,6 +113,16 @@ async function main() {
     console.warn('');
   }
 
+  if (weakIconMatches.length > 0) {
+    console.warn(
+      `\n⚠ ${weakIconMatches.length} items got a weak/uncertain auto-mapped icon — see CLAUDE.md "Icons for garment types":`
+    );
+    for (const item of weakIconMatches) {
+      console.warn(`  - ${item.itemName} [${item.category}] -> ${item.iconKey}`);
+    }
+    console.warn('');
+  }
+
   const perKgSample = await prisma.garmentCatalogue.findMany({
     where: { pricingUnit: 'per_kg' },
     orderBy: { itemName: 'asc' },
@@ -117,6 +140,26 @@ async function main() {
   console.log('\nStarting-price ("onwards") items (sample of 2):');
   for (const item of startingPriceSample) {
     console.log(`  - ${item.itemName} [${item.category}] ₹${item.price} onwards`);
+  }
+
+  // CLAUDE.md 'New "Wash" service' — confirm the 1.5x-Ironing generation
+  // actually landed by comparing 3 Iron Services items against their paired
+  // Wash Services item (same itemName, "Iron Services — X" vs "Wash Services
+  // — X" category).
+  const ironItems = await prisma.garmentCatalogue.findMany({
+    where: { category: { startsWith: 'Iron Services —' } },
+    orderBy: { itemName: 'asc' },
+    take: 3,
+  });
+  console.log('\nIron price vs generated Wash price (sample of 3):');
+  for (const iron of ironItems) {
+    const washCategory = iron.category!.replace('Iron Services —', 'Wash Services —');
+    const wash = await prisma.garmentCatalogue.findFirst({
+      where: { itemName: iron.itemName, category: washCategory },
+    });
+    console.log(
+      `  - ${iron.itemName}: Iron ₹${iron.price} -> Wash ₹${wash ? wash.price : '(not found)'}`
+    );
   }
 }
 

@@ -48,6 +48,11 @@ export interface InvoicePdfData {
   items: InvoicePdfItem[];
   subtotal: number;
   discountPercent: number;
+  // CLAUDE.md "Bag-replacement ₹350 charge": additional_charges tied to this
+  // order (bag_replacement rows) — a flat fee, not discounted, itemized
+  // separately from the discount line rather than silently folded into
+  // `amount` with no explanation on the PDF.
+  additionalChargesTotal: number;
   amount: number;
   paymentLinkUrl: string | null;
   turnaroundLabel: string; // e.g. "24–48" — matches orderService.ts's pickup_confirmation phrasing
@@ -108,7 +113,13 @@ export const renderInvoicePdf = async (data: InvoicePdfData): Promise<Buffer> =>
           {data.discountPercent > 0 && (
             <View style={styles.totalsRow}>
               <Text>Discount ({data.discountPercent}%)</Text>
-              <Text>-{formatInr(data.subtotal - data.amount)}</Text>
+              <Text>-{formatInr((data.subtotal * data.discountPercent) / 100)}</Text>
+            </View>
+          )}
+          {data.additionalChargesTotal > 0 && (
+            <View style={styles.totalsRow}>
+              <Text>Additional Charges</Text>
+              <Text>{formatInr(data.additionalChargesTotal)}</Text>
             </View>
           )}
           <View style={styles.grandTotalRow}>

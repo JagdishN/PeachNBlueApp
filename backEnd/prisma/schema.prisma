@@ -54,6 +54,7 @@ model User {
   amountRevisions OrderAmountRevision[]
   deviceTokens DeviceToken[]
   additionalChargesCreated AdditionalCharge[]
+  discountAuditsChanged CustomerDiscountAudit[]
 
   @@index([branchId], map: "idx_users_branch")
   @@map("users")
@@ -110,11 +111,36 @@ model Customer {
   monthlyStatements MonthlyStatement[]
   communicationsLog CommunicationLog[]
   additionalCharges AdditionalCharge[]
+  discountAudits    CustomerDiscountAudit[]
 
   @@unique([phoneNumber, branchId, locationLabel])
   @@index([phoneNumber], map: "idx_customers_phone")
   @@index([branchId, locationLabel], map: "idx_customers_branch")
   @@map("customers")
+}
+
+// Audit trail for discountPercent/discountEnabled changes — same purpose as
+// OrderAmountRevision (who changed what, when), but discount changes touch
+// two differently-typed fields on the SAME customer rather than one amount
+// on one order, so oldValue/newValue are stored as strings (serializing
+// both the percent and the boolean) rather than typed Decimal columns.
+// Admin-only to create (mirrors the discount endpoints themselves), and not
+// staff-visible for the same reason discountPercent/discountEnabled aren't
+// (STAFF_HIDDEN_FIELDS) — this table is never queried on a staff-role path.
+model CustomerDiscountAudit {
+  id          String   @id @default(uuid()) @db.Uuid
+  customer    Customer @relation(fields: [customerId], references: [id])
+  customerId  String   @map("customer_id") @db.Uuid
+  // Values: discountPercent | discountEnabled
+  field       String   @map("field") @db.VarChar(30)
+  oldValue    String   @map("old_value")
+  newValue    String   @map("new_value")
+  changedBy   User     @relation(fields: [changedById], references: [id])
+  changedById String   @map("changed_by") @db.Uuid
+  changedAt   DateTime @default(now()) @map("changed_at") @db.Timestamptz(6)
+
+  @@index([customerId], map: "idx_discount_audit_customer")
+  @@map("customer_discount_audit")
 }
 
 model GarmentCatalogue {
@@ -145,6 +171,12 @@ model GarmentCatalogue {
   // actual price at order creation (validated as >= price, no upper bound).
   // Distinct from the priceMax range case above: no ceiling here.
   isStartingPrice Boolean @default(false) @map("is_starting_price")
+  // Icon set key (CLAUDE.md "Icons for garment types"), e.g. "tshirt-crew",
+  // "bed", "shoe-formal" — a @expo/vector-icons MaterialCommunityIcons name,
+  // so the mobile app can render it directly with no second lookup table.
+  // Auto-assigned by a keyword match at seed time; admin can override per
+  // item via the catalogue CRUD if the auto-mapping guessed wrong.
+  iconKey      String?  @map("icon_key") @db.VarChar(40)
   isActive     Boolean  @default(true) @map("is_active")
   displayOrder Int      @default(0) @map("display_order")
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)

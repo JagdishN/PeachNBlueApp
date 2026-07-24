@@ -16,6 +16,10 @@ export type OrderInternalStatus =
   | 'delivered'
   | 'cancelled';
 
+export type PaymentMethod = 'cash' | 'upi' | 'net_banking' | 'credit_card';
+
+export type OrderPaymentStatus = 'pending' | 'paid' | 'partially_paid' | 'due';
+
 export type CommunicationMessageType =
   | 'pickup_confirmation'
   | 'amount_revision'

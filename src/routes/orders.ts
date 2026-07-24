@@ -6,6 +6,7 @@ import {
   listOrdersHandler,
   reviseAmountHandler,
   updateStatusHandler,
+  recordPaymentHandler,
   assignStaffHandler,
 } from '../controllers/orderController';
 
@@ -18,6 +19,7 @@ router.post('/', createOrderHandler);
 router.get('/', listOrdersHandler);
 router.get('/:id', getOrderHandler);
 router.patch('/:id/status', updateStatusHandler);
+router.patch('/:id/payment', recordPaymentHandler);
 router.patch('/:id/amount', requireRole(['admin']), reviseAmountHandler);
 router.patch('/:id/assign', requireRole(['admin']), assignStaffHandler);
 

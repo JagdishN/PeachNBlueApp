@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { OrderInternalStatus, UserRole } from '../types/enums';
+import { OrderInternalStatus, UserRole, PaymentMethod } from '../types/enums';
 import prisma from '../prisma/client';
 import { sendNotification } from './notificationService';
 import { recordCharge } from './ledgerService';
@@ -376,6 +376,75 @@ export const updateStatus = async (
   }
 
   return order;
+};
+
+const PAYMENT_METHODS: PaymentMethod[] = ['cash', 'upi', 'net_banking', 'credit_card'];
+
+// CLAUDE.md "Payment marking — real gap": order_payment.paymentStatus
+// existed but nothing ever flipped it — this closes that gap, bundled into
+// the same delivery action a staff member is already standing at the door
+// for (CLAUDE.md's own recommendation), not a separate screen. Same staff
+// ownership check as updateStatus, since this is conceptually the other
+// half of "mark Delivered + Payment Received" (CLAUDE.md order workflow
+// step 7) — a staff member shouldn't be able to record a payment against an
+// order that isn't theirs any more than they can change its status.
+export const recordPayment = async (orderId: string, paymentMethod: PaymentMethod, recordedById: string, role: UserRole) => {
+  if (!PAYMENT_METHODS.includes(paymentMethod)) {
+    const err = new Error(`Invalid paymentMethod: ${paymentMethod}`);
+    (err as any).status = 400;
+    throw err;
+  }
+
+  const order = await prisma.order.findUnique({ where: { id: orderId }, include: { customer: true } });
+
+  if (!order) {
+    const err = new Error('Order not found.');
+    (err as any).status = 404;
+    throw err;
+  }
+
+  if (role === 'staff' && order.staffId !== recordedById) {
+    const err = new Error('Forbidden: you can only record payment for orders assigned to you.');
+    (err as any).status = 403;
+    throw err;
+  }
+
+  // Monthly-billing customers are settled via the ledger (see the
+  // billingMode branch above), not a per-order payment at delivery — the
+  // four payment modes here are specifically for the "daily payments only"
+  // baseline CLAUDE.md describes.
+  if (order.customer.billingMode === 'monthly_billing') {
+    const err = new Error('This customer is on monthly billing — payment is settled via the ledger, not per order.');
+    (err as any).status = 400;
+    throw err;
+  }
+
+  // Same discount-adjusted amount the invoice and ledger charge already use
+  // (src/utils/pricing.ts) — the recorded Payment must match what the
+  // customer was actually asked to pay, not the pre-discount finalAmount.
+  const amount = calculatePayableAmount(Number(order.finalAmount), order.customer);
+
+  const updatedOrder = await prisma.$transaction(async (tx) => {
+    await tx.payment.create({
+      data: {
+        orderId,
+        customerId: order.customerId,
+        amount,
+        paymentType: 'order_payment',
+        paymentMethod,
+        status: 'success',
+        recordedById,
+      },
+    });
+
+    return tx.order.update({
+      where: { id: orderId },
+      data: { paymentMethod, paymentStatus: 'paid' },
+      include: { customer: { select: customerSelectForRole(role) }, orderItems: true },
+    });
+  });
+
+  return updatedOrder;
 };
 
 export const reviseAmount = async (

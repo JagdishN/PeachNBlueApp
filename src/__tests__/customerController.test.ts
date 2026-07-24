@@ -11,6 +11,7 @@ jest.mock('../prisma/client', () => ({
 }));
 jest.mock('../services/invoiceReissue.service', () => ({
   reissueAllOpenInvoicesForCustomer: jest.fn().mockResolvedValue(undefined),
+  reissueInvoice: jest.fn().mockResolvedValue(undefined),
 }));
 // This repo's local .env has JWT_SECRET='' (empty) for this dev environment,
 // which config/index.ts doesn't fall back away from (a pre-existing gap
@@ -21,13 +22,14 @@ jest.mock('../services/invoiceReissue.service', () => ({
 jest.mock('../config', () => ({ JWT_SECRET: 'test-secret-key' }));
 
 import prisma from '../prisma/client';
-import { reissueAllOpenInvoicesForCustomer } from '../services/invoiceReissue.service';
+import { reissueAllOpenInvoicesForCustomer, reissueInvoice } from '../services/invoiceReissue.service';
 import { errorHandler } from '../middleware/errorHandler';
 import { JWT_SECRET } from '../config';
 import customerRoutes from '../routes/customers';
 
 const prismaMock = prisma as unknown as DeepMockProxy<PrismaClient>;
 const reissueAllOpenInvoicesForCustomerMock = reissueAllOpenInvoicesForCustomer as jest.Mock;
+const reissueInvoiceMock = reissueInvoice as jest.Mock;
 
 // Minimal app mirroring server.ts's mounting of customerRoutes, without the
 // staffFieldFilter/helmet/cors noise that isn't relevant to these tests.
@@ -43,6 +45,8 @@ beforeEach(() => {
   mockReset(prismaMock);
   reissueAllOpenInvoicesForCustomerMock.mockReset();
   reissueAllOpenInvoicesForCustomerMock.mockResolvedValue(undefined);
+  reissueInvoiceMock.mockReset();
+  reissueInvoiceMock.mockResolvedValue(undefined);
 });
 
 describe('GET / — admin-only list, branch-scoped like listBranchesHandler', () => {
@@ -278,6 +282,70 @@ describe('PATCH /:id/billing-mode — admin-only write, staff can still read bil
   });
 });
 
+// CLAUDE.md "Per-flat discounts — RESOLVED" audit trail — who changed the
+// discount percent and when, since this is real financial data with
+// otherwise no record of changes (unlike order_amount_revisions).
+describe('PATCH /:id/discount — admin-only, logs a CustomerDiscountAudit row', () => {
+  it('rejects a staff-role token', async () => {
+    const res = await request(app)
+      .patch('/api/v1/customers/customer-1/discount')
+      .set('Authorization', `Bearer ${token('staff')}`)
+      .send({ discountPercent: 10 });
+
+    expect(res.status).toBe(403);
+    expect(prismaMock.customer.update).not.toHaveBeenCalled();
+  });
+
+  it('logs the old and new percent on change', async () => {
+    prismaMock.customer.findUnique.mockResolvedValue({ id: 'customer-1', discountPercent: 5 } as any);
+    prismaMock.customer.update.mockResolvedValue({ id: 'customer-1', discountPercent: 15 } as any);
+    prismaMock.customerDiscountAudit.create.mockResolvedValue({} as any);
+
+    const res = await request(app)
+      .patch('/api/v1/customers/customer-1/discount')
+      .set('Authorization', `Bearer ${token('admin')}`)
+      .send({ discountPercent: 15 });
+
+    expect(res.status).toBe(200);
+    expect(prismaMock.customerDiscountAudit.create).toHaveBeenCalledWith({
+      data: {
+        customerId: 'customer-1',
+        field: 'discountPercent',
+        oldValue: '5',
+        newValue: '15',
+        changedById: 'user-1',
+      },
+    });
+    expect(reissueAllOpenInvoicesForCustomerMock).toHaveBeenCalledWith('customer-1');
+  });
+});
+
+describe('GET /:id/discount-audit — admin-only history', () => {
+  it('rejects a staff-role token', async () => {
+    const res = await request(app)
+      .get('/api/v1/customers/customer-1/discount-audit')
+      .set('Authorization', `Bearer ${token('staff')}`);
+
+    expect(res.status).toBe(403);
+  });
+
+  it('returns the audit history for an admin', async () => {
+    prismaMock.customerDiscountAudit.findMany.mockResolvedValue([
+      { id: 'audit-1', field: 'discountPercent', oldValue: '0', newValue: '10', changedById: 'user-1' },
+    ] as any);
+
+    const res = await request(app)
+      .get('/api/v1/customers/customer-1/discount-audit')
+      .set('Authorization', `Bearer ${token('admin')}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.audits).toHaveLength(1);
+    expect(prismaMock.customerDiscountAudit.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { customerId: 'customer-1' } })
+    );
+  });
+});
+
 describe('PATCH /:id/discount-enabled — fully admin-only, same treatment as discountPercent', () => {
   it('rejects a staff-role token', async () => {
     const res = await request(app)
@@ -298,9 +366,10 @@ describe('PATCH /:id/discount-enabled — fully admin-only, same treatment as di
     expect(res.status).toBe(400);
   });
 
-  it('updates discountEnabled and reissues open invoices for an admin', async () => {
-    prismaMock.customer.findUnique.mockResolvedValue({ id: 'customer-1' } as any);
+  it('updates discountEnabled, logs an audit row, and reissues open invoices for an admin', async () => {
+    prismaMock.customer.findUnique.mockResolvedValue({ id: 'customer-1', discountEnabled: false } as any);
     prismaMock.customer.update.mockResolvedValue({ id: 'customer-1', discountEnabled: true } as any);
+    prismaMock.customerDiscountAudit.create.mockResolvedValue({} as any);
 
     const res = await request(app)
       .patch('/api/v1/customers/customer-1/discount-enabled')
@@ -311,6 +380,15 @@ describe('PATCH /:id/discount-enabled — fully admin-only, same treatment as di
     expect(prismaMock.customer.update).toHaveBeenCalledWith({
       where: { id: 'customer-1' },
       data: { discountEnabled: true },
+    });
+    expect(prismaMock.customerDiscountAudit.create).toHaveBeenCalledWith({
+      data: {
+        customerId: 'customer-1',
+        field: 'discountEnabled',
+        oldValue: 'false',
+        newValue: 'true',
+        changedById: 'user-1',
+      },
     });
     expect(reissueAllOpenInvoicesForCustomerMock).toHaveBeenCalledWith('customer-1');
   });
@@ -423,6 +501,50 @@ describe('POST /:id/bag-replacement — staff AND admin, ₹350 fixed fee', () =
         createdById: 'user-1',
       },
     });
+  });
+
+  // CLAUDE.md "Bag-replacement ₹350 charge": reported against a specific
+  // order that hasn't been delivered/paid yet should reissue that order's
+  // invoice so the charge is reflected right away, not just on some later
+  // unrelated reissue trigger.
+  it('reissues the tied order\'s invoice when the order is still open (not delivered/paid)', async () => {
+    prismaMock.customer.findUnique.mockResolvedValue({ id: 'customer-1', bagIssued: true } as any);
+    prismaMock.additionalCharge.create.mockResolvedValue({ id: 'charge-1', amount: 350 } as any);
+    prismaMock.order.findUnique.mockResolvedValue({ internalStatus: 'ready', paymentStatus: 'pending' } as any);
+
+    const res = await request(app)
+      .post('/api/v1/customers/customer-1/bag-replacement')
+      .set('Authorization', `Bearer ${token('staff', 'branch-1')}`)
+      .send({ orderId: 'order-1' });
+
+    expect(res.status).toBe(201);
+    expect(reissueInvoiceMock).toHaveBeenCalledWith('order-1');
+  });
+
+  it('does not reissue when the tied order is already delivered and paid', async () => {
+    prismaMock.customer.findUnique.mockResolvedValue({ id: 'customer-1', bagIssued: true } as any);
+    prismaMock.additionalCharge.create.mockResolvedValue({ id: 'charge-1', amount: 350 } as any);
+    prismaMock.order.findUnique.mockResolvedValue({ internalStatus: 'delivered', paymentStatus: 'paid' } as any);
+
+    await request(app)
+      .post('/api/v1/customers/customer-1/bag-replacement')
+      .set('Authorization', `Bearer ${token('staff', 'branch-1')}`)
+      .send({ orderId: 'order-1' });
+
+    expect(reissueInvoiceMock).not.toHaveBeenCalled();
+  });
+
+  it('does not attempt a reissue when no orderId is given (untied report)', async () => {
+    prismaMock.customer.findUnique.mockResolvedValue({ id: 'customer-1', bagIssued: true } as any);
+    prismaMock.additionalCharge.create.mockResolvedValue({ id: 'charge-1', amount: 350 } as any);
+
+    await request(app)
+      .post('/api/v1/customers/customer-1/bag-replacement')
+      .set('Authorization', `Bearer ${token('staff', 'branch-1')}`)
+      .send({});
+
+    expect(prismaMock.order.findUnique).not.toHaveBeenCalled();
+    expect(reissueInvoiceMock).not.toHaveBeenCalled();
   });
 
   it('returns 404 for a customer that does not exist', async () => {
