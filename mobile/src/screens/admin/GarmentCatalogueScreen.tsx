@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { AppScreen } from '../../components/AppScreen';
@@ -13,15 +13,10 @@ import {
   updateGarment,
   deleteGarment,
   Garment,
-  ServiceType,
   PricingUnit,
 } from '../../api/garments';
 import { getServiceTag, SPECIAL_CARE_TAG } from '../../theme/serviceTag';
 import { ColorTokens, radii, spacing } from '../../theme/theme';
-
-// specialty_care is not a valid serviceType (CLAUDE.md "requiresSpecialCare
-// — RESOLVED") — special-care handling is the separate boolean toggle below.
-const SERVICE_TYPES: ServiceType[] = ['wash_fold', 'ironing', 'dry_clean'];
 
 export const GarmentCatalogueScreen: React.FC = () => {
   const { colors } = useTheme();
@@ -36,7 +31,7 @@ export const GarmentCatalogueScreen: React.FC = () => {
   const [price, setPrice] = useState('');
   const [priceMaxInput, setPriceMaxInput] = useState('');
   const [pricingUnit, setPricingUnit] = useState<PricingUnit>('per_piece');
-  const [serviceType, setServiceType] = useState<ServiceType>('wash_fold');
+  const [serviceType, setServiceType] = useState('wash_fold');
   const [isStartingPrice, setIsStartingPrice] = useState(false);
   const [requiresSpecialCare, setRequiresSpecialCare] = useState(false);
   const [iconKey, setIconKey] = useState('');
@@ -51,6 +46,17 @@ export const GarmentCatalogueScreen: React.FC = () => {
       setLoading(false);
     }
   }, []);
+
+  // serviceType is deliberately a plain string, not a fixed enum (CLAUDE.md
+  // "Services — RESOLVED" / "Admin can add new service types — RESOLVED") —
+  // these chips are quick-select shortcuts derived from whatever's actually
+  // live right now, not a hardcoded list that needs a code change whenever
+  // the client's offerings change. The free-text field below is what lets
+  // admin type a genuinely new value.
+  const knownServiceTypes = useMemo(
+    () => Array.from(new Set(garments.map((g) => g.serviceType))).sort(),
+    [garments]
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -150,27 +156,35 @@ export const GarmentCatalogueScreen: React.FC = () => {
         {loading ? (
           <ActivityIndicator color={colors.peachPrimary} style={{ marginTop: spacing.xl }} />
         ) : (
-          garments.map((garment) => (
-            <Pressable key={garment.id} style={styles.card} onPress={() => openEdit(garment)}>
-              <View style={styles.cardRow}>
-                <View style={styles.nameRow}>
-                  <MaterialCommunityIcons
-                    name={(garment.iconKey ?? 'hanger') as any}
-                    size={16}
-                    color={colors.muted}
-                    style={styles.garmentIcon}
-                  />
-                  <Text style={styles.garmentName}>{garment.itemName}</Text>
-                  <Tag {...serviceTag[garment.serviceType]} />
-                  {garment.requiresSpecialCare && <Tag {...SPECIAL_CARE_TAG} />}
+          <ScrollView style={styles.listScroll} showsVerticalScrollIndicator={false}>
+            {garments.map((garment) => (
+              <Pressable key={garment.id} style={styles.card} onPress={() => openEdit(garment)}>
+                <View style={styles.cardRow}>
+                  <View style={styles.nameRow}>
+                    <MaterialCommunityIcons
+                      name={(garment.iconKey ?? 'hanger') as any}
+                      size={16}
+                      color={colors.muted}
+                      style={styles.garmentIcon}
+                    />
+                    <Text style={styles.garmentName}>{garment.itemName}</Text>
+                    <Tag
+                      {...(serviceTag[garment.serviceType] ?? {
+                        label: garment.serviceType,
+                        bg: colors.peachCard,
+                        color: colors.navyText,
+                      })}
+                    />
+                    {garment.requiresSpecialCare && <Tag {...SPECIAL_CARE_TAG} />}
+                  </View>
+                  <PriceChip amount={Number(garment.price)} variant="navy" />
                 </View>
-                <PriceChip amount={Number(garment.price)} variant="navy" />
-              </View>
-              {garment.category && <Text style={styles.categorySub}>{garment.category}</Text>}
-              {garment.pricingUnit === 'per_kg' && <Text style={styles.categorySub}>Priced per kg</Text>}
-              {garment.isStartingPrice && <Text style={styles.categorySub}>Starting price (onwards)</Text>}
-            </Pressable>
-          ))
+                {garment.category && <Text style={styles.categorySub}>{garment.category}</Text>}
+                {garment.pricingUnit === 'per_kg' && <Text style={styles.categorySub}>Priced per kg</Text>}
+                {garment.isStartingPrice && <Text style={styles.categorySub}>Starting price (onwards)</Text>}
+              </Pressable>
+            ))}
+          </ScrollView>
         )}
 
         <Pressable style={styles.addButton} onPress={openNew}>
@@ -257,19 +271,33 @@ export const GarmentCatalogueScreen: React.FC = () => {
             </View>
 
             <Text style={styles.fieldLabel}>Service Type</Text>
-            <View style={styles.serviceToggleRow}>
-              {SERVICE_TYPES.map((type) => (
+            <View style={styles.serviceTypeChipRow}>
+              {knownServiceTypes.map((type) => (
                 <Pressable
                   key={type}
-                  style={[styles.serviceToggle, serviceType === type && styles.serviceToggleActive]}
+                  style={[styles.serviceTypeChip, serviceType === type && styles.serviceTypeChipActive]}
                   onPress={() => setServiceType(type)}
                 >
-                  <Text style={[styles.serviceToggleText, serviceType === type && styles.serviceToggleTextActive]}>
-                    {serviceTag[type].label}
+                  <Text
+                    style={[styles.serviceTypeChipText, serviceType === type && styles.serviceTypeChipTextActive]}
+                  >
+                    {serviceTag[type]?.label ?? type}
                   </Text>
                 </Pressable>
               ))}
             </View>
+            <TextInput
+              style={styles.field}
+              value={serviceType}
+              onChangeText={setServiceType}
+              placeholder="wash_fold, ironing, dry_clean, or a new one"
+              placeholderTextColor={colors.muted}
+              autoCapitalize="none"
+            />
+            <Text style={styles.hint}>
+              Tap a chip to reuse an existing service type, or type a new one — new service types don't need a code
+              change.
+            </Text>
 
             <Text style={styles.fieldLabel}>Requires Special Care</Text>
             <View style={styles.serviceToggleRow}>
@@ -358,6 +386,15 @@ const createStyles = (colors: ColorTokens) =>
     body: {
       flex: 1,
       padding: 14,
+      // See AppScreen.tsx's `body` style comment — same react-native-web
+      // min-height:auto floor, needed at every nested flex level for the
+      // ScrollView below to actually clip+scroll instead of just growing
+      // to fit all 192 items past the viewport.
+      minHeight: 0,
+    },
+    listScroll: {
+      flex: 1,
+      minHeight: 0,
     },
     card: {
       backgroundColor: colors.peachCard,
@@ -472,6 +509,36 @@ const createStyles = (colors: ColorTokens) =>
     },
     serviceToggleTextActive: {
       color: colors.cream,
+    },
+    serviceTypeChipRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: spacing.xs,
+      marginBottom: spacing.xs,
+    },
+    serviceTypeChip: {
+      paddingVertical: spacing.xs,
+      paddingHorizontal: spacing.sm,
+      borderRadius: radii.sm,
+      borderWidth: 1.5,
+      borderColor: colors.navyDeep,
+    },
+    serviceTypeChipActive: {
+      backgroundColor: colors.chrome,
+      borderColor: colors.chrome,
+    },
+    serviceTypeChipText: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: colors.navyDeep,
+    },
+    serviceTypeChipTextActive: {
+      color: colors.cream,
+    },
+    hint: {
+      fontSize: 9.5,
+      color: colors.muted,
+      marginBottom: spacing.sm,
     },
     error: {
       color: colors.danger,

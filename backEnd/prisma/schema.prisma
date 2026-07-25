@@ -81,7 +81,12 @@ model DeviceToken {
 model Customer {
   id             String    @id @default(uuid()) @db.Uuid
   fullName       String    @map("full_name") @db.VarChar(150)
-  phoneNumber    String    @map("phone_number") @db.VarChar(15)
+  // Globally unique across every branch/location (2026-07-25 decision) — a
+  // phone number belongs to exactly one Customer row, period. Previously a
+  // composite unique with (branchId, locationLabel), intentionally allowing
+  // the same number at multiple flats; the client reversed that. See
+  // CLAUDE.md "Customer phone number uniqueness — RESOLVED".
+  phoneNumber    String    @unique @map("phone_number") @db.VarChar(15)
   whatsappNumber String?   @map("whatsapp_number") @db.VarChar(15)
   branch         Branch    @relation(fields: [branchId], references: [id])
   branchId       String    @map("branch_id") @db.Uuid
@@ -113,8 +118,6 @@ model Customer {
   additionalCharges AdditionalCharge[]
   discountAudits    CustomerDiscountAudit[]
 
-  @@unique([phoneNumber, branchId, locationLabel])
-  @@index([phoneNumber], map: "idx_customers_phone")
   @@index([branchId, locationLabel], map: "idx_customers_branch")
   @@map("customers")
 }
@@ -149,7 +152,11 @@ model GarmentCatalogue {
   branchId     String?  @map("branch_id") @db.Uuid
   itemName     String   @map("item_name") @db.VarChar(100)
   // Deliberately a plain string, not a hard DB enum — see CLAUDE.md "Services —
-  // RESOLVED". Seed values: wash_fold, ironing, dry_clean.
+  // RESOLVED". Seed values: wash_fold, ironing, dry_clean. The
+  // garment_catalogue_service_type_check CHECK constraint that used to
+  // restrict this to exactly those 3 values was dropped (2026-07-25, see
+  // CLAUDE.md "Admin can add new service types — RESOLVED") — admin can
+  // now add a genuinely new value from the mobile catalogue screen.
   serviceType  String   @default("wash_fold") @map("service_type") @db.VarChar(30)
   // Orthogonal to serviceType (CLAUDE.md "requiresSpecialCare — RESOLVED") —
   // special handling any garment can need regardless of which service tier
@@ -203,6 +210,12 @@ model Order {
   estimatedAmount Decimal            @default("0") @map("estimated_amount") @db.Decimal(10, 2)
   finalAmount     Decimal            @default("0") @map("final_amount") @db.Decimal(10, 2)
   amountWasRevised Boolean           @default(false) @map("amount_was_revised")
+  // Snapshot of Customer.billingMode at order creation (2026-07-25 decision
+  // — CLAUDE.md "Monthly billing retroactivity — RESOLVED"). Deliberately a
+  // copy, not a live read: flipping a customer's billing mode later must
+  // NOT retroactively change how an already-created order settles at
+  // delivery. Values: daily | monthly_billing.
+  billingMode     String             @default("daily") @map("billing_mode") @db.VarChar(20)
   // Values: cash | upi | net_banking | credit_card (see CLAUDE.md order workflow)
   paymentMethod   String?            @map("payment_method") @db.VarChar(20)
   // Values: pending | paid | partially_paid | due

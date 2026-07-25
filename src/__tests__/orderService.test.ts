@@ -104,6 +104,7 @@ beforeEach(() => {
     id: 'customer-1',
     phoneNumber: baseInput.customerPhoneNumber,
     whatsappNumber: null,
+    billingMode: 'daily',
   } as any);
   prismaMock.order.create.mockImplementation(((args: any) =>
     Promise.resolve({
@@ -111,6 +112,7 @@ beforeEach(() => {
       orderNumber: 'PB-TEST',
       estimatedAmount: args.data.estimatedAmount,
       finalAmount: args.data.finalAmount,
+      billingMode: args.data.billingMode,
       orderItems: args.data.orderItems.create,
       customer: { id: 'customer-1', phoneNumber: baseInput.customerPhoneNumber, whatsappNumber: null },
     })) as any);
@@ -261,6 +263,24 @@ describe('role-aware customer select (primary defense)', () => {
     expect(createArgs.include.customer.select).toHaveProperty('billingMode', true);
   });
 
+  // CLAUDE.md "Monthly billing retroactivity — RESOLVED": the order stores
+  // its own billingMode snapshot, taken from the customer at creation time —
+  // not a live reference resolved later at delivery.
+  it('snapshots the customer\'s current billingMode onto the new order at creation', async () => {
+    mockGarments([FIXED_PIECE_GARMENT]);
+    prismaMock.customer.upsert.mockResolvedValue({
+      id: 'customer-1',
+      phoneNumber: baseInput.customerPhoneNumber,
+      whatsappNumber: null,
+      billingMode: 'monthly_billing',
+    } as any);
+
+    await createOrder({ ...baseInput, items: [{ garmentId: 'g-shirt', quantity: 1 }] });
+
+    const createArgs = prismaMock.order.create.mock.calls[0][0] as any;
+    expect(createArgs.data.billingMode).toBe('monthly_billing');
+  });
+
   it('listOrders never requests discountPercent in the customer select for staff role', async () => {
     prismaMock.order.findMany.mockResolvedValue([]);
 
@@ -389,11 +409,17 @@ describe('createOrder — invoice generation is non-blocking', () => {
 // charge instead of being required to pay per-order; daily customers are
 // unaffected (regression check that this branch doesn't fire for them).
 describe('updateStatus — delivery billingMode branch', () => {
+  // billingMode lives on the order itself now (a snapshot taken at
+  // creation — CLAUDE.md "Monthly billing retroactivity — RESOLVED"), not
+  // read live off order.customer. customer.billingMode is deliberately
+  // omitted/different here in a couple of tests below to prove the branch
+  // really reads the order's own field, not the customer's current one.
   const buildOrderUpdate = (billingMode: 'daily' | 'monthly_billing') => ({
     id: 'order-1',
     orderNumber: 'PB-TEST',
     finalAmount: 500,
-    customer: { id: 'customer-1', billingMode },
+    billingMode,
+    customer: { id: 'customer-1' },
   });
 
   // All tests in this block call updateStatus with role 'staff' and
@@ -474,6 +500,40 @@ describe('updateStatus — delivery billingMode branch', () => {
     });
     expect(recordChargeMock).toHaveBeenCalledWith('customer-1', 'order-1', 400, 'Order PB-TEST');
   });
+
+  // CLAUDE.md "Monthly billing retroactivity — RESOLVED": flipping a
+  // customer's billingMode must not retroactively change how an
+  // already-created order settles — the order's own snapshot wins.
+  it('does not post a ledger charge for an order snapshotted as daily, even if the customer is now monthly_billing', async () => {
+    prismaMock.order.update.mockResolvedValue({
+      id: 'order-1',
+      orderNumber: 'PB-TEST',
+      finalAmount: 500,
+      billingMode: 'daily',
+      customer: { id: 'customer-1', billingMode: 'monthly_billing' },
+    } as any);
+    prismaMock.orderStatusHistory.create.mockResolvedValue({} as any);
+
+    await updateStatus('order-1', 'delivered', 'user-1', 'staff');
+
+    expect(recordChargeMock).not.toHaveBeenCalled();
+  });
+
+  it('posts a ledger charge for an order snapshotted as monthly_billing, even if the customer is now daily', async () => {
+    prismaMock.order.update.mockResolvedValue({
+      id: 'order-1',
+      orderNumber: 'PB-TEST',
+      finalAmount: 500,
+      billingMode: 'monthly_billing',
+      customer: { id: 'customer-1', billingMode: 'daily' },
+    } as any);
+    prismaMock.orderStatusHistory.create.mockResolvedValue({} as any);
+    prismaMock.customer.findUnique.mockResolvedValue({ discountEnabled: false, discountPercent: 0 } as any);
+
+    await updateStatus('order-1', 'delivered', 'user-1', 'staff');
+
+    expect(recordChargeMock).toHaveBeenCalledWith('customer-1', 'order-1', 500, 'Order PB-TEST');
+  });
 });
 
 // CLAUDE.md "Staff-scoped order visibility" (write side): a staff member may
@@ -549,19 +609,53 @@ describe('recordPayment', () => {
       id: 'order-1',
       staffId: 'staff-1',
       finalAmount: 500,
-      customer: { id: 'customer-1', billingMode: 'daily', discountEnabled: false, discountPercent: 0 },
+      billingMode: 'daily',
+      customer: { id: 'customer-1', discountEnabled: false, discountPercent: 0 },
     } as any);
 
     await expect(recordPayment('order-1', 'cash', 'staff-2', 'staff')).rejects.toMatchObject({ status: 403 });
     expect(prismaMock.payment.create).not.toHaveBeenCalled();
   });
 
-  it('rejects a monthly-billing customer — settled via the ledger, not per-order payment', async () => {
+  it('rejects an order snapshotted as monthly-billing — settled via the ledger, not per-order payment', async () => {
     prismaMock.order.findUnique.mockResolvedValue({
       id: 'order-1',
       staffId: 'staff-1',
       finalAmount: 500,
+      billingMode: 'monthly_billing',
+      customer: { id: 'customer-1', discountEnabled: false, discountPercent: 0 },
+    } as any);
+
+    await expect(recordPayment('order-1', 'cash', 'staff-1', 'staff')).rejects.toMatchObject({ status: 400 });
+    expect(prismaMock.payment.create).not.toHaveBeenCalled();
+  });
+
+  // CLAUDE.md "Monthly billing retroactivity — RESOLVED": the order's own
+  // snapshot governs, not the customer's current (possibly since-changed)
+  // billingMode.
+  it('allows recording payment for an order snapshotted as daily, even if the customer is now monthly_billing', async () => {
+    prismaMock.order.findUnique.mockResolvedValue({
+      id: 'order-1',
+      customerId: 'customer-1',
+      staffId: 'staff-1',
+      finalAmount: 500,
+      billingMode: 'daily',
       customer: { id: 'customer-1', billingMode: 'monthly_billing', discountEnabled: false, discountPercent: 0 },
+    } as any);
+    prismaMock.payment.create.mockResolvedValue({} as any);
+    prismaMock.order.update.mockResolvedValue({ id: 'order-1', paymentStatus: 'paid', paymentMethod: 'cash' } as any);
+
+    await expect(recordPayment('order-1', 'cash', 'staff-1', 'staff')).resolves.toBeDefined();
+    expect(prismaMock.payment.create).toHaveBeenCalled();
+  });
+
+  it('rejects an order snapshotted as monthly-billing, even if the customer is now daily', async () => {
+    prismaMock.order.findUnique.mockResolvedValue({
+      id: 'order-1',
+      staffId: 'staff-1',
+      finalAmount: 500,
+      billingMode: 'monthly_billing',
+      customer: { id: 'customer-1', billingMode: 'daily', discountEnabled: false, discountPercent: 0 },
     } as any);
 
     await expect(recordPayment('order-1', 'cash', 'staff-1', 'staff')).rejects.toMatchObject({ status: 400 });
@@ -574,7 +668,8 @@ describe('recordPayment', () => {
       customerId: 'customer-1',
       staffId: 'staff-1',
       finalAmount: 500,
-      customer: { id: 'customer-1', billingMode: 'daily', discountEnabled: false, discountPercent: 0 },
+      billingMode: 'daily',
+      customer: { id: 'customer-1', discountEnabled: false, discountPercent: 0 },
     } as any);
     prismaMock.payment.create.mockResolvedValue({} as any);
     prismaMock.order.update.mockResolvedValue({
@@ -612,7 +707,8 @@ describe('recordPayment', () => {
       customerId: 'customer-1',
       staffId: 'staff-1',
       finalAmount: 500,
-      customer: { id: 'customer-1', billingMode: 'daily', discountEnabled: true, discountPercent: 10 },
+      billingMode: 'daily',
+      customer: { id: 'customer-1', discountEnabled: true, discountPercent: 10 },
     } as any);
     prismaMock.payment.create.mockResolvedValue({} as any);
     prismaMock.order.update.mockResolvedValue({} as any);

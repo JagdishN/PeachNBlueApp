@@ -45,6 +45,12 @@ export interface Order {
   amountWasRevised: boolean;
   paymentStatus: string;
   paymentMethod: PaymentMethod | null;
+  // Snapshot of the customer's billingMode at the moment this order was
+  // created (CLAUDE.md "Monthly billing retroactivity — RESOLVED") — use
+  // THIS, not customer.billingMode, to decide whether this specific order
+  // needs a payment method at delivery. A customer's billing mode can
+  // change after an order exists; this field intentionally doesn't.
+  billingMode: string;
   staffId: string | null;
   customer: OrderCustomer;
   orderItems: OrderItem[];

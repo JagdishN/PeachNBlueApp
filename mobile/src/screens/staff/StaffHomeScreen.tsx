@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { AppScreen } from '../../components/AppScreen';
+import { ThemeToggle } from '../../components/ThemeToggle';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { fetchBranch, Branch } from '../../api/branches';
@@ -67,9 +68,12 @@ export const StaffHomeScreen: React.FC = () => {
               {user?.fullName ? getDisplayName(user.fullName) : ''} · {orders.length} collected today
             </Text>
           </View>
-          <Pressable style={styles.settingsButton} onPress={() => navigation.navigate('Settings')}>
-            <Text style={styles.settingsButtonText}>⚙</Text>
-          </Pressable>
+          <View style={styles.appbarActions}>
+            <ThemeToggle />
+            <Pressable style={styles.settingsButton} onPress={() => navigation.navigate('Settings')}>
+              <Text style={styles.settingsButtonText}>⚙</Text>
+            </Pressable>
+          </View>
         </View>
         {branch && (
           <View style={styles.branchChip}>
@@ -86,26 +90,28 @@ export const StaffHomeScreen: React.FC = () => {
         ) : error ? (
           <Text style={styles.error}>{error}</Text>
         ) : (
-          orders.map((order) => {
-            const badge = statusBadge(order.internalStatus);
-            return (
-              <Pressable
-                key={order.id}
-                style={styles.card}
-                onPress={() => navigation.navigate('OrderStatus', { orderId: order.id })}
-              >
-                <View style={styles.cardRow}>
-                  <View>
-                    <Text style={styles.cardTitle}>
-                      {order.customer.locationLabel} · {order.customer.fullName}
-                    </Text>
-                    <Text style={styles.cardSub}>Order #{order.orderNumber}</Text>
+          <ScrollView style={styles.listScroll} showsVerticalScrollIndicator={false}>
+            {orders.map((order) => {
+              const badge = statusBadge(order.internalStatus);
+              return (
+                <Pressable
+                  key={order.id}
+                  style={styles.card}
+                  onPress={() => navigation.navigate('OrderStatus', { orderId: order.id })}
+                >
+                  <View style={styles.cardRow}>
+                    <View>
+                      <Text style={styles.cardTitle}>
+                        {order.customer.locationLabel} · {order.customer.fullName}
+                      </Text>
+                      <Text style={styles.cardSub}>Order #{order.orderNumber}</Text>
+                    </View>
+                    <Text style={[styles.badge, styles[`badge_${badge.style}`]]}>{badge.label}</Text>
                   </View>
-                  <Text style={[styles.badge, styles[`badge_${badge.style}`]]}>{badge.label}</Text>
-                </View>
-              </Pressable>
-            );
-          })
+                </Pressable>
+              );
+            })}
+          </ScrollView>
         )}
 
         <Pressable style={styles.newOrderButton} onPress={() => navigation.navigate('NewOrderEntry')}>
@@ -127,6 +133,11 @@ const createStyles = (colors: ColorTokens) =>
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'flex-start',
+    },
+    appbarActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
     },
     settingsButton: {
       width: 28,
@@ -168,6 +179,14 @@ const createStyles = (colors: ColorTokens) =>
     listArea: {
       flex: 1,
       padding: 14,
+      // See AppScreen.tsx's `body` style comment — react-native-web's
+      // min-height:auto floor, needed at every nested flex level for the
+      // ScrollView below to actually clip+scroll on web.
+      minHeight: 0,
+    },
+    listScroll: {
+      flex: 1,
+      minHeight: 0,
     },
     card: {
       backgroundColor: colors.peachCard,

@@ -14,7 +14,9 @@ export interface VerifyOtpResponse {
   user: AuthUser;
 }
 
-// Matches src/controllers/authController.ts on the backend.
+// Matches src/controllers/authController.ts on the backend — role always
+// comes from the looked-up User row (both here and under MOCK_AUTH; see
+// that file's own comment), never from anything the client sends.
 export const requestOtp = (phoneNumber: string) =>
   apiRequest<{ message: string }>('/api/auth/request-otp', { method: 'POST', body: { phoneNumber } });
 

@@ -1,40 +1,41 @@
 import React, { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppScreen } from '../../components/AppScreen';
-import { useTheme, ThemeMode } from '../../context/ThemeContext';
+import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import { ColorTokens, spacing, radii } from '../../theme/theme';
 
-// First screen to house both a Settings control (light/dark toggle) and the
-// About content CLAUDE.md requires ("Technology by NIVENXA" on the About
-// page) — bundled into one screen rather than building two, since neither
-// existed before this pass. Registered in both AdminStack and StaffStack,
-// same duplication pattern OrderStatusScreen already uses across both.
+// Houses the About content CLAUDE.md requires ("Technology by NIVENXA" on
+// the About page) plus Log Out — previously there was no way to sign out
+// anywhere in the app at all (AuthContext.signOut existed but nothing
+// called it). The light/dark toggle used to live here as a two-button row —
+// moved to a single icon switch directly on the Admin/Staff home app bars
+// instead (components/ThemeToggle.tsx), so flipping the theme doesn't need
+// a trip into Settings. Registered in both AdminStack and StaffStack, same
+// duplication pattern OrderStatusScreen already uses across both.
 export const SettingsScreen: React.FC = () => {
-  const { mode, setMode, colors } = useTheme();
+  const navigation = useNavigation();
+  const { signOut } = useAuth();
+  const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   return (
     <AppScreen>
       <View style={styles.appbar}>
-        <Text style={styles.title}>Settings</Text>
+        <View style={styles.appbarRow}>
+          {/* AdminStack/StaffStack both run with headerShown: false, so
+              there's no native back button anywhere — this screen needs its
+              own, same as any other pushed (non-tab) screen would. */}
+          <Pressable style={styles.backButton} onPress={() => navigation.goBack()} hitSlop={8}>
+            <MaterialCommunityIcons name="chevron-left" size={22} color={colors.cream} />
+          </Pressable>
+          <Text style={styles.title}>Settings</Text>
+        </View>
       </View>
 
       <View style={styles.body}>
-        <Text style={styles.sectionTitle}>Appearance</Text>
-        <View style={styles.toggleRow}>
-          {(['light', 'dark'] as ThemeMode[]).map((option) => (
-            <Pressable
-              key={option}
-              style={[styles.toggle, mode === option && styles.toggleActive]}
-              onPress={() => setMode(option)}
-            >
-              <Text style={[styles.toggleText, mode === option && styles.toggleTextActive]}>
-                {option === 'light' ? 'Light' : 'Dark'}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-
         <Text style={styles.sectionTitle}>About</Text>
         <View style={styles.card}>
           <Text style={styles.appName}>Peach & Blue</Text>
@@ -42,6 +43,12 @@ export const SettingsScreen: React.FC = () => {
           <Text style={styles.version}>Version 1.0.0</Text>
           <Text style={styles.nivenxa}>Technology by NIVENXA</Text>
         </View>
+
+        <Text style={styles.sectionTitle}>Account</Text>
+        <Pressable style={styles.logoutButton} onPress={signOut}>
+          <MaterialCommunityIcons name="logout" size={16} color={colors.danger} />
+          <Text style={styles.logoutButtonText}>Log Out</Text>
+        </Pressable>
       </View>
     </AppScreen>
   );
@@ -53,6 +60,19 @@ const createStyles = (colors: ColorTokens) =>
       backgroundColor: colors.chrome,
       padding: spacing.lg,
       paddingBottom: 14,
+    },
+    appbarRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+    },
+    backButton: {
+      width: 28,
+      height: 28,
+      borderRadius: radii.pill,
+      backgroundColor: 'rgba(255,255,255,0.12)',
+      alignItems: 'center',
+      justifyContent: 'center',
     },
     title: {
       fontFamily: 'Lora_600SemiBold',
@@ -69,30 +89,6 @@ const createStyles = (colors: ColorTokens) =>
       color: colors.navyText,
       marginTop: spacing.md,
       marginBottom: spacing.sm,
-    },
-    toggleRow: {
-      flexDirection: 'row',
-      gap: spacing.sm,
-    },
-    toggle: {
-      flex: 1,
-      alignItems: 'center',
-      paddingVertical: spacing.sm,
-      borderRadius: radii.sm,
-      borderWidth: 1.5,
-      borderColor: colors.navyDeep,
-    },
-    toggleActive: {
-      backgroundColor: colors.chrome,
-      borderColor: colors.chrome,
-    },
-    toggleText: {
-      fontSize: 10.5,
-      fontWeight: '700',
-      color: colors.navyDeep,
-    },
-    toggleTextActive: {
-      color: colors.cream,
     },
     card: {
       backgroundColor: colors.peachCard,
@@ -124,5 +120,20 @@ const createStyles = (colors: ColorTokens) =>
       fontWeight: '700',
       color: colors.navyText,
       marginTop: spacing.xs,
+    },
+    logoutButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: spacing.xs,
+      borderWidth: 1.5,
+      borderColor: colors.danger,
+      borderRadius: radii.md,
+      paddingVertical: spacing.md,
+    },
+    logoutButtonText: {
+      color: colors.danger,
+      fontWeight: '700',
+      fontSize: 11.5,
     },
   });

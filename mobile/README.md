@@ -28,3 +28,4 @@ Push uses `expo-notifications`, which relays through Expo's push service (backed
 - `npx expo start` — start the dev server (scan the QR with Expo Go).
 - `npx tsc --noEmit` — typecheck.
 - `npx expo export --platform android` — verify the app bundles without a device/simulator.
+- `npm run screenshots` — capture a full client-facing screenshot batch via Maestro; see `.maestro/README.md` for prerequisites (a running simulator/emulator, no native build exists yet).

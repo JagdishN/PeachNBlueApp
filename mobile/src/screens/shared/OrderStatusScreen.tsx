@@ -122,12 +122,16 @@ export const OrderStatusScreen: React.FC = () => {
     }
   };
 
-  // A daily-billing customer needs a payment method picked before the
-  // delivered transition fires; a monthly-billing customer is settled via
-  // the ledger instead (orderService.ts's billingMode branch), so there's
-  // nothing to pick.
+  // A daily-billing order needs a payment method picked before the
+  // delivered transition fires; a monthly-billing order is settled via the
+  // ledger instead (orderService.ts's billingMode branch), so there's
+  // nothing to pick. Reads order.billingMode (this order's own snapshot
+  // from creation time), NOT order.customer.billingMode — CLAUDE.md
+  // "Monthly billing retroactivity — RESOLVED": the customer's current
+  // setting can have changed since this order was created, and must not
+  // retroactively change how this specific order is settled.
   const requiresPaymentMethod =
-    order?.customer.billingMode !== 'monthly_billing' &&
+    order?.billingMode !== 'monthly_billing' &&
     STATUS_SEQUENCE[STATUS_SEQUENCE.indexOf(order?.internalStatus ?? 'picked_up') + 1] === 'delivered';
 
   const handleAdvanceStatus = async () => {

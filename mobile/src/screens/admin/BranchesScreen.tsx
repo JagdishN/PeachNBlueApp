@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { AppScreen } from '../../components/AppScreen';
 import { NivenxaFooter } from '../../components/BrandComponents';
@@ -120,15 +120,17 @@ export const BranchesScreen: React.FC = () => {
         {loading ? (
           <ActivityIndicator color={colors.peachPrimary} style={{ marginTop: spacing.xl }} />
         ) : (
-          branches.map((branch) => (
-            <Pressable key={branch.id} style={styles.card} onPress={() => openEdit(branch)}>
-              <View style={styles.nameRow}>
-                <Text style={styles.cardTitle}>{branch.branchName}</Text>
-                <Tag {...BRANCH_TAG[branch.branchType]} />
-              </View>
-              <Text style={styles.cardSub}>{branch.phoneNumber}</Text>
-            </Pressable>
-          ))
+          <ScrollView style={styles.listScroll} showsVerticalScrollIndicator={false}>
+            {branches.map((branch) => (
+              <Pressable key={branch.id} style={styles.card} onPress={() => openEdit(branch)}>
+                <View style={styles.nameRow}>
+                  <Text style={styles.cardTitle}>{branch.branchName}</Text>
+                  <Tag {...BRANCH_TAG[branch.branchType]} />
+                </View>
+                <Text style={styles.cardSub}>{branch.phoneNumber}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
         )}
 
         <Pressable style={styles.addButton} onPress={openNew}>
@@ -242,6 +244,14 @@ const createStyles = (colors: ColorTokens) =>
     body: {
       flex: 1,
       padding: 14,
+      // See AppScreen.tsx's `body` style comment — react-native-web's
+      // min-height:auto floor, needed at every nested flex level for the
+      // ScrollView below to actually clip+scroll on web.
+      minHeight: 0,
+    },
+    listScroll: {
+      flex: 1,
+      minHeight: 0,
     },
     card: {
       backgroundColor: colors.peachCard,

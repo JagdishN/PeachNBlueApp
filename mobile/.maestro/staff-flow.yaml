@@ -1,0 +1,108 @@
+# Staff-role screenshot walkthrough: login -> Staff Home -> New Order Entry
+# (garment picker, service-type sections expanded) -> Order Status (if any
+# order exists to open). Run via `npm run screenshots` in /mobile, not
+# directly — see /mobile/.maestro/README.md for required env vars and how
+# this actually gets launched (there is no standalone native build of this
+# app yet; it runs inside Expo Go — see that README before assuming this
+# "just works" against `appId`).
+#
+# Every tapOn/inputText target below is either a stable testID added
+# specifically for this flow (LoginScreen.tsx, NewOrderEntryScreen.tsx) or
+# visible, unique on-screen text — checked against the actual current screen
+# code, not assumed.
+#
+# Login no longer has an Admin/Staff toggle — role always comes from the
+# looked-up `users` row (authController.ts), same for MOCK_AUTH and real
+# auth. STAFF_TEST_PHONE below MUST be a real phone number already seeded
+# in the target database with role 'staff' (e.g. create one via the admin
+# Staff tab first) — an unregistered number 404s here exactly like it would
+# in production, MOCK_AUTH no longer fabricates a role for you.
+#
+# DATA SIDE EFFECT, read before running: MOCK_AUTH only shortcuts OTP
+# generation/delivery (see backend CLAUDE.md "MOCK_AUTH") — every other
+# endpoint this flow hits (customer search/create, garment catalogue) talks
+# to the REAL database. Confirming "new customer" below writes a real row to
+# the live `customers` table. The name is deliberately tagged "Maestro
+# Screenshot Test" so it's easy to find and delete afterward. The flow stops
+# before "Confirm Pickup" so it never creates a real order.
+appId: ${MAESTRO_APP_ID}
+---
+- launchApp:
+    clearState: false
+
+- tapOn:
+    id: "login-phone-input"
+- inputText: "${STAFF_TEST_PHONE}"
+- takeScreenshot: 01_login_staff
+
+- tapOn:
+    id: "login-submit-button"
+
+- tapOn:
+    id: "login-otp-input"
+- inputText: "${MOCK_OTP}"
+- tapOn:
+    id: "login-submit-button"
+
+- assertVisible: "Today's Pickups"
+- takeScreenshot: 02_staff_home
+
+- tapOn: "+ New Order (After Pickup)"
+- assertVisible: "Customer Phone Number"
+
+- tapOn:
+    id: "order-phone-search-input"
+- inputText: "${STAFF_TEST_CUSTOMER_PHONE}"
+- tapOn:
+    id: "order-phone-search-button"
+
+# Repeatable across runs: createCustomer upserts on (phone, branch,
+# location), so a second run finds the same customer instead of the empty
+# "no match" state — handle both branches rather than assuming one.
+- runFlow:
+    when:
+      visible: "+ New customer / location for this number"
+    commands:
+      - tapOn: "+ New customer / location for this number"
+
+- runFlow:
+    when:
+      visible:
+        id: "new-customer-name-input"
+    commands:
+      - tapOn:
+          id: "new-customer-name-input"
+      - inputText: "Maestro Screenshot Test"
+      - tapOn:
+          id: "new-customer-location-input"
+      - inputText: "SCREENSHOT-TEST"
+      - tapOn:
+          id: "new-customer-confirm-button"
+
+- runFlow:
+    when:
+      visible: "Existing customers at this number"
+    commands:
+      - tapOn: "Maestro Screenshot Test"
+
+- assertVisible: "Garments Collected"
+# Ironing is default-expanded (CLAUDE.md "Garment picker restructuring —
+# service-type as parent, Ironing default-expanded").
+- takeScreenshot: 03_new_order_entry_ironing
+
+- tapOn: "Wash & Fold"
+- takeScreenshot: 04_new_order_entry_wash_fold
+
+- tapOn: "Dry Clean"
+- takeScreenshot: 05_new_order_entry_dry_clean
+
+- back
+
+# Order Status — only if today's pickup list actually has a card to open;
+# skips cleanly rather than failing the whole flow on an empty list.
+- runFlow:
+    when:
+      visible: "Order #"
+    commands:
+      - tapOn: "Order #"
+      - takeScreenshot: 06_order_status

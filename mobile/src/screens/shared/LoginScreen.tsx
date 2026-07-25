@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppScreen } from '../../components/AppScreen';
 import { SplashLogo } from '../../components/BrandComponents';
 import { ApiError } from '../../api/client';
@@ -10,18 +11,12 @@ import { ColorTokens, radii, spacing } from '../../theme/theme';
 
 type Step = 'phone' | 'otp';
 
-// The Staff/Admin toggle mirrors the mockup for visual parity only — the
-// backend's verifyOtp response is the actual source of truth for role, this
-// selection has no effect on the request.
-type RoleHint = 'staff' | 'admin';
-
 const COUNTRY_CODE = '+91';
 
 export const LoginScreen: React.FC = () => {
   const { signIn } = useAuth();
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const [roleHint, setRoleHint] = useState<RoleHint>('admin');
   const [step, setStep] = useState<Step>('phone');
   const [localNumber, setLocalNumber] = useState('');
   const [otp, setOtp] = useState('');
@@ -29,6 +24,7 @@ export const LoginScreen: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   const phoneNumber = `${COUNTRY_CODE}${localNumber.trim()}`;
+  const isValidPhone = /^\d{10}$/.test(localNumber.trim());
 
   const handleSendOtp = async () => {
     setError(null);
@@ -69,48 +65,42 @@ export const LoginScreen: React.FC = () => {
         <Text style={styles.headerSub}>Team Login</Text>
       </View>
 
-      <View style={styles.toggleRow}>
-        <Pressable
-          style={[styles.toggle, roleHint === 'admin' && styles.toggleActive]}
-          onPress={() => setRoleHint('admin')}
-        >
-          <Text style={[styles.toggleText, roleHint === 'admin' && styles.toggleTextActive]}>Admin</Text>
-        </Pressable>
-        <Pressable
-          style={[styles.toggle, roleHint === 'staff' && styles.toggleActive]}
-          onPress={() => setRoleHint('staff')}
-        >
-          <Text style={[styles.toggleText, roleHint === 'staff' && styles.toggleTextActive]}>Staff</Text>
-        </Pressable>
-      </View>
-
-      <View style={styles.fieldLabelRow}>
-        <Text style={styles.fieldLabel}>Phone Number</Text>
-        {step === 'otp' && (
-          <Pressable onPress={handleChangeNumber} hitSlop={8}>
-            <Text style={styles.changeNumberText}>Change number</Text>
-          </Pressable>
-        )}
-      </View>
+      <Text style={styles.fieldLabel}>Phone Number</Text>
       <View style={styles.phoneRow}>
         <View style={styles.countryCode}>
           <Text style={styles.countryCodeText}>{COUNTRY_CODE}</Text>
         </View>
-        <TextInput
-          style={styles.phoneField}
-          placeholder="98xxxxxx21"
-          placeholderTextColor={colors.muted}
-          value={localNumber}
-          onChangeText={setLocalNumber}
-          keyboardType="phone-pad"
-          editable={step === 'phone'}
-        />
+        <View style={styles.phoneFieldWrap}>
+          <TextInput
+            testID="login-phone-input"
+            style={[styles.phoneField, (step === 'otp' || isValidPhone) && styles.phoneFieldIconPadding]}
+            placeholder="98xxxxxx21"
+            placeholderTextColor={colors.muted}
+            value={localNumber}
+            onChangeText={setLocalNumber}
+            keyboardType="phone-pad"
+            editable={step === 'phone'}
+            maxLength={10}
+          />
+          {step === 'otp' ? (
+            <Pressable style={styles.phoneFieldIcon} onPress={handleChangeNumber} hitSlop={8}>
+              <MaterialCommunityIcons name="pencil" size={16} color={colors.peachPrimary} />
+            </Pressable>
+          ) : (
+            isValidPhone && (
+              <View style={styles.phoneFieldIcon}>
+                <MaterialCommunityIcons name="check-circle" size={16} color={colors.success} />
+              </View>
+            )
+          )}
+        </View>
       </View>
 
       {step === 'otp' && (
         <>
           <Text style={styles.fieldLabel}>OTP</Text>
           <TextInput
+            testID="login-otp-input"
             style={styles.field}
             placeholder="• • • • • •"
             placeholderTextColor={colors.muted}
@@ -125,6 +115,7 @@ export const LoginScreen: React.FC = () => {
       {error && <Text style={styles.error}>{error}</Text>}
 
       <Pressable
+        testID="login-submit-button"
         style={[styles.button, loading && styles.buttonDisabled]}
         onPress={step === 'phone' ? handleSendOtp : handleSignIn}
         disabled={loading || !localNumber || (step === 'otp' && !otp)}
@@ -153,46 +144,10 @@ const createStyles = (colors: ColorTokens) =>
       textTransform: 'uppercase',
       marginTop: spacing.xs,
     },
-    toggleRow: {
-      flexDirection: 'row',
-      gap: spacing.sm,
-      marginBottom: spacing.lg,
-    },
-    toggle: {
-      flex: 1,
-      alignItems: 'center',
-      paddingVertical: spacing.sm,
-      borderRadius: radii.sm,
-      borderWidth: 1.5,
-      borderColor: colors.navyDeep,
-    },
-    toggleActive: {
-      backgroundColor: colors.chrome,
-      borderColor: colors.chrome,
-    },
-    toggleText: {
-      fontSize: 10.5,
-      fontWeight: '700',
-      color: colors.navyDeep,
-    },
-    toggleTextActive: {
-      color: colors.cream,
-    },
     fieldLabel: {
       fontSize: 9.5,
       fontWeight: '700',
       color: colors.navyText,
-      marginBottom: spacing.xs,
-    },
-    fieldLabelRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-    },
-    changeNumberText: {
-      fontSize: 9.5,
-      fontWeight: '700',
-      color: colors.peachPrimary,
       marginBottom: spacing.xs,
     },
     field: {
@@ -225,8 +180,11 @@ const createStyles = (colors: ColorTokens) =>
       fontWeight: '700',
       color: colors.navyText,
     },
-    phoneField: {
+    phoneFieldWrap: {
       flex: 1,
+      justifyContent: 'center',
+    },
+    phoneField: {
       backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.border,
@@ -235,6 +193,15 @@ const createStyles = (colors: ColorTokens) =>
       paddingHorizontal: spacing.md,
       fontSize: 13,
       color: colors.navyText,
+    },
+    phoneFieldIconPadding: {
+      paddingRight: spacing.xl,
+    },
+    phoneFieldIcon: {
+      position: 'absolute',
+      right: spacing.sm,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
     error: {
       color: colors.danger,
