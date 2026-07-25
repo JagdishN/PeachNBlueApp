@@ -1,6 +1,12 @@
 import dotenv from 'dotenv';
 
-dotenv.config();
+// override: true — without it, dotenv only fills in vars NOT already present
+// in process.env, so a stale value inherited from whatever process tree
+// launched this server (e.g. an old DATABASE_URL pointing at a long-gone
+// local Postgres test instance) silently wins over .env forever, even
+// across every ts-node-dev respawn. .env is this project's single source of
+// truth (see CLAUDE.md) — it must always win over inherited shell state.
+dotenv.config({ override: true });
 
 // `??` alone doesn't catch an env var that's *present but empty* (e.g.
 // `JWT_SECRET=` in .env) — that's '' , not null/undefined, so `??` never

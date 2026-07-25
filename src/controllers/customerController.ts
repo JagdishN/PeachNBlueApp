@@ -13,12 +13,15 @@ const BAG_REPLACEMENT_FEE = 350;
 // Staff + admin (unlike the admin-only discount/billing endpoints below) —
 // CLAUDE.md "Customer creation — real gap": staff need to create/reuse a
 // customer record inline at the point of pickup, not through an admin-only
-// flow. Idempotent: looked up by the same (phoneNumber, branchId,
-// locationLabel) unique constraint orderService.ts's createOrder already
-// upserts on — calling this twice for the same flat returns the same
-// record rather than erroring or duplicating it. Uses customerSelectForRole
-// (primary defense, not just the staffFieldFilter safety net) since a
-// staff-role caller reaches this endpoint directly.
+// flow. phoneNumber is now globally unique per customer (CLAUDE.md
+// "Customer phone number uniqueness — RESOLVED") — a phone number belongs
+// to exactly one Customer row, not one per (phone, branch, location)
+// combination anymore. Idempotent only for an exact resubmission (same
+// phone at the SAME branch/location already on file, e.g. a double-tap);
+// a phone number already registered to a DIFFERENT branch/location is now
+// a real 409 conflict, not a silent second record. Uses
+// customerSelectForRole (primary defense, not just the staffFieldFilter
+// safety net) since a staff-role caller reaches this endpoint directly.
 export const createCustomerHandler = async (req: AuthRequest, res: Response): Promise<void> => {
   const { fullName, phoneNumber, locationLabel } = req.body;
 
@@ -38,14 +41,25 @@ export const createCustomerHandler = async (req: AuthRequest, res: Response): Pr
     return;
   }
 
-  const customer = await prisma.customer.upsert({
-    where: {
-      phoneNumber_branchId_locationLabel: { phoneNumber, branchId, locationLabel },
-    },
-    update: { fullName },
-    create: { fullName, phoneNumber, branchId, locationLabel },
-    select: customerSelectForRole(req.auth!.role),
-  });
+  const existing = await prisma.customer.findUnique({ where: { phoneNumber } });
+
+  if (existing && (existing.branchId !== branchId || existing.locationLabel !== locationLabel)) {
+    res.status(409).json({
+      error: 'This phone number is already registered to a different customer/location. A phone number can only belong to one customer.',
+    });
+    return;
+  }
+
+  const customer = existing
+    ? await prisma.customer.update({
+        where: { phoneNumber },
+        data: { fullName },
+        select: customerSelectForRole(req.auth!.role),
+      })
+    : await prisma.customer.create({
+        data: { fullName, phoneNumber, branchId, locationLabel },
+        select: customerSelectForRole(req.auth!.role),
+      });
 
   res.status(200).json({ customer });
 };

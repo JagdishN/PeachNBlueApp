@@ -29,6 +29,10 @@ export const NewOrderEntryScreen: React.FC = () => {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const serviceTag = useMemo(() => getServiceTag(colors), [colors]);
+  // serviceType is open-ended now, not a fixed 3-value set (CLAUDE.md
+  // "Admin can add new service types — RESOLVED") — a type that isn't in
+  // getServiceTag's known 3 still needs a readable tag, not a crash.
+  const tagFor = (type: string) => serviceTag[type] ?? { label: type, bg: colors.peachCard, color: colors.navyText };
   const user = state.status === 'signedIn' ? state.user : null;
 
   const [garments, setGarments] = useState<Garment[]>([]);
@@ -294,13 +298,6 @@ export const NewOrderEntryScreen: React.FC = () => {
     setCustomerConfirmed(true);
   };
 
-  const startNewCustomerAtThisNumber = () => {
-    setCustomerPhoneNumber(phoneQuery);
-    setCustomerName('');
-    setLocationLabel('');
-    setSearchResults([]);
-  };
-
   const handleConfirmNewCustomer = async () => {
     if (!customerName || !locationLabel) {
       setError('Customer name and location are required.');
@@ -361,7 +358,7 @@ export const NewOrderEntryScreen: React.FC = () => {
                 style={styles.garmentIcon}
               />
               <Text style={styles.garmentName}>{garment.itemName}</Text>
-              <Tag {...serviceTag[garment.serviceType]} />
+              <Tag {...tagFor(garment.serviceType)} />
               {garment.requiresSpecialCare && <Tag {...SPECIAL_CARE_TAG} />}
             </View>
             <Text style={styles.garmentPrice}>₹{garment.price} / kg</Text>
@@ -392,7 +389,7 @@ export const NewOrderEntryScreen: React.FC = () => {
               style={styles.garmentIcon}
             />
             <Text style={styles.garmentName}>{garment.itemName}</Text>
-            <Tag {...serviceTag[garment.serviceType]} />
+            <Tag {...tagFor(garment.serviceType)} />
             {garment.requiresSpecialCare && <Tag {...SPECIAL_CARE_TAG} />}
           </View>
           {garment.priceMax !== null ? (
@@ -452,6 +449,7 @@ export const NewOrderEntryScreen: React.FC = () => {
             <Text style={styles.fieldLabel}>Customer Phone Number</Text>
             <View style={styles.phoneSearchRow}>
               <TextInput
+                testID="order-phone-search-input"
                 style={[styles.field, styles.phoneSearchInput]}
                 value={phoneQuery}
                 onChangeText={setPhoneQuery}
@@ -460,6 +458,7 @@ export const NewOrderEntryScreen: React.FC = () => {
                 keyboardType="phone-pad"
               />
               <Pressable
+                testID="order-phone-search-button"
                 style={[styles.searchButton, (searching || !phoneQuery) && styles.confirmButtonDisabled]}
                 onPress={handleSearchCustomer}
                 disabled={searching || !phoneQuery}
@@ -471,7 +470,11 @@ export const NewOrderEntryScreen: React.FC = () => {
 
             {searchResults !== null && searchResults.length > 0 && (
               <View style={styles.resultsBlock}>
-                <Text style={styles.resultsLabel}>Existing customers at this number</Text>
+                {/* A phone number belongs to exactly one customer now (CLAUDE.md
+                    "Customer phone number uniqueness — RESOLVED") — at most one
+                    result is ever possible; no "add another location for this
+                    number" option anymore, that would just fail server-side. */}
+                <Text style={styles.resultsLabel}>Existing customer at this number</Text>
                 {searchResults.map((c) => (
                   <Pressable key={c.id} style={styles.resultCard} onPress={() => selectExistingCustomer(c)}>
                     <View style={styles.resultInfo}>
@@ -483,9 +486,6 @@ export const NewOrderEntryScreen: React.FC = () => {
                     )}
                   </Pressable>
                 ))}
-                <Pressable style={styles.newLocationLink} onPress={startNewCustomerAtThisNumber}>
-                  <Text style={styles.newLocationLinkText}>+ New customer / location for this number</Text>
-                </Pressable>
               </View>
             )}
 
@@ -493,6 +493,7 @@ export const NewOrderEntryScreen: React.FC = () => {
               <View style={styles.newCustomerBlock}>
                 <Text style={styles.fieldLabel}>Customer Name</Text>
                 <TextInput
+                  testID="new-customer-name-input"
                   style={styles.field}
                   value={customerName}
                   onChangeText={setCustomerName}
@@ -501,6 +502,7 @@ export const NewOrderEntryScreen: React.FC = () => {
                 />
                 <Text style={styles.fieldLabel}>Location (flat / house / shop no.)</Text>
                 <TextInput
+                  testID="new-customer-location-input"
                   style={styles.field}
                   value={locationLabel}
                   onChangeText={setLocationLabel}
@@ -508,6 +510,7 @@ export const NewOrderEntryScreen: React.FC = () => {
                   placeholderTextColor={colors.muted}
                 />
                 <Pressable
+                  testID="new-customer-confirm-button"
                   style={[styles.addButton, confirmingNewCustomer && styles.confirmButtonDisabled]}
                   onPress={handleConfirmNewCustomer}
                   disabled={confirmingNewCustomer}
@@ -557,6 +560,7 @@ export const NewOrderEntryScreen: React.FC = () => {
             <Text style={styles.sectionTitle}>Garments Collected</Text>
 
             <TextInput
+              testID="garment-search-input"
               style={styles.field}
               value={garmentQuery}
               onChangeText={setGarmentQuery}
@@ -718,15 +722,6 @@ const createStyles = (colors: ColorTokens) =>
       color: colors.muted,
       marginTop: 1,
     },
-    newLocationLink: {
-      paddingVertical: spacing.sm,
-      alignItems: 'center',
-    },
-    newLocationLinkText: {
-      color: colors.peachPrimary,
-      fontWeight: '700',
-      fontSize: 11,
-    },
     newCustomerBlock: {
       marginBottom: spacing.sm,
     },
@@ -777,6 +772,12 @@ const createStyles = (colors: ColorTokens) =>
     body: {
       flex: 1,
       padding: 14,
+      // See AppScreen.tsx's `body` style comment — react-native-web's
+      // min-height:auto floor, needed at every nested flex level for the
+      // garment ScrollView below to actually clip+scroll on web (same fix
+      // as GarmentCatalogueScreen.tsx, proactively applied here too since
+      // this picker can show the same up-to-192-item list).
+      minHeight: 0,
     },
     fieldLabel: {
       fontSize: 9.5,
@@ -804,6 +805,7 @@ const createStyles = (colors: ColorTokens) =>
     },
     garmentScroll: {
       flex: 1,
+      minHeight: 0,
     },
     noResultsText: {
       fontSize: 11,

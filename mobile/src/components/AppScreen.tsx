@@ -35,9 +35,18 @@ const styles = StyleSheet.create({
   },
   body: {
     flex: 1,
+    // Without this, react-native-web's CSS flexbox defaults this box's
+    // min-height to its content's natural height (the standard flexbox
+    // "min-height: auto" floor) — so a screen with a long list inside just
+    // grows past the viewport instead of being clipped to it, and any
+    // ScrollView further down the tree never gets a bounded box to scroll
+    // within. Native (Yoga) doesn't have this floor, so this only ever
+    // shows up when running via `expo start --web`.
+    minHeight: 0,
   },
   content: {
     padding: 14,
     flexGrow: 1,
+    minHeight: 0,
   },
 });

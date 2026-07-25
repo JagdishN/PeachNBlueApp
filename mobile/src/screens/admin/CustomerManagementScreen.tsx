@@ -1,5 +1,5 @@
-import React, { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { AppScreen } from '../../components/AppScreen';
 import { NivenxaFooter } from '../../components/BrandComponents';
@@ -9,6 +9,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { ApiError } from '../../api/client';
 import {
   fetchCustomers,
+  createCustomer,
   updateCustomerBillingMode,
   updateCustomerDiscountEnabled,
   updateCustomerDiscountPercent,
@@ -18,6 +19,7 @@ import {
   BillingMode,
   Customer,
 } from '../../api/customers';
+import { fetchBranches, Branch } from '../../api/branches';
 import { ColorTokens, radii, spacing } from '../../theme/theme';
 
 const BILLING_MODE_LABEL: Record<BillingMode, string> = {
@@ -52,6 +54,29 @@ export const CustomerManagementScreen: React.FC = () => {
   const [bagActionLoading, setBagActionLoading] = useState(false);
   const [bagError, setBagError] = useState<string | null>(null);
 
+  // "How do I test it" gap — there was no way to create a customer from the
+  // admin side at all; only staff's New Order Entry phone-search/create flow
+  // could. This is a standalone create, not tied to placing an order.
+  const [creating, setCreating] = useState(false);
+  const [newFullName, setNewFullName] = useState('');
+  const [newPhoneNumber, setNewPhoneNumber] = useState('');
+  const [newLocationLabel, setNewLocationLabel] = useState('');
+  const [newBranchId, setNewBranchId] = useState<string | null>(null);
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [creatingSaving, setCreatingSaving] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  // Only an unscoped admin needs a branch picker — a branch-scoped admin's
+  // own branchId is used automatically (same fallback createCustomerHandler
+  // already does server-side).
+  useEffect(() => {
+    if (!user?.branchId) {
+      fetchBranches()
+        .then(setBranches)
+        .catch(() => setBranches([]));
+    }
+  }, [user?.branchId]);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -84,6 +109,43 @@ export const CustomerManagementScreen: React.FC = () => {
     }
     return Array.from(byBranch.values());
   }, [customers]);
+
+  const openNewCustomer = () => {
+    setNewFullName('');
+    setNewPhoneNumber('');
+    setNewLocationLabel('');
+    setNewBranchId(user?.branchId ?? null);
+    setCreateError(null);
+    setCreating(true);
+  };
+
+  const handleCreateCustomer = async () => {
+    if (!newFullName || !newPhoneNumber || !newLocationLabel) {
+      setCreateError('Name, phone number, and location are required.');
+      return;
+    }
+    if (!user?.branchId && !newBranchId) {
+      setCreateError('Select a branch for this customer.');
+      return;
+    }
+
+    setCreatingSaving(true);
+    setCreateError(null);
+    try {
+      await createCustomer({
+        fullName: newFullName,
+        phoneNumber: newPhoneNumber,
+        locationLabel: newLocationLabel,
+        branchId: user?.branchId ?? newBranchId ?? undefined,
+      });
+      setCreating(false);
+      await load();
+    } catch (err) {
+      setCreateError(err instanceof ApiError ? err.message : 'Could not create this customer.');
+    } finally {
+      setCreatingSaving(false);
+    }
+  };
 
   const openEdit = (customer: Customer) => {
     setEditing(customer);
@@ -178,29 +240,113 @@ export const CustomerManagementScreen: React.FC = () => {
         ) : customers.length === 0 ? (
           <Text style={styles.empty}>No customers yet.</Text>
         ) : (
-          sections.map((section) => (
-            <View key={section.branchName}>
-              <Text style={styles.sectionHeader}>{section.branchName}</Text>
-              {section.customers.map((customer) => (
-                <Pressable key={customer.id} style={styles.card} onPress={() => openEdit(customer)}>
-                  <View style={styles.cardRow}>
-                    <View style={styles.nameRow}>
-                      <Text style={styles.customerName}>{customer.fullName}</Text>
-                      {customer.billingMode === 'monthly_billing' && (
-                        <Tag label="Monthly" bg={colors.warningBg} color={colors.warning} />
-                      )}
-                      {customer.discountEnabled && <Tag label="Discount ON" bg={colors.successBg} color={colors.success} />}
+          <ScrollView style={styles.listScroll} showsVerticalScrollIndicator={false}>
+            {sections.map((section) => (
+              <View key={section.branchName}>
+                <Text style={styles.sectionHeader}>{section.branchName}</Text>
+                {section.customers.map((customer) => (
+                  <Pressable key={customer.id} style={styles.card} onPress={() => openEdit(customer)}>
+                    <View style={styles.cardRow}>
+                      <View style={styles.nameRow}>
+                        <Text style={styles.customerName}>{customer.fullName}</Text>
+                        {customer.billingMode === 'monthly_billing' && (
+                          <Tag label="Monthly" bg={colors.warningBg} color={colors.warning} />
+                        )}
+                        {customer.discountEnabled && (
+                          <Tag label="Discount ON" bg={colors.successBg} color={colors.success} />
+                        )}
+                      </View>
                     </View>
-                  </View>
-                  <Text style={styles.cardSub}>
-                    {customer.locationLabel} · {customer.phoneNumber}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          ))
+                    <Text style={styles.cardSub}>
+                      {customer.locationLabel} · {customer.phoneNumber}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            ))}
+          </ScrollView>
         )}
+
+        <Pressable style={styles.addButton} onPress={openNewCustomer}>
+          <Text style={styles.addButtonText}>+ Add Customer</Text>
+        </Pressable>
       </View>
+
+      <Modal visible={creating} transparent animationType="slide" onRequestClose={() => setCreating(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Add Customer</Text>
+
+            <Text style={styles.fieldLabel}>Full Name</Text>
+            <TextInput
+              style={styles.field}
+              value={newFullName}
+              onChangeText={setNewFullName}
+              placeholder="Priya Menon"
+              placeholderTextColor={colors.muted}
+            />
+
+            <Text style={styles.fieldLabel}>Phone Number</Text>
+            <TextInput
+              style={styles.field}
+              value={newPhoneNumber}
+              onChangeText={setNewPhoneNumber}
+              placeholder="+919xxxxxxxxx"
+              placeholderTextColor={colors.muted}
+              keyboardType="phone-pad"
+            />
+
+            <Text style={styles.fieldLabel}>Location (flat / house / shop no.)</Text>
+            <TextInput
+              style={styles.field}
+              value={newLocationLabel}
+              onChangeText={setNewLocationLabel}
+              placeholder="A-304"
+              placeholderTextColor={colors.muted}
+            />
+
+            {!user?.branchId && (
+              <>
+                <Text style={styles.fieldLabel}>Branch</Text>
+                <View style={styles.toggleRow}>
+                  {branches.map((branch) => (
+                    <Pressable
+                      key={branch.id}
+                      style={[styles.toggle, newBranchId === branch.id && styles.toggleActive]}
+                      onPress={() => setNewBranchId(branch.id)}
+                    >
+                      <Text
+                        style={[styles.toggleText, newBranchId === branch.id && styles.toggleTextActive]}
+                      >
+                        {branch.branchName}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </>
+            )}
+
+            {createError && <Text style={styles.error}>{createError}</Text>}
+
+            <Pressable
+              style={[styles.saveButton, creatingSaving && styles.saveButtonDisabled]}
+              onPress={handleCreateCustomer}
+              disabled={creatingSaving}
+            >
+              {creatingSaving ? (
+                <ActivityIndicator color={colors.white} />
+              ) : (
+                <Text style={styles.saveButtonText}>Add Customer</Text>
+              )}
+            </Pressable>
+
+            <Pressable style={styles.cancelButton} onPress={() => setCreating(false)}>
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </Pressable>
+          </View>
+          <NivenxaFooter />
+        </View>
+      </Modal>
 
       <Modal visible={editing !== null} transparent animationType="slide" onRequestClose={() => setEditing(null)}>
         <View style={styles.modalOverlay}>
@@ -340,6 +486,26 @@ const createStyles = (colors: ColorTokens) =>
     body: {
       flex: 1,
       padding: 14,
+      // See AppScreen.tsx's `body` style comment — react-native-web's
+      // min-height:auto floor, needed at every nested flex level for the
+      // ScrollView below to actually clip+scroll on web.
+      minHeight: 0,
+    },
+    listScroll: {
+      flex: 1,
+      minHeight: 0,
+    },
+    addButton: {
+      backgroundColor: colors.peachPrimary,
+      borderRadius: radii.md,
+      paddingVertical: spacing.md,
+      alignItems: 'center',
+      marginTop: spacing.sm,
+    },
+    addButtonText: {
+      color: colors.white,
+      fontWeight: '700',
+      fontSize: 11.5,
     },
     sectionHeader: {
       fontSize: 10.5,

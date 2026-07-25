@@ -62,6 +62,11 @@ export interface CreateCustomerInput {
   fullName: string;
   phoneNumber: string;
   locationLabel: string;
+  // Admin-only in practice — a staff caller is locked to their own branch
+  // server-side regardless of what's sent here (customerController.ts::
+  // createCustomerHandler). An unscoped admin must supply this explicitly;
+  // a branch-scoped admin falls back to their own branch if omitted.
+  branchId?: string;
 }
 
 // Idempotent — looked up by (phoneNumber, branchId, locationLabel) same as

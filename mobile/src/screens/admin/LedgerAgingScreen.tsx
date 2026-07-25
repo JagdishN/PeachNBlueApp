@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { AppScreen } from '../../components/AppScreen';
 import { PriceChip } from '../../components/PriceChip';
@@ -55,32 +55,34 @@ export const LedgerAgingScreen: React.FC = () => {
         ) : rows.length === 0 ? (
           <Text style={styles.empty}>No monthly-billing customers with an outstanding balance.</Text>
         ) : (
-          rows.map((row) => (
-            <View key={row.customerId} style={styles.card}>
-              <View style={styles.cardRow}>
-                <View>
-                  <Text style={styles.cardTitle}>
-                    {row.locationLabel} · {row.customerName}
-                  </Text>
-                  <Text style={styles.cardSub}>{row.daysSinceLastCharge ?? 0} days overdue</Text>
+          <ScrollView style={styles.listScroll} showsVerticalScrollIndicator={false}>
+            {rows.map((row) => (
+              <View key={row.customerId} style={styles.card}>
+                <View style={styles.cardRow}>
+                  <View>
+                    <Text style={styles.cardTitle}>
+                      {row.locationLabel} · {row.customerName}
+                    </Text>
+                    <Text style={styles.cardSub}>{row.daysSinceLastCharge ?? 0} days overdue</Text>
+                  </View>
+                  <PriceChip amount={row.outstandingBalance} />
                 </View>
-                <PriceChip amount={row.outstandingBalance} />
+                <Pressable
+                  style={[styles.remindButton, reminding === row.customerId && styles.remindButtonDisabled]}
+                  onPress={() => handleRemind(row.customerId)}
+                  disabled={reminding === row.customerId}
+                >
+                  {reminding === row.customerId ? (
+                    <ActivityIndicator color={colors.navyDeep} />
+                  ) : (
+                    <Text style={styles.remindButtonText}>
+                      {sentFor === row.customerId ? 'Reminder Sent ✓' : 'Send WhatsApp Reminder'}
+                    </Text>
+                  )}
+                </Pressable>
               </View>
-              <Pressable
-                style={[styles.remindButton, reminding === row.customerId && styles.remindButtonDisabled]}
-                onPress={() => handleRemind(row.customerId)}
-                disabled={reminding === row.customerId}
-              >
-                {reminding === row.customerId ? (
-                  <ActivityIndicator color={colors.navyDeep} />
-                ) : (
-                  <Text style={styles.remindButtonText}>
-                    {sentFor === row.customerId ? 'Reminder Sent ✓' : 'Send WhatsApp Reminder'}
-                  </Text>
-                )}
-              </Pressable>
-            </View>
-          ))
+            ))}
+          </ScrollView>
         )}
       </View>
     </AppScreen>
@@ -107,6 +109,14 @@ const createStyles = (colors: ColorTokens) =>
     body: {
       flex: 1,
       padding: 14,
+      // See AppScreen.tsx's `body` style comment — react-native-web's
+      // min-height:auto floor, needed at every nested flex level for the
+      // ScrollView below to actually clip+scroll on web.
+      minHeight: 0,
+    },
+    listScroll: {
+      flex: 1,
+      minHeight: 0,
     },
     card: {
       backgroundColor: colors.peachCard,

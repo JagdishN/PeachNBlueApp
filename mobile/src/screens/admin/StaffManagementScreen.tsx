@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
 import { useFocusEffect } from '@react-navigation/native';
 import { AppScreen } from '../../components/AppScreen';
 import { NivenxaFooter } from '../../components/BrandComponents';
@@ -78,7 +79,11 @@ export const StaffManagementScreen: React.FC = () => {
     setFullName('');
     setPhoneNumber('');
     setRole('staff');
-    setBranchId(user?.branchId ?? branches[0]?.id ?? null);
+    // Default branch selection is Attapur (the client's first live branch —
+    // CLAUDE.md "Branches") when present, rather than just "whichever
+    // branch happens to be first in the list."
+    const attapur = branches.find((b) => b.branchName === 'Attapur');
+    setBranchId(user?.branchId ?? attapur?.id ?? branches[0]?.id ?? null);
     setError(null);
     setCreating(true);
   };
@@ -119,27 +124,29 @@ export const StaffManagementScreen: React.FC = () => {
         ) : users.length === 0 ? (
           <Text style={styles.empty}>No staff or admin accounts yet.</Text>
         ) : (
-          sections.map((section) => (
-            <View key={section.label}>
-              <Text style={styles.sectionHeader}>{section.label}</Text>
-              {section.users.map((u) => (
-                <View key={u.id} style={styles.card}>
-                  <View style={styles.cardRow}>
-                    <View style={styles.nameRow}>
-                      <Text style={styles.userName}>{getDisplayName(u.fullName)}</Text>
-                      <Tag
-                        label={u.role === 'admin' ? 'Admin' : 'Staff'}
-                        bg={u.role === 'admin' ? colors.warningBg : colors.successBg}
-                        color={u.role === 'admin' ? colors.warning : colors.success}
-                      />
-                      {!u.isActive && <Tag label="Inactive" bg={colors.border} color={colors.muted} />}
+          <ScrollView style={styles.listScroll} showsVerticalScrollIndicator={false}>
+            {sections.map((section) => (
+              <View key={section.label}>
+                <Text style={styles.sectionHeader}>{section.label}</Text>
+                {section.users.map((u) => (
+                  <View key={u.id} style={styles.card}>
+                    <View style={styles.cardRow}>
+                      <View style={styles.nameRow}>
+                        <Text style={styles.userName}>{getDisplayName(u.fullName)}</Text>
+                        <Tag
+                          label={u.role === 'admin' ? 'Admin' : 'Staff'}
+                          bg={u.role === 'admin' ? colors.warningBg : colors.successBg}
+                          color={u.role === 'admin' ? colors.warning : colors.success}
+                        />
+                        {!u.isActive && <Tag label="Inactive" bg={colors.border} color={colors.muted} />}
+                      </View>
                     </View>
+                    <Text style={styles.cardSub}>{u.phoneNumber}</Text>
                   </View>
-                  <Text style={styles.cardSub}>{u.phoneNumber}</Text>
-                </View>
-              ))}
-            </View>
-          ))
+                ))}
+              </View>
+            ))}
+          </ScrollView>
         )}
 
         <Pressable style={styles.addButton} onPress={openNew}>
@@ -171,42 +178,31 @@ export const StaffManagementScreen: React.FC = () => {
               keyboardType="phone-pad"
             />
 
-            <Text style={styles.fieldLabel}>Role</Text>
-            <View style={styles.toggleRow}>
-              {(['staff', 'admin'] as UserRole[]).map((r) => (
-                <Pressable key={r} style={[styles.toggle, role === r && styles.toggleActive]} onPress={() => setRole(r)}>
-                  <Text style={[styles.toggleText, role === r && styles.toggleTextActive]}>
-                    {r === 'admin' ? 'Admin' : 'Staff'}
-                  </Text>
-                </Pressable>
-              ))}
+            <Text style={styles.fieldLabel}>Is Staff</Text>
+            <View style={styles.switchRow}>
+              <Switch
+                value={role === 'staff'}
+                onValueChange={(value: boolean) => setRole(value ? 'staff' : 'admin')}
+                trackColor={{ false: colors.border, true: colors.peachPrimary }}
+                thumbColor={colors.white}
+              />
+              <Text style={styles.switchLabel}>{role === 'staff' ? 'Staff' : 'Admin'}</Text>
             </View>
 
             <Text style={styles.fieldLabel}>
               Branch {role === 'admin' && <Text style={styles.hintInline}>(optional — unscoped admin sees all)</Text>}
             </Text>
-            <View style={styles.branchChipRow}>
-              {role === 'admin' && (
-                <Pressable
-                  style={[styles.branchChip, branchId === null && styles.branchChipActive]}
-                  onPress={() => setBranchId(null)}
-                >
-                  <Text style={[styles.branchChipText, branchId === null && styles.branchChipTextActive]}>
-                    All Branches
-                  </Text>
-                </Pressable>
-              )}
-              {branches.map((b) => (
-                <Pressable
-                  key={b.id}
-                  style={[styles.branchChip, branchId === b.id && styles.branchChipActive]}
-                  onPress={() => setBranchId(b.id)}
-                >
-                  <Text style={[styles.branchChipText, branchId === b.id && styles.branchChipTextActive]}>
-                    {b.branchName}
-                  </Text>
-                </Pressable>
-              ))}
+            <View style={styles.pickerWrap}>
+              <Picker
+                selectedValue={branchId ?? UNSCOPED_KEY}
+                onValueChange={(value: string) => setBranchId(value === UNSCOPED_KEY ? null : value)}
+                style={styles.picker}
+              >
+                {role === 'admin' && <Picker.Item label="All Branches" value={UNSCOPED_KEY} />}
+                {branches.map((b) => (
+                  <Picker.Item key={b.id} label={b.branchName} value={b.id} />
+                ))}
+              </Picker>
             </View>
 
             {error && <Text style={styles.error}>{error}</Text>}
@@ -246,6 +242,14 @@ const createStyles = (colors: ColorTokens) =>
     body: {
       flex: 1,
       padding: 14,
+      // See AppScreen.tsx's `body` style comment — react-native-web's
+      // min-height:auto floor, needed at every nested flex level for the
+      // ScrollView below to actually clip+scroll on web.
+      minHeight: 0,
+    },
+    listScroll: {
+      flex: 1,
+      minHeight: 0,
     },
     sectionHeader: {
       fontSize: 10.5,
@@ -345,55 +349,27 @@ const createStyles = (colors: ColorTokens) =>
       color: colors.navyText,
       marginBottom: spacing.xs,
     },
-    toggleRow: {
+    switchRow: {
       flexDirection: 'row',
-      gap: spacing.xs,
-      marginBottom: spacing.sm,
-    },
-    toggle: {
-      flex: 1,
       alignItems: 'center',
-      paddingVertical: spacing.sm,
-      borderRadius: radii.sm,
-      borderWidth: 1.5,
-      borderColor: colors.navyDeep,
-    },
-    toggleActive: {
-      backgroundColor: colors.chrome,
-      borderColor: colors.chrome,
-    },
-    toggleText: {
-      fontSize: 10.5,
-      fontWeight: '700',
-      color: colors.navyDeep,
-    },
-    toggleTextActive: {
-      color: colors.cream,
-    },
-    branchChipRow: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: spacing.xs,
+      gap: spacing.sm,
       marginBottom: spacing.sm,
     },
-    branchChip: {
-      paddingVertical: spacing.xs,
-      paddingHorizontal: spacing.sm,
-      borderRadius: radii.sm,
-      borderWidth: 1.5,
-      borderColor: colors.navyDeep,
-    },
-    branchChipActive: {
-      backgroundColor: colors.chrome,
-      borderColor: colors.chrome,
-    },
-    branchChipText: {
-      fontSize: 10,
+    switchLabel: {
+      fontSize: 11.5,
       fontWeight: '700',
-      color: colors.navyDeep,
+      color: colors.navyText,
     },
-    branchChipTextActive: {
-      color: colors.cream,
+    pickerWrap: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radii.md,
+      marginBottom: spacing.sm,
+      overflow: 'hidden',
+    },
+    picker: {
+      color: colors.navyText,
     },
     error: {
       color: colors.danger,

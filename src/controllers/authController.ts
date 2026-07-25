@@ -5,16 +5,6 @@ import { JWT_EXPIRES_IN, JWT_SECRET, MOCK_AUTH, NODE_ENV, OTP_EXPIRY_MINUTES } f
 import { checkOtpRateLimit, generateOtp, saveOtpAttempt, sendOtpViaChannels, verifyOtpCode } from '../services/otpService';
 import { UserRole } from '../types/enums';
 
-// MOCK_AUTH-only stand-in for a users row — any phone number logs in as an
-// unscoped admin, no DB required. See config.MOCK_AUTH.
-const mockUserFor = (phoneNumber: string) => ({
-  id: '00000000-0000-0000-0000-000000000000',
-  role: 'admin' as const,
-  branchId: null,
-  fullName: 'Mock Admin',
-  phoneNumber,
-});
-
 const createToken = (user: { id: string; role: 'staff' | 'admin'; branchId: string | null }) => {
   return jwt.sign(
     {
@@ -35,7 +25,10 @@ export const requestOtp = async (req: Request, res: Response): Promise<void> => 
     return;
   }
 
-  const user = MOCK_AUTH ? mockUserFor(phoneNumber) : await prisma.user.findUnique({ where: { phoneNumber } });
+  // Role always comes from the real users row — MOCK_AUTH only shortcuts
+  // OTP generation/delivery below, never who the phone number belongs to.
+  // A phone number not in the DB gets the same 404 either way.
+  const user = await prisma.user.findUnique({ where: { phoneNumber } });
 
   if (!user) {
     res.status(404).json({ error: 'User not found' });
@@ -74,7 +67,7 @@ export const verifyOtp = async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  const user = MOCK_AUTH ? mockUserFor(phoneNumber) : await prisma.user.findUnique({ where: { phoneNumber } });
+  const user = await prisma.user.findUnique({ where: { phoneNumber } });
 
   if (!user) {
     res.status(404).json({ error: 'User not found' });

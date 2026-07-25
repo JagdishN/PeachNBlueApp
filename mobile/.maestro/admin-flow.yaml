@@ -1,0 +1,50 @@
+# Admin-role screenshot walkthrough: login -> every tab in AdminTabs
+# (navigation/AdminTabs.tsx, verified against the current tab list, not
+# assumed): Orders (Admin Dashboard), Catalogue, Customers, Ledger,
+# Branches, Staff. Read-only navigation only — no data is created or
+# changed by this flow, unlike staff-flow.yaml.
+#
+# Run via `npm run screenshots` in /mobile — see /mobile/.maestro/README.md
+# for required env vars and how this actually gets launched against Expo Go.
+#
+# Login no longer has an Admin/Staff toggle — role always comes from the
+# looked-up `users` row. ADMIN_TEST_PHONE below MUST be a real admin phone
+# number already seeded in the target database (e.g. one of the two live
+# accounts documented in repo-root CLAUDE.md's "Admin accounts" section).
+appId: ${MAESTRO_APP_ID}
+---
+- launchApp:
+    clearState: false
+
+- tapOn:
+    id: "login-phone-input"
+- inputText: "${ADMIN_TEST_PHONE}"
+- takeScreenshot: 01_login_admin
+
+- tapOn:
+    id: "login-submit-button"
+
+- tapOn:
+    id: "login-otp-input"
+- inputText: "${MOCK_OTP}"
+- tapOn:
+    id: "login-submit-button"
+
+- assertVisible: "Overview"
+- takeScreenshot: 02_admin_dashboard
+
+- tapOn: "Catalogue"
+- assertVisible: "Garment Catalogue"
+- takeScreenshot: 03_garment_catalogue
+
+- tapOn: "Customers"
+- takeScreenshot: 04_customer_management
+
+- tapOn: "Ledger"
+- takeScreenshot: 05_ledger_aging
+
+- tapOn: "Branches"
+- takeScreenshot: 06_branches
+
+- tapOn: "Staff"
+- takeScreenshot: 07_staff_management

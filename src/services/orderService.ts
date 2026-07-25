@@ -172,14 +172,16 @@ export const createOrder = async (input: CreateOrderInput) => {
   const estimatedAmount = itemsToCreate.reduce((sum, item) => sum + item.lineTotal, 0);
 
   const order = await prisma.$transaction(async (tx) => {
+    // Phone number is globally unique per customer now (CLAUDE.md "Customer
+    // phone number uniqueness — RESOLVED") — match on phoneNumber alone. On
+    // a match, only fullName is refreshed; branchId/locationLabel are the
+    // customer's already-established record and are never silently
+    // overwritten by whatever this particular order submission happened to
+    // carry (the real enforcement point for a genuine branch/location
+    // conflict is createCustomerHandler, which this order's customer was
+    // already resolved through during the app's search/create step).
     const customer = await tx.customer.upsert({
-      where: {
-        phoneNumber_branchId_locationLabel: {
-          phoneNumber: input.customerPhoneNumber,
-          branchId: input.branchId,
-          locationLabel: input.locationLabel,
-        },
-      },
+      where: { phoneNumber: input.customerPhoneNumber },
       update: { fullName: input.customerName },
       create: {
         fullName: input.customerName,
@@ -199,6 +201,10 @@ export const createOrder = async (input: CreateOrderInput) => {
         pickupDate: input.pickupDate,
         estimatedAmount,
         finalAmount: estimatedAmount,
+        // Snapshot, not a live reference (CLAUDE.md "Monthly billing
+        // retroactivity — RESOLVED") — a later change to the customer's
+        // billingMode must not retroactively change how this order settles.
+        billingMode: customer.billingMode,
         orderItems: { create: itemsToCreate },
         statusHistory: { create: { status: 'picked_up', changedById: input.createdById } },
       },
@@ -363,7 +369,13 @@ export const updateStatus = async (
   // rather than reading them off `order.customer`, which is role-scoped
   // (customerSelectForRole) and has those fields excluded entirely when a
   // staff member is the one marking the order delivered.
-  if (newStatus === 'delivered' && order.customer.billingMode === 'monthly_billing') {
+  //
+  // Reads order.billingMode (this order's own snapshot from creation time),
+  // NOT order.customer.billingMode (the customer's current, possibly since-
+  // changed setting) — CLAUDE.md "Monthly billing retroactivity — RESOLVED":
+  // flipping a customer's billing mode must only affect orders created
+  // after the flip, not ones already in flight.
+  if (newStatus === 'delivered' && order.billingMode === 'monthly_billing') {
     const discountFields = await prisma.customer.findUnique({
       where: { id: order.customer.id },
       select: { discountEnabled: true, discountPercent: true },
@@ -412,8 +424,10 @@ export const recordPayment = async (orderId: string, paymentMethod: PaymentMetho
   // Monthly-billing customers are settled via the ledger (see the
   // billingMode branch above), not a per-order payment at delivery — the
   // four payment modes here are specifically for the "daily payments only"
-  // baseline CLAUDE.md describes.
-  if (order.customer.billingMode === 'monthly_billing') {
+  // baseline CLAUDE.md describes. Reads order.billingMode (this order's own
+  // snapshot), not order.customer.billingMode — same reasoning as the
+  // updateStatus branch above.
+  if (order.billingMode === 'monthly_billing') {
     const err = new Error('This customer is on monthly billing — payment is settled via the ledger, not per order.');
     (err as any).status = 400;
     throw err;

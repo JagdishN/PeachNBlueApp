@@ -116,8 +116,9 @@ describe('POST / — customer create/lookup, staff AND admin (CLAUDE.md "Custome
     expect(res.status).toBe(401);
   });
 
-  it('allows a staff-role token (unlike the admin-only endpoints above)', async () => {
-    prismaMock.customer.upsert.mockResolvedValue({ id: 'customer-1' } as any);
+  it('creates a new customer when the phone number is not already registered', async () => {
+    prismaMock.customer.findUnique.mockResolvedValue(null);
+    prismaMock.customer.create.mockResolvedValue({ id: 'customer-1' } as any);
 
     const res = await request(app)
       .post('/api/v1/customers')
@@ -125,7 +126,7 @@ describe('POST / — customer create/lookup, staff AND admin (CLAUDE.md "Custome
       .send({ fullName: 'Priya Menon', phoneNumber: '9999999999', locationLabel: 'A-101' });
 
     expect(res.status).toBe(200);
-    expect(prismaMock.customer.upsert).toHaveBeenCalled();
+    expect(prismaMock.customer.create).toHaveBeenCalled();
   });
 
   it('rejects missing required fields', async () => {
@@ -135,26 +136,21 @@ describe('POST / — customer create/lookup, staff AND admin (CLAUDE.md "Custome
       .send({ fullName: 'Priya Menon' });
 
     expect(res.status).toBe(400);
-    expect(prismaMock.customer.upsert).not.toHaveBeenCalled();
+    expect(prismaMock.customer.findUnique).not.toHaveBeenCalled();
   });
 
   it("locks a staff caller to their own branchId, ignoring any branchId in the body", async () => {
-    prismaMock.customer.upsert.mockResolvedValue({ id: 'customer-1' } as any);
+    prismaMock.customer.findUnique.mockResolvedValue(null);
+    prismaMock.customer.create.mockResolvedValue({ id: 'customer-1' } as any);
 
     await request(app)
       .post('/api/v1/customers')
       .set('Authorization', `Bearer ${token('staff', 'branch-1')}`)
       .send({ fullName: 'Priya Menon', phoneNumber: '9999999999', locationLabel: 'A-101', branchId: 'branch-2' });
 
-    expect(prismaMock.customer.upsert).toHaveBeenCalledWith(
+    expect(prismaMock.customer.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: {
-          phoneNumber_branchId_locationLabel: {
-            phoneNumber: '9999999999',
-            branchId: 'branch-1',
-            locationLabel: 'A-101',
-          },
-        },
+        data: { fullName: 'Priya Menon', phoneNumber: '9999999999', branchId: 'branch-1', locationLabel: 'A-101' },
       })
     );
   });
@@ -166,20 +162,62 @@ describe('POST / — customer create/lookup, staff AND admin (CLAUDE.md "Custome
       .send({ fullName: 'Priya Menon', phoneNumber: '9999999999', locationLabel: 'A-101' });
 
     expect(res.status).toBe(400);
-    expect(prismaMock.customer.upsert).not.toHaveBeenCalled();
+    expect(prismaMock.customer.findUnique).not.toHaveBeenCalled();
   });
 
   it('never selects discountPercent/discountEnabled for a staff caller (primary defense)', async () => {
-    prismaMock.customer.upsert.mockResolvedValue({ id: 'customer-1' } as any);
+    prismaMock.customer.findUnique.mockResolvedValue(null);
+    prismaMock.customer.create.mockResolvedValue({ id: 'customer-1' } as any);
 
     await request(app)
       .post('/api/v1/customers')
       .set('Authorization', `Bearer ${token('staff', 'branch-1')}`)
       .send({ fullName: 'Priya Menon', phoneNumber: '9999999999', locationLabel: 'A-101' });
 
-    const upsertArgs = prismaMock.customer.upsert.mock.calls[0][0] as any;
-    expect(upsertArgs.select).not.toHaveProperty('discountPercent');
-    expect(upsertArgs.select).not.toHaveProperty('discountEnabled');
+    const createArgs = prismaMock.customer.create.mock.calls[0][0] as any;
+    expect(createArgs.select).not.toHaveProperty('discountPercent');
+    expect(createArgs.select).not.toHaveProperty('discountEnabled');
+  });
+
+  // CLAUDE.md "Customer phone number uniqueness — RESOLVED" (2026-07-25):
+  // phoneNumber is now globally unique per customer, not per (phone,
+  // branch, location) — a second location under the same number is a
+  // conflict, not a second record.
+  it('returns 409 when the phone number is already registered to a different branch/location', async () => {
+    prismaMock.customer.findUnique.mockResolvedValue({
+      id: 'customer-1',
+      branchId: 'branch-1',
+      locationLabel: 'A-101',
+    } as any);
+
+    const res = await request(app)
+      .post('/api/v1/customers')
+      .set('Authorization', `Bearer ${token('staff', 'branch-1')}`)
+      .send({ fullName: 'Priya Menon', phoneNumber: '9999999999', locationLabel: 'B-202' });
+
+    expect(res.status).toBe(409);
+    expect(prismaMock.customer.create).not.toHaveBeenCalled();
+    expect(prismaMock.customer.update).not.toHaveBeenCalled();
+  });
+
+  it('is idempotent for an exact resubmission at the same branch/location (updates fullName only)', async () => {
+    prismaMock.customer.findUnique.mockResolvedValue({
+      id: 'customer-1',
+      branchId: 'branch-1',
+      locationLabel: 'A-101',
+    } as any);
+    prismaMock.customer.update.mockResolvedValue({ id: 'customer-1' } as any);
+
+    const res = await request(app)
+      .post('/api/v1/customers')
+      .set('Authorization', `Bearer ${token('staff', 'branch-1')}`)
+      .send({ fullName: 'Priya Menon', phoneNumber: '9999999999', locationLabel: 'A-101' });
+
+    expect(res.status).toBe(200);
+    expect(prismaMock.customer.create).not.toHaveBeenCalled();
+    expect(prismaMock.customer.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { phoneNumber: '9999999999' }, data: { fullName: 'Priya Menon' } })
+    );
   });
 });
 
