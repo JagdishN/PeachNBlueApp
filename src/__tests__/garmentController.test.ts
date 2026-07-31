@@ -123,6 +123,24 @@ describe('POST / — create, admin-only, full pricing-field support', () => {
     expect(res.status).toBe(400);
     expect(prismaMock.garmentCatalogue.create).not.toHaveBeenCalled();
   });
+
+  // CLAUDE.md "Admin can add new service types — RESOLVED": the live DB CHECK
+  // constraint that hardcoded wash_fold|ironing|dry_clean was dropped and the
+  // mobile UI now accepts free text — this locks in that the backend side of
+  // that promise (no allow-list validation here either) actually holds.
+  it('accepts a genuinely new serviceType value not in the original 3-value set', async () => {
+    prismaMock.garmentCatalogue.create.mockResolvedValue({ id: 'g-1' } as any);
+
+    const res = await request(app)
+      .post('/api/v1/garments')
+      .set('Authorization', `Bearer ${token('admin')}`)
+      .send({ itemName: 'Steam Press', serviceType: 'steam_press', price: 60 });
+
+    expect(res.status).toBe(201);
+    expect(prismaMock.garmentCatalogue.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ serviceType: 'steam_press' }) })
+    );
+  });
 });
 
 describe('PATCH /:id — update, admin-only, full pricing-field support', () => {

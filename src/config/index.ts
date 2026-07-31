@@ -5,8 +5,22 @@ import dotenv from 'dotenv';
 // launched this server (e.g. an old DATABASE_URL pointing at a long-gone
 // local Postgres test instance) silently wins over .env forever, even
 // across every ts-node-dev respawn. .env is this project's single source of
-// truth (see CLAUDE.md) — it must always win over inherited shell state.
-dotenv.config({ override: true });
+// truth for LOCAL DEVELOPMENT (see CLAUDE.md) — it must always win over
+// inherited shell state there.
+//
+// In production, skip loading a .env file entirely — real secrets must come
+// from the hosting platform's own environment/secret manager (CLAUDE.md
+// security baseline), never a file on disk. This isn't just a style
+// preference: with override:true unconditional, a stray/rogue .env that
+// somehow ended up on a production host (e.g. an overly broad `COPY . .` in
+// a Dockerfile, or an accidentally-committed file) would silently beat the
+// platform's real injected secrets — the opposite of the override's original
+// intent. `npm start` (see package.json) sets NODE_ENV=production via
+// cross-env specifically so this check is reliable regardless of what the
+// hosting platform does or doesn't set on its own.
+if (process.env.NODE_ENV !== 'production') {
+  dotenv.config({ override: true });
+}
 
 // `??` alone doesn't catch an env var that's *present but empty* (e.g.
 // `JWT_SECRET=` in .env) — that's '' , not null/undefined, so `??` never
