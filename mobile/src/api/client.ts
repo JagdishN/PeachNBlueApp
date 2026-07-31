@@ -1,5 +1,16 @@
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:4000';
 
+// A real (non-dev) build that still resolves to localhost means
+// EXPO_PUBLIC_API_URL was never set for that build profile (see mobile/
+// eas.json's preview/production "env") — it would otherwise fail silently
+// on a real device with no indication why every request is timing out.
+if (!__DEV__ && API_URL.includes('localhost')) {
+  console.warn(
+    `[config] EXPO_PUBLIC_API_URL resolved to "${API_URL}" in a production build — this almost ` +
+      'certainly means it was never set for this build profile. See mobile/eas.json.'
+  );
+}
+
 let authToken: string | null = null;
 
 // Called by AuthContext whenever the token changes (sign in/out/restore) —

@@ -18,6 +18,14 @@ interface SeedGarment {
   // match below (CLAUDE.md "Icons for garment types": admin/seed-data can
   // override an item the auto-mapping guesses wrong on).
   iconKey?: string;
+  // Optional, defaults to true. Lets the seed data itself soft-hide a tier
+  // (e.g. "Wash Services —") without deleting it from the file — CLAUDE.md
+  // "New 'Wash' service": this was previously only deactivated directly in
+  // the live DB via a one-off script, which a future `npm run seed` would
+  // have silently undone since this field didn't exist and every upsert
+  // hardcoded isActive: true. Now the JSON is the source of truth for this
+  // too.
+  isActive?: boolean;
   _note?: string;
   _tier?: string;
 }
@@ -83,7 +91,7 @@ async function main() {
       isStartingPrice: garment.isStartingPrice ?? false,
       requiresSpecialCare: garment.requiresSpecialCare ?? false,
       iconKey,
-      isActive: true,
+      isActive: garment.isActive ?? true,
       branchId: null,
     };
 

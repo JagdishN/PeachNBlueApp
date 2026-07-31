@@ -6,7 +6,8 @@
 // disk and stomp the process.env values this test deliberately pre-sets
 // below — mocked out so the test is fully decoupled from whatever's
 // actually on disk, which is what it should have been regardless.
-jest.mock('dotenv', () => ({ config: jest.fn() }));
+const dotenvConfigMock = jest.fn();
+jest.mock('dotenv', () => ({ config: dotenvConfigMock }));
 
 // This repo's local .env has JWT_SECRET='' (present but empty) — getEnv's
 // old `??` fallback only catches null/undefined, so it silently resolved to
@@ -37,5 +38,39 @@ describe('config getEnv — empty-string handling', () => {
     const { JWT_SECRET } = require('../config');
 
     expect(JWT_SECRET).toBe('a-real-secret');
+  });
+});
+
+// Dev/prod build separation: a stray/rogue .env on a production host must
+// never be able to override real platform-injected secrets — see the
+// comment in config/index.ts. NODE_ENV=production (set explicitly by `npm
+// start` via cross-env, not left to chance) is what gates this.
+describe('config — dotenv is skipped in production', () => {
+  const ORIGINAL_ENV = process.env;
+
+  beforeEach(() => {
+    jest.resetModules();
+    dotenvConfigMock.mockClear();
+    process.env = { ...ORIGINAL_ENV, DATABASE_URL: 'postgres://test' };
+  });
+
+  afterAll(() => {
+    process.env = ORIGINAL_ENV;
+  });
+
+  it('does not call dotenv.config when NODE_ENV=production', () => {
+    process.env.NODE_ENV = 'production';
+
+    require('../config');
+
+    expect(dotenvConfigMock).not.toHaveBeenCalled();
+  });
+
+  it('still calls dotenv.config for any non-production NODE_ENV', () => {
+    process.env.NODE_ENV = 'development';
+
+    require('../config');
+
+    expect(dotenvConfigMock).toHaveBeenCalledWith({ override: true });
   });
 });
