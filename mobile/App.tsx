@@ -2,20 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
 import * as Notifications from 'expo-notifications';
-import {
-  useFonts as useLoraFonts,
-  Lora_600SemiBold,
-  Lora_600SemiBold_Italic,
-  Lora_700Bold,
-} from '@expo-google-fonts/lora';
-import {
-  useFonts as useInterFonts,
-  Inter_400Regular,
-  Inter_500Medium,
-  Inter_600SemiBold,
-  Inter_700Bold,
-  Inter_800ExtraBold,
-} from '@expo-google-fonts/inter';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { RootNavigator } from './src/navigation/RootNavigator';
@@ -37,21 +23,15 @@ export default function App() {
 
 // Shown on EVERY cold start, not just first install — CLAUDE.md is explicit
 // this is not a one-time onboarding splash. Deliberately no persisted
-// "have I shown this before" flag anywhere here. Stays up until fonts have
-// loaded, the 2-second timer has elapsed, AND the stored-auth-token restore
-// has resolved — whichever finishes last.
+// "have I shown this before" flag anywhere here. Stays up until the
+// 2-second timer has elapsed AND the stored-auth-token restore has
+// resolved — whichever finishes last. (No longer also gated on font
+// loading — theme.ts moved to the system font stack, see CLAUDE.md
+// "Branding", so there's nothing to wait on there anymore.)
 function AppContent() {
   const { state } = useAuth();
   const { mode } = useTheme();
   const statusBarStyle = mode === 'dark' ? 'light' : 'dark';
-  const [loraLoaded] = useLoraFonts({ Lora_600SemiBold, Lora_600SemiBold_Italic, Lora_700Bold });
-  const [interLoaded] = useInterFonts({
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    Inter_700Bold,
-    Inter_800ExtraBold,
-  });
   const [splashElapsed, setSplashElapsed] = useState(false);
 
   useEffect(() => {
@@ -79,8 +59,7 @@ function AppContent() {
     return () => subscription.remove();
   }, []);
 
-  const fontsReady = loraLoaded && interLoaded;
-  const showSplash = !fontsReady || !splashElapsed || state.status === 'loading';
+  const showSplash = !splashElapsed || state.status === 'loading';
 
   if (showSplash) {
     return (

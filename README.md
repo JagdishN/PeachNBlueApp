@@ -18,17 +18,12 @@ Copy `.env.example` to `.env` and fill in:
 - `DATABASE_URL` — Postgres connection string (Supabase).
 - `JWT_SECRET` — signing secret for auth tokens. Must not be left as the fallback value in any non-local environment.
 - `REDIS_URL` — see "Redis setup" below.
-- `TWILIO_*` — Twilio credentials. Twilio is used for **both** WhatsApp and SMS (two separate "from" numbers: `TWILIO_WHATSAPP_FROM` for the WhatsApp-enabled sender, `TWILIO_SMS_FROM` for plain SMS). Both channels are always sent together — never one as a fallback for the other. `TWILIO_WHATSAPP_FROM` is the bare number (no `whatsapp:` prefix) — the code adds that itself.
+- `MSG91_*` — MSG91 credentials. WhatsApp only (CLAUDE.md "Messaging migration — MSG91, WhatsApp-only") — SMS is not sent anywhere, including OTP login. `MSG91_INTEGRATED_NUMBER` is the shared/default sending number, used only when a branch has no `whatsappNumber` of its own configured (each branch ideally has its own number registered under the same MSG91/Meta WABA).
 - `RAZORPAY_*` — use test-mode keys for local development; never live keys outside production.
 
-### Twilio trial mode
+### MSG91 / WhatsApp templates
 
-While the Twilio account is on the free trial tier, two real limitations apply — see `.claude/CLAUDE.md`'s "Twilio trial mode" section for the full detail:
-
-- **SMS** only reaches phone numbers manually verified in the Twilio Console (Phone Numbers → Verified Caller IDs).
-- **WhatsApp** only reaches numbers that have joined Twilio's WhatsApp Sandbox (recipient sends a join code to the sandbox number first) — this is separate from Meta's WhatsApp Business API production approval process (see the Technical Design Document's WhatsApp setup section).
-
-Real customer numbers won't receive anything until the client upgrades Twilio billing (for SMS) and completes WhatsApp Business API approval separately (for WhatsApp) — these are two independent upgrades, not one.
+Every business-initiated WhatsApp message (OTP, pickup confirmation, etc.) requires a pre-approved Meta message template — a WhatsApp Business Platform rule, not an MSG91-specific limitation. `src/constants/msg91Templates.ts` lists every template this app needs, with placeholder names and each one's required variable count/order — these must be created and approved in Meta Business Manager (via the MSG91 panel) before real sends will work; update the `name` values there to match whatever Meta actually approves them as. `src/lib/msg91Client.ts`'s request shape is built from MSG91's commonly published API examples, not confirmed against a live account from this environment — verify it with a real test send (MSG91's dashboard has a test-send tool) before relying on it.
 
 ## Redis setup
 

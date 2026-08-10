@@ -5,7 +5,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppScreen } from '../../components/AppScreen';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
-import { ColorTokens, spacing, radii } from '../../theme/theme';
+import { ColorTokens, fonts, spacing, radii } from '../../theme/theme';
 
 // Houses the About content CLAUDE.md requires ("Technology by NIVENXA" on
 // the About page) plus Log Out — previously there was no way to sign out
@@ -75,7 +75,8 @@ const createStyles = (colors: ColorTokens) =>
       justifyContent: 'center',
     },
     title: {
-      fontFamily: 'Lora_600SemiBold',
+      fontFamily: fonts.headingSemiBold,
+      fontWeight: '600',
       fontSize: 16,
       color: colors.cream,
     },
@@ -99,7 +100,8 @@ const createStyles = (colors: ColorTokens) =>
       alignItems: 'center',
     },
     appName: {
-      fontFamily: 'Lora_700Bold',
+      fontFamily: fonts.heading,
+      fontWeight: '700',
       fontSize: 18,
       color: colors.peachPrimaryDark,
     },

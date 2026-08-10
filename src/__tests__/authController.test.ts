@@ -14,6 +14,7 @@ jest.mock('../prisma/client', () => ({
 const configMock = {
   JWT_SECRET: 'test-secret-key',
   JWT_EXPIRES_IN: '30m',
+  JWT_REFRESH_EXPIRES_IN: '2d',
   MOCK_AUTH: false,
   NODE_ENV: 'test',
   OTP_EXPIRY_MINUTES: 10,
@@ -175,7 +176,7 @@ describe('POST /verify-otp', () => {
     expect(res.body.user).toMatchObject({ id: 'user-1', role: 'admin', branchId: null });
 
     const decoded = jwt.verify(res.body.token, 'test-secret-key') as any;
-    expect(decoded).toMatchObject({ userId: 'user-1', role: 'admin', branchId: null });
+    expect(decoded).toMatchObject({ userId: 'user-1', role: 'admin', branchId: null, type: 'access' });
   });
 
   it('embeds a staff role and branchId for a staff user', async () => {
@@ -188,6 +189,92 @@ describe('POST /verify-otp', () => {
 
     expect(res.status).toBe(200);
     const decoded = jwt.verify(res.body.token, 'test-secret-key') as any;
-    expect(decoded).toMatchObject({ userId: 'user-2', role: 'staff', branchId: 'branch-1' });
+    expect(decoded).toMatchObject({ userId: 'user-2', role: 'staff', branchId: 'branch-1', type: 'access' });
+  });
+
+  // CLAUDE.md security baseline: "2-day session from login" — verify-otp
+  // must also hand back a refresh token, not just the access token.
+  it('also issues a refresh token, distinct from the access token, marked type: refresh', async () => {
+    prismaMock.user.findUnique.mockResolvedValue(existingUser as any);
+
+    const res = await request(app)
+      .post('/api/auth/verify-otp')
+      .send({ phoneNumber: existingUser.phoneNumber, otp: '123456' });
+
+    expect(res.status).toBe(200);
+    expect(typeof res.body.refreshToken).toBe('string');
+    expect(res.body.refreshToken).not.toBe(res.body.token);
+
+    const decoded = jwt.verify(res.body.refreshToken, 'test-secret-key') as any;
+    expect(decoded).toMatchObject({ userId: 'user-1', type: 'refresh' });
+    // Deliberately minimal — role/branchId are re-read from the DB on
+    // refresh, not baked into this longer-lived token.
+    expect(decoded.role).toBeUndefined();
+  });
+});
+
+describe('POST /refresh-token', () => {
+  const signRefreshToken = (userId: string) =>
+    jwt.sign({ userId, type: 'refresh' }, 'test-secret-key', { expiresIn: '2d' });
+
+  it('requires a refreshToken', async () => {
+    const res = await request(app).post('/api/auth/refresh-token').send({});
+
+    expect(res.status).toBe(400);
+  });
+
+  it('401s an invalid/garbage refresh token', async () => {
+    const res = await request(app).post('/api/auth/refresh-token').send({ refreshToken: 'not-a-real-jwt' });
+
+    expect(res.status).toBe(401);
+  });
+
+  it('401s an expired refresh token', async () => {
+    const expired = jwt.sign({ userId: 'user-1', type: 'refresh' }, 'test-secret-key', { expiresIn: '-1s' });
+
+    const res = await request(app).post('/api/auth/refresh-token').send({ refreshToken: expired });
+
+    expect(res.status).toBe(401);
+  });
+
+  // An access token must not double as a refresh token — otherwise a
+  // captured short-lived access token could be used to mint endless new
+  // ones past its own intended lifetime.
+  it('401s a well-formed access token presented as a refresh token', async () => {
+    const accessToken = jwt.sign(
+      { userId: 'user-1', role: 'admin', branchId: null, type: 'access' },
+      'test-secret-key',
+      { expiresIn: '30m' }
+    );
+
+    const res = await request(app).post('/api/auth/refresh-token').send({ refreshToken: accessToken });
+
+    expect(res.status).toBe(401);
+  });
+
+  it('401s when the user no longer exists', async () => {
+    prismaMock.user.findUnique.mockResolvedValue(null);
+
+    const res = await request(app)
+      .post('/api/auth/refresh-token')
+      .send({ refreshToken: signRefreshToken('user-1') });
+
+    expect(res.status).toBe(401);
+  });
+
+  it('issues a fresh access token reflecting the user\'s CURRENT role/branchId from the DB, not anything cached', async () => {
+    // Simulates a role/branch change that happened after login — the
+    // refresh token only carries userId, so this must be re-read live.
+    const nowStaffUser = { ...existingUser, id: 'user-1', role: 'staff', branchId: 'branch-9' };
+    prismaMock.user.findUnique.mockResolvedValue(nowStaffUser as any);
+
+    const res = await request(app)
+      .post('/api/auth/refresh-token')
+      .send({ refreshToken: signRefreshToken('user-1') });
+
+    expect(res.status).toBe(200);
+    expect(res.body.refreshToken).toBeUndefined(); // no rotation — fixed window from login
+    const decoded = jwt.verify(res.body.token, 'test-secret-key') as any;
+    expect(decoded).toMatchObject({ userId: 'user-1', role: 'staff', branchId: 'branch-9', type: 'access' });
   });
 });

@@ -1,3 +1,5 @@
+import { Platform } from 'react-native';
+
 // Color/spacing tokens transcribed from docs/PeachBlue_App_Screens_Mockup.html.
 // These are the mockup's first-pass hex values, not final brand colors — per
 // CLAUDE.md, replace once the client sends the logo source file (SVG/AI).
@@ -72,16 +74,32 @@ export const darkColors: ColorTokens = {
 // re-adding a static `colors` export here would let a new file accidentally
 // bypass theming, so don't.
 
+// System font stack (2026-08-09) — replaces the earlier Lora (headings) /
+// Inter (body) custom typefaces loaded via @expo-google-fonts. React Native
+// doesn't resolve CSS-style comma-separated font stacks on native: iOS/
+// Android just fail to match an unrecognized family name and silently fall
+// back to the platform default anyway, so omitting fontFamily there (rather
+// than passing the literal CSS string) is the correct way to get the true
+// native system font (San Francisco / Roboto). The explicit stack only
+// takes effect on web, where react-native-web passes fontFamily straight
+// through as real CSS.
+const SYSTEM_FONT_STACK =
+  'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+const systemFontFamily = Platform.OS === 'web' ? SYSTEM_FONT_STACK : undefined;
+
+// Weight is no longer baked into the family name the way a loaded custom
+// font file provided it (e.g. the old 'Lora_600SemiBold') — every call site
+// now pairs fontFamily with an explicit fontWeight instead.
 export const fonts = {
-  heading: 'Lora_700Bold',
-  headingSemiBold: 'Lora_600SemiBold',
-  headingItalic: 'Lora_600SemiBold_Italic',
-  body: 'Inter_400Regular',
-  bodyMedium: 'Inter_500Medium',
-  bodySemiBold: 'Inter_600SemiBold',
-  bodyBold: 'Inter_700Bold',
-  bodyExtraBold: 'Inter_800ExtraBold',
-} as const;
+  heading: systemFontFamily,
+  headingSemiBold: systemFontFamily,
+  headingItalic: systemFontFamily,
+  body: systemFontFamily,
+  bodyMedium: systemFontFamily,
+  bodySemiBold: systemFontFamily,
+  bodyBold: systemFontFamily,
+  bodyExtraBold: systemFontFamily,
+};
 
 export const spacing = {
   xs: 4,

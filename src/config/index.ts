@@ -41,14 +41,27 @@ export const MOCK_AUTH = NODE_ENV !== 'production' && getEnv('MOCK_AUTH', 'false
 export const DATABASE_URL = getEnv('DATABASE_URL');
 export const JWT_SECRET = getEnv('JWT_SECRET', 'replace-with-secret');
 export const JWT_EXPIRES_IN = getEnv('JWT_EXPIRES_IN', '30m');
+// Fixed 2-day session from login (CLAUDE.md security baseline) — the mobile
+// app silently exchanges this for new access tokens until it itself
+// expires, at which point re-login (OTP) is required. This is never
+// re-signed/extended on use, so it's a fixed window from login time, not a
+// rolling one.
+export const JWT_REFRESH_EXPIRES_IN = getEnv('JWT_REFRESH_EXPIRES_IN', '2d');
 export const OTP_EXPIRY_MINUTES = Number(getEnv('OTP_EXPIRY_MINUTES', '10'));
 
 export const REDIS_URL = getEnv('REDIS_URL', 'redis://localhost:6379');
 
-export const TWILIO_ACCOUNT_SID = getEnv('TWILIO_ACCOUNT_SID');
-export const TWILIO_AUTH_TOKEN = getEnv('TWILIO_AUTH_TOKEN');
-export const TWILIO_WHATSAPP_FROM = getEnv('TWILIO_WHATSAPP_FROM');
-export const TWILIO_SMS_FROM = getEnv('TWILIO_SMS_FROM');
+// Twilio removed (CLAUDE.md "Messaging migration — MSG91, WhatsApp-only,
+// 2026-08-10"): WhatsApp is now sent via MSG91's WhatsApp API, and SMS is
+// no longer sent anywhere, including OTP login — a deliberate, confirmed
+// decision, not an oversight (accepted risk: no fallback channel if
+// WhatsApp delivery fails).
+export const MSG91_AUTH_KEY = getEnv('MSG91_AUTH_KEY');
+// Shared/default WhatsApp sending number — used only when a branch has no
+// whatsappNumber of its own configured yet (CLAUDE.md "Branches"). Must be
+// one of the numbers registered under the MSG91/Meta WABA this authkey
+// belongs to.
+export const MSG91_INTEGRATED_NUMBER = getEnv('MSG91_INTEGRATED_NUMBER');
 
 // New-style Supabase API keys (sb_publishable_… / sb_secret_…) for
 // @supabase/server — no hardcoded fallback here on purpose: these are live
@@ -71,8 +84,8 @@ if (!JWT_SECRET || JWT_SECRET === 'replace-with-secret') {
   console.warn('Warning: using a fallback JWT_SECRET. Set JWT_SECRET in environment variables for production.');
 }
 
-if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) {
-  console.warn('Warning: TWILIO_ACCOUNT_SID/TWILIO_AUTH_TOKEN not set. OTP and customer notifications will fail to send.');
+if (!MSG91_AUTH_KEY || !MSG91_INTEGRATED_NUMBER) {
+  console.warn('Warning: MSG91_AUTH_KEY/MSG91_INTEGRATED_NUMBER not set. OTP and customer notifications will fail to send.');
 }
 
 if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY || !SUPABASE_SECRET_KEY) {

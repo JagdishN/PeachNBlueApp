@@ -6,7 +6,7 @@ import { NivenxaFooter } from '../../components/BrandComponents';
 import { Tag } from '../../components/Tag';
 import { useTheme } from '../../context/ThemeContext';
 import { fetchBranches, createBranch, updateBranch, Branch, BranchType } from '../../api/branches';
-import { ColorTokens, radii, spacing } from '../../theme/theme';
+import { ColorTokens, fonts, radii, spacing } from '../../theme/theme';
 
 const ADDRESS_PLACEHOLDER: Record<BranchType, string> = {
   apartment: 'Apartment complex name, street',
@@ -232,7 +232,8 @@ const createStyles = (colors: ColorTokens) =>
       paddingBottom: 14,
     },
     title: {
-      fontFamily: 'Lora_600SemiBold',
+      fontFamily: fonts.headingSemiBold,
+      fontWeight: '600',
       fontSize: 16,
       color: colors.cream,
     },
@@ -300,7 +301,8 @@ const createStyles = (colors: ColorTokens) =>
       maxHeight: '85%',
     },
     modalTitle: {
-      fontFamily: 'Lora_600SemiBold',
+      fontFamily: fonts.headingSemiBold,
+      fontWeight: '600',
       fontSize: 15,
       color: colors.navyDeep,
       marginBottom: spacing.md,

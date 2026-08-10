@@ -7,6 +7,7 @@ jest.mock('../prisma/client', () => ({
 }));
 jest.mock('../services/notificationService', () => ({
   sendNotification: jest.fn().mockResolvedValue(undefined),
+  notifyAdminsOfPickup: jest.fn().mockResolvedValue(undefined),
 }));
 jest.mock('../services/pushService', () => ({
   sendToUser: jest.fn().mockResolvedValue(undefined),
@@ -23,14 +24,16 @@ jest.mock('../services/ledgerService', () => ({
 }));
 
 import prisma from '../prisma/client';
-import { createOrder, listOrders, getOrder, updateStatus, assignStaff, recordPayment } from '../services/orderService';
+import { createOrder, listOrders, getOrder, updateStatus, assignStaff, recordPayment, recordOnlinePayment } from '../services/orderService';
 import { generateInvoice } from '../services/invoiceService';
-import { sendNotification } from '../services/notificationService';
+import { sendNotification, notifyAdminsOfPickup } from '../services/notificationService';
 import { recordCharge } from '../services/ledgerService';
+import { MSG91_TEMPLATES } from '../constants/msg91Templates';
 
 const prismaMock = prisma as unknown as DeepMockProxy<PrismaClient>;
 const generateInvoiceMock = generateInvoice as jest.Mock;
 const sendNotificationMock = sendNotification as jest.Mock;
+const notifyAdminsOfPickupMock = notifyAdminsOfPickup as jest.Mock;
 const recordChargeMock = recordCharge as jest.Mock;
 
 const FIXED_PIECE_GARMENT = {
@@ -93,6 +96,8 @@ beforeEach(() => {
   generateInvoiceMock.mockReset();
   sendNotificationMock.mockReset();
   sendNotificationMock.mockResolvedValue(undefined);
+  notifyAdminsOfPickupMock.mockReset();
+  notifyAdminsOfPickupMock.mockResolvedValue(undefined);
   recordChargeMock.mockReset();
   recordChargeMock.mockResolvedValue(undefined);
   // Never resolves by default — createOrder must not await this, so tests
@@ -114,8 +119,16 @@ beforeEach(() => {
       finalAmount: args.data.finalAmount,
       billingMode: args.data.billingMode,
       orderItems: args.data.orderItems.create,
-      customer: { id: 'customer-1', phoneNumber: baseInput.customerPhoneNumber, whatsappNumber: null },
+      customer: {
+        id: 'customer-1',
+        phoneNumber: baseInput.customerPhoneNumber,
+        whatsappNumber: null,
+        branch: { whatsappNumber: null },
+      },
     })) as any);
+  // Default: no admins found for the pickup-notification lookup — tests
+  // that specifically care about it override this themselves.
+  prismaMock.user.findMany.mockResolvedValue([]);
 });
 
 describe('createOrder pricing', () => {
@@ -316,6 +329,81 @@ describe('role-aware customer select (primary defense)', () => {
     const findFirstArgs = prismaMock.order.findFirst.mock.calls[0][0] as any;
     expect(findFirstArgs.include.customer.select).toHaveProperty('discountPercent', true);
   });
+
+  // CLAUDE.md "Branches": every branch sends WhatsApp from its own number —
+  // not sensitive, so present for both roles (unlike discountPercent above).
+  it('createOrder always includes branch.whatsappNumber in the customer select, both roles', async () => {
+    mockGarments([FIXED_PIECE_GARMENT]);
+
+    await createOrder({ ...baseInput, createdByRole: 'staff', items: [{ garmentId: 'g-shirt', quantity: 1 }] });
+
+    const createArgs = prismaMock.order.create.mock.calls[0][0] as any;
+    expect(createArgs.include.customer.select.branch).toEqual({ select: { whatsappNumber: true } });
+  });
+});
+
+// CLAUDE.md order workflow item 4a: admin(s) get a WhatsApp notification
+// when staff confirms a pickup, sent from the order's branch's own number.
+describe('createOrder — admin pickup notification', () => {
+  it('looks up unscoped admins plus admins scoped to the order\'s branch, excluding the creator', async () => {
+    mockGarments([FIXED_PIECE_GARMENT]);
+
+    await createOrder({
+      ...baseInput,
+      createdById: 'staff-1',
+      createdByRole: 'staff',
+      items: [{ garmentId: 'g-shirt', quantity: 1 }],
+    });
+
+    const findManyArgs = prismaMock.user.findMany.mock.calls[0][0] as any;
+    expect(findManyArgs.where).toEqual({
+      role: 'admin',
+      id: { not: 'staff-1' },
+      OR: [{ branchId: null }, { branchId: baseInput.branchId }],
+    });
+  });
+
+  it('sends a WhatsApp notification to found admins, from the branch\'s own WhatsApp number', async () => {
+    mockGarments([FIXED_PIECE_GARMENT]);
+    prismaMock.user.findMany.mockResolvedValue([
+      { id: 'admin-1', phoneNumber: '9000000001' },
+      { id: 'admin-2', phoneNumber: '9000000002' },
+    ] as any);
+    prismaMock.order.create.mockResolvedValueOnce({
+      id: 'order-1',
+      orderNumber: 'PB-TEST',
+      estimatedAmount: 129,
+      finalAmount: 129,
+      billingMode: 'daily',
+      orderItems: [],
+      customer: {
+        id: 'customer-1',
+        phoneNumber: baseInput.customerPhoneNumber,
+        whatsappNumber: null,
+        branch: { whatsappNumber: '+919398125151' },
+      },
+    } as any);
+
+    await createOrder({ ...baseInput, items: [{ garmentId: 'g-shirt', quantity: 1 }] });
+
+    expect(notifyAdminsOfPickupMock).toHaveBeenCalledWith(
+      [
+        { id: 'admin-1', phoneNumber: '9000000001' },
+        { id: 'admin-2', phoneNumber: '9000000002' },
+      ],
+      expect.objectContaining({ bodyVariables: expect.arrayContaining(['PB-TEST']) }),
+      '+919398125151'
+    );
+  });
+
+  it('does not send an admin notification when no relevant admins are found', async () => {
+    mockGarments([FIXED_PIECE_GARMENT]);
+    prismaMock.user.findMany.mockResolvedValue([]);
+
+    await createOrder({ ...baseInput, items: [{ garmentId: 'g-shirt', quantity: 1 }] });
+
+    expect(notifyAdminsOfPickupMock).not.toHaveBeenCalled();
+  });
 });
 
 // CLAUDE.md "Staff-scoped order visibility" — each staff member should only
@@ -397,10 +485,37 @@ describe('createOrder — invoice generation is non-blocking', () => {
     // Flush the microtask queue so the un-awaited .then() chain runs.
     await new Promise((resolve) => setImmediate(resolve));
 
-    const invoiceCall = sendNotificationMock.mock.calls.find((call: any) => call[2].includes('rzp.io'));
+    // Qualify by headerMediaUrl (only the follow-up invoice message passes
+    // one — the instant synchronous message doesn't).
+    const invoiceCall = sendNotificationMock.mock.calls.find(
+      (call: any) => call[2].headerMediaUrl === 'https://storage.example/inv.pdf'
+    );
     expect(invoiceCall).toBeDefined();
     expect(invoiceCall[1]).toBe('pickup_confirmation');
-    expect(invoiceCall[4]).toBe('https://storage.example/inv.pdf');
+    expect(invoiceCall[2].bodyVariables).toContain('Pay online: https://rzp.io/l/x');
+  });
+
+  // invoiceService.ts no longer creates a real Razorpay link for
+  // monthly-billing orders — paymentLinkUrl comes back null. Regression
+  // guard against interpolating "Pay online: null" into a template variable.
+  it('sends a monthly-statement message, not a broken null link, when paymentLinkUrl is null', async () => {
+    mockGarments([FIXED_PIECE_GARMENT]);
+    generateInvoiceMock.mockResolvedValue({
+      amount: 129,
+      paymentLinkUrl: null,
+      pdfUrl: 'https://storage.example/inv.pdf',
+      wasReissue: false,
+    });
+
+    await createOrder({ ...baseInput, items: [{ garmentId: 'g-shirt', quantity: 1 }] });
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const invoiceCall = sendNotificationMock.mock.calls.find(
+      (call: any) => call[2].headerMediaUrl === 'https://storage.example/inv.pdf'
+    );
+    expect(invoiceCall).toBeDefined();
+    expect(invoiceCall[2].bodyVariables.join(' ')).not.toContain('null');
+    expect(invoiceCall[2].bodyVariables).toContain('This will be settled via your monthly statement.');
   });
 });
 
@@ -718,6 +833,119 @@ describe('recordPayment', () => {
     expect(prismaMock.payment.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ amount: 450 }) })
     );
+  });
+});
+
+// Webhook-driven counterpart to recordPayment — see CLAUDE.md "Razorpay
+// webhook — implemented" for why this is a separate function (no human
+// requester, so no role/staff-ownership args) rather than recordPayment
+// reused with a synthetic actor.
+describe('recordOnlinePayment', () => {
+  it('returns order_not_found without touching Payment/Order tables when the order does not exist', async () => {
+    prismaMock.order.findUnique.mockResolvedValue(null);
+
+    const result = await recordOnlinePayment('missing-order', 'upi', 499, 'pay_1', 'upi');
+
+    expect(result).toEqual({ status: 'order_not_found' });
+    expect(prismaMock.payment.create).not.toHaveBeenCalled();
+  });
+
+  it('is idempotent — a redelivered webhook for an already-paid order is a no-op', async () => {
+    prismaMock.order.findUnique.mockResolvedValue({ id: 'order-1', paymentStatus: 'paid', billingMode: 'daily' } as any);
+
+    const result = await recordOnlinePayment('order-1', 'upi', 499, 'pay_1', 'upi');
+
+    expect(result).toEqual({ status: 'already_paid' });
+    expect(prismaMock.payment.create).not.toHaveBeenCalled();
+  });
+
+  it('flags a monthly-billing order as an anomaly rather than auto-reconciling it (avoids double-counting against the ledger)', async () => {
+    prismaMock.order.findUnique.mockResolvedValue({
+      id: 'order-1',
+      paymentStatus: 'pending',
+      billingMode: 'monthly_billing',
+    } as any);
+
+    const result = await recordOnlinePayment('order-1', 'upi', 499, 'pay_1', 'upi');
+
+    expect(result).toEqual({ status: 'monthly_billing_anomaly' });
+    expect(prismaMock.payment.create).not.toHaveBeenCalled();
+    expect(prismaMock.order.update).not.toHaveBeenCalled();
+  });
+
+  it('records a Payment with recordedById null and the raw Razorpay method in notes, then flips the order to paid', async () => {
+    prismaMock.order.findUnique.mockResolvedValue({
+      id: 'order-1',
+      orderNumber: 'PB-TEST1234',
+      customerId: 'customer-1',
+      paymentStatus: 'pending',
+      billingMode: 'daily',
+      customer: { id: 'customer-1', phoneNumber: '9999999999', whatsappNumber: null },
+    } as any);
+    prismaMock.payment.create.mockResolvedValue({} as any);
+    prismaMock.order.update.mockResolvedValue({} as any);
+    prismaMock.invoice.updateMany.mockResolvedValue({ count: 1 } as any);
+
+    const result = await recordOnlinePayment('order-1', 'upi', 499, 'pay_1', 'upi');
+
+    expect(result).toEqual({ status: 'paid' });
+    expect(prismaMock.payment.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          orderId: 'order-1',
+          customerId: 'customer-1',
+          amount: 499,
+          paymentType: 'order_payment',
+          paymentMethod: 'upi',
+          status: 'success',
+          razorpayPaymentId: 'pay_1',
+          recordedById: null,
+          notes: 'Razorpay method: upi',
+        }),
+      })
+    );
+    expect(prismaMock.order.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'order-1' }, data: { paymentMethod: 'upi', paymentStatus: 'paid' } })
+    );
+    expect(prismaMock.invoice.updateMany).toHaveBeenCalledWith({
+      where: { orderId: 'order-1' },
+      data: { paymentLinkStatus: 'paid' },
+    });
+  });
+
+  // The gap this closes: a customer paying online via the Razorpay link
+  // previously got no confirmation at all — only the staff-recorded
+  // recordPayment path's absence of a notification was "expected" (staff is
+  // standing right there); an online payment has no equivalent human touch.
+  it('sends a payment_receipt WhatsApp notification with the order number, amount, and method label', async () => {
+    prismaMock.order.findUnique.mockResolvedValue({
+      id: 'order-1',
+      orderNumber: 'PB-TEST1234',
+      customerId: 'customer-1',
+      paymentStatus: 'pending',
+      billingMode: 'daily',
+      customer: { id: 'customer-1', phoneNumber: '9999999999', whatsappNumber: null },
+    } as any);
+    prismaMock.payment.create.mockResolvedValue({} as any);
+    prismaMock.order.update.mockResolvedValue({} as any);
+    prismaMock.invoice.updateMany.mockResolvedValue({ count: 1 } as any);
+
+    await recordOnlinePayment('order-1', 'net_banking', 499, 'pay_1', 'netbanking');
+
+    expect(sendNotificationMock).toHaveBeenCalledWith(
+      { id: 'customer-1', phoneNumber: '9999999999', whatsappNumber: null },
+      'payment_receipt',
+      { name: MSG91_TEMPLATES.paymentReceipt.name, bodyVariables: ['PB-TEST1234', '499', 'Net Banking'] },
+      'order-1'
+    );
+  });
+
+  it('does not send a notification when the payment is not actually recorded (already_paid / monthly_billing_anomaly / order_not_found)', async () => {
+    prismaMock.order.findUnique.mockResolvedValue({ id: 'order-1', paymentStatus: 'paid', billingMode: 'daily' } as any);
+
+    await recordOnlinePayment('order-1', 'upi', 499, 'pay_1', 'upi');
+
+    expect(sendNotificationMock).not.toHaveBeenCalled();
   });
 });
 

@@ -29,7 +29,13 @@ const ALL_CUSTOMER_FIELDS: Array<keyof Prisma.CustomerSelect> = [
 export const customerSelectForRole = (role: UserRole): Prisma.CustomerSelect => {
   const hidden: readonly string[] = role === 'staff' ? STAFF_HIDDEN_FIELDS : [];
 
-  return Object.fromEntries(
-    ALL_CUSTOMER_FIELDS.filter((field) => !hidden.includes(field)).map((field) => [field, true])
-  ) as Prisma.CustomerSelect;
+  return {
+    ...Object.fromEntries(
+      ALL_CUSTOMER_FIELDS.filter((field) => !hidden.includes(field)).map((field) => [field, true])
+    ),
+    // Not sensitive (not in STAFF_HIDDEN_FIELDS) — always included so every
+    // caller of this helper can resolve the per-branch WhatsApp sending
+    // number (CLAUDE.md "Branches") without a second query.
+    branch: { select: { whatsappNumber: true } },
+  } as Prisma.CustomerSelect;
 };

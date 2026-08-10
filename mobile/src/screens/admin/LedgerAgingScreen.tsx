@@ -5,7 +5,7 @@ import { AppScreen } from '../../components/AppScreen';
 import { PriceChip } from '../../components/PriceChip';
 import { useTheme } from '../../context/ThemeContext';
 import { fetchAgingReport, sendReminder, AgingRow } from '../../api/ledger';
-import { ColorTokens, radii, spacing } from '../../theme/theme';
+import { ColorTokens, fonts, radii, spacing } from '../../theme/theme';
 
 export const LedgerAgingScreen: React.FC = () => {
   const { colors } = useTheme();
@@ -97,7 +97,8 @@ const createStyles = (colors: ColorTokens) =>
       paddingBottom: 14,
     },
     title: {
-      fontFamily: 'Lora_600SemiBold',
+      fontFamily: fonts.headingSemiBold,
+      fontWeight: '600',
       fontSize: 16,
       color: colors.cream,
     },

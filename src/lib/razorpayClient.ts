@@ -1,13 +1,13 @@
 import Razorpay from 'razorpay';
-import { RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET } from '../config';
+import { RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, RAZORPAY_WEBHOOK_SECRET } from '../config';
 
 // Lazy singleton — Razorpay's constructor hard-throws if key_id/key_secret
-// are empty (unlike twilioClient.ts's client, which tolerates empty
-// credentials at construction and only fails when actually sending).
-// Constructing eagerly at module load would crash the whole server on boot
-// whenever Razorpay isn't configured yet, same as config/index.ts's
-// Twilio/Supabase vars are allowed to be unset (non-fatal warning only) —
-// this keeps that same degrade-gracefully behavior instead of being fatal.
+// are empty (unlike msg91Client.ts, which tolerates empty credentials at
+// module load and only fails when actually sending). Constructing eagerly
+// at module load would crash the whole server on boot whenever Razorpay
+// isn't configured yet, same as config/index.ts's MSG91/Supabase vars are
+// allowed to be unset (non-fatal warning only) — this keeps that same
+// degrade-gracefully behavior instead of being fatal.
 let client: Razorpay | null = null;
 
 const getClient = (): Razorpay => {
@@ -68,4 +68,13 @@ export const cancelPaymentLink = async (paymentLinkId: string): Promise<void> =>
   } catch (err) {
     console.error(`Failed to cancel Razorpay payment link ${paymentLinkId}:`, err);
   }
+};
+
+// Webhook signature verification — MUST run against the raw, unparsed
+// request body (Razorpay's own docs: "Do not parse or cast the webhook
+// request body" before computing the HMAC). See routes/webhooks.ts's
+// express.raw() and webhookController.ts, which pass rawBody straight from
+// that Buffer without ever JSON.parse-ing it first.
+export const verifyWebhookSignature = (rawBody: string, signature: string): boolean => {
+  return Razorpay.validateWebhookSignature(rawBody, signature, RAZORPAY_WEBHOOK_SECRET);
 };

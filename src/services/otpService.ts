@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import redis from '../lib/redis';
-import { sendSms, sendWhatsApp, formatTwilioError } from '../lib/twilioClient';
+import { sendWhatsAppTemplate, formatMsg91Error, resolveWhatsappFrom } from '../lib/msg91Client';
+import { MSG91_TEMPLATES } from '../constants/msg91Templates';
 import { MOCK_AUTH } from '../config';
 
 const OTP_KEY_PREFIX = 'otp:';
@@ -69,21 +70,26 @@ export const checkOtpRateLimit = async (phoneNumber: string): Promise<boolean> =
 // OTP goes to a staff/admin phone (users table), not a customer, so it is
 // deliberately NOT logged to communications_log — that table's customer_id
 // is NOT NULL and its message_type enum has no "otp" value; it's scoped to
-// customer-facing comms. Both channels always fire, never one as a fallback
-// for the other, per CLAUDE.md.
+// customer-facing comms. WhatsApp-only (CLAUDE.md "Messaging migration —
+// MSG91, WhatsApp-only") — SMS is no longer sent anywhere, including here;
+// this is a deliberate, confirmed accepted-risk decision (a staff member
+// has no fallback channel if WhatsApp delivery fails), not an oversight —
+// do not silently reintroduce an SMS fallback later without checking.
 export const sendOtpViaChannels = async (phoneNumber: string, otp: string): Promise<void> => {
-  const body = `Your Peach & Blue login code is ${otp}. It expires shortly — do not share this code.`;
-
-  const [whatsappResult, smsResult] = await Promise.allSettled([
-    sendWhatsApp(phoneNumber, body),
-    sendSms(phoneNumber, body),
-  ]);
-
-  if (whatsappResult.status === 'rejected') {
-    console.error(`Failed to send OTP via WhatsApp to ${phoneNumber}: ${formatTwilioError(whatsappResult.reason)}`);
-  }
-
-  if (smsResult.status === 'rejected') {
-    console.error(`Failed to send OTP via SMS to ${phoneNumber}: ${formatTwilioError(smsResult.reason)}`);
+  try {
+    // Login OTP is an authentication mechanism, not a branch/order-scoped
+    // customer or admin message — the per-branch WhatsApp sender
+    // requirement (CLAUDE.md "Branches") is about messages tied to a
+    // specific branch's order/customer activity, which a login attempt
+    // isn't. Sent from the shared fallback number rather than resolving a
+    // branch here.
+    await sendWhatsAppTemplate({
+      toPhoneNumber: phoneNumber,
+      fromNumber: resolveWhatsappFrom(undefined),
+      templateName: MSG91_TEMPLATES.otpLogin.name,
+      bodyVariables: [otp],
+    });
+  } catch (err) {
+    console.error(`Failed to send OTP via WhatsApp to ${phoneNumber}: ${formatMsg91Error(err)}`);
   }
 };

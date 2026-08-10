@@ -1,7 +1,9 @@
 import crypto from 'crypto';
 import { OrderInternalStatus, UserRole, PaymentMethod } from '../types/enums';
 import prisma from '../prisma/client';
-import { sendNotification } from './notificationService';
+import { sendNotification, notifyAdminsOfPickup } from './notificationService';
+import { resolveWhatsappFrom } from '../lib/msg91Client';
+import { MSG91_TEMPLATES } from '../constants/msg91Templates';
 import { recordCharge } from './ledgerService';
 import { sendToUser, sendToUsers } from './pushService';
 import { customerSelectForRole } from '../utils/roleAwareSelect';
@@ -212,15 +214,44 @@ export const createOrder = async (input: CreateOrderInput) => {
     });
   });
 
-  // Pickup confirmation — WhatsApp + SMS, always both (CLAUDE.md). Turnaround
-  // time (24–48 hours, businessInfo.turnaroundTimeHours in the garment seed
-  // data) is informational here only; it's not repeated on delivery.
+  // Pickup confirmation — WhatsApp only (CLAUDE.md "Messaging migration").
+  // Turnaround time (24–48 hours, businessInfo.turnaroundTimeHours in the
+  // garment seed data) is fixed template text, not a variable here — it's
+  // informational only and not repeated on delivery.
   await sendNotification(
     order.customer,
     'pickup_confirmation',
-    `Your Peach & Blue order ${order.orderNumber} has been picked up. Estimated amount: ₹${estimatedAmount}. Turnaround time is typically 24–48 hours. We'll notify you before delivery if the amount changes.`,
+    {
+      name: MSG91_TEMPLATES.pickupConfirmation.name,
+      bodyVariables: [order.orderNumber, String(estimatedAmount)],
+    },
     order.id
   );
+
+  // Admin WhatsApp pickup notification (CLAUDE.md order workflow, item 4a) —
+  // the branch-scoped admin(s) for this order's branch, or every unscoped
+  // admin if the branch has none of its own; excludes the creator
+  // themselves when an admin logs the pickup directly (same exclusion the
+  // "Amount Revised" push below already uses for the equivalent case).
+  const pickupAdmins = await prisma.user.findMany({
+    where: {
+      role: 'admin',
+      id: { not: input.createdById },
+      OR: [{ branchId: null }, { branchId: input.branchId }],
+    },
+    select: { id: true, phoneNumber: true },
+  });
+
+  if (pickupAdmins.length > 0) {
+    await notifyAdminsOfPickup(
+      pickupAdmins,
+      {
+        name: MSG91_TEMPLATES.adminPickupNotification.name,
+        bodyVariables: [input.locationLabel, order.orderNumber, String(estimatedAmount)],
+      },
+      resolveWhatsappFrom(order.customer.branch.whatsappNumber)
+    );
+  }
 
   // "New order assigned" push — only fires when an admin logs an order on
   // behalf of a specific staff member other than themselves; a staff member
@@ -244,9 +275,23 @@ export const createOrder = async (input: CreateOrderInput) => {
       sendNotification(
         order.customer,
         'pickup_confirmation',
-        `Here is your invoice for order ${order.orderNumber}. Amount: ₹${invoice.amount}. Pay online: ${invoice.paymentLinkUrl}`,
-        order.id,
-        invoice.pdfUrl ?? undefined
+        {
+          name: MSG91_TEMPLATES.invoiceReady.name,
+          // paymentLinkUrl is null for monthly-billing orders (invoiceService
+          // no longer creates a real Razorpay link for them — settled via
+          // the ledger, not per-order) — the template's fixed text can't
+          // itself branch, so the caller computes which sentence to pass as
+          // this variable instead of interpolating "Pay online: null".
+          bodyVariables: [
+            order.orderNumber,
+            String(invoice.amount),
+            invoice.paymentLinkUrl
+              ? `Pay online: ${invoice.paymentLinkUrl}`
+              : 'This will be settled via your monthly statement.',
+          ],
+          headerMediaUrl: invoice.pdfUrl ?? undefined,
+        },
+        order.id
       )
     )
     .catch((err) => console.error(`Invoice generation failed for order ${order.id}:`, err));
@@ -392,6 +437,13 @@ export const updateStatus = async (
 
 const PAYMENT_METHODS: PaymentMethod[] = ['cash', 'upi', 'net_banking', 'credit_card'];
 
+const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  cash: 'Cash',
+  upi: 'UPI',
+  net_banking: 'Net Banking',
+  credit_card: 'Card',
+};
+
 // CLAUDE.md "Payment marking — real gap": order_payment.paymentStatus
 // existed but nothing ever flipped it — this closes that gap, bundled into
 // the same delivery action a staff member is already standing at the door
@@ -461,13 +513,114 @@ export const recordPayment = async (orderId: string, paymentMethod: PaymentMetho
   return updatedOrder;
 };
 
+export type OnlinePaymentResult =
+  | { status: 'paid' }
+  | { status: 'already_paid' }
+  | { status: 'monthly_billing_anomaly' }
+  | { status: 'order_not_found' };
+
+// Webhook-driven counterpart to recordPayment above (webhookController.ts,
+// customer paid the Razorpay link directly) — deliberately separate rather
+// than reused, since recordPayment's signature assumes a human requester
+// (role/staff-ownership check, recordedById as a required actor) that
+// doesn't apply to an automated callback. No auth/role args: signature
+// verification already happened in the webhook controller before this is
+// ever called — that's this function's entire trust boundary.
+export const recordOnlinePayment = async (
+  orderId: string,
+  paymentMethod: PaymentMethod,
+  amountPaid: number,
+  razorpayPaymentId: string,
+  rawRazorpayMethod: string
+): Promise<OnlinePaymentResult> => {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: { customer: { include: { branch: { select: { whatsappNumber: true } } } } },
+  });
+
+  if (!order) {
+    return { status: 'order_not_found' };
+  }
+
+  // Webhooks can be delivered more than once for the same event (Razorpay's
+  // own documented behavior) — idempotent no-op rather than a duplicate
+  // Payment row on a redelivery.
+  if (order.paymentStatus === 'paid') {
+    return { status: 'already_paid' };
+  }
+
+  // Should no longer be reachable going forward (invoiceService.ts stopped
+  // creating real payment links for monthly-billing orders — see CLAUDE.md
+  // "Razorpay webhook"), but a legacy link created before that fix could
+  // still be paid. Deliberately NOT reconciled automatically here (would
+  // risk double-counting against the existing delivery-time ledger charge
+  // in updateStatus) — surfaced as a distinct result so the controller can
+  // log it loudly for manual admin reconciliation instead.
+  if (order.billingMode === 'monthly_billing') {
+    return { status: 'monthly_billing_anomaly' };
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.payment.create({
+      data: {
+        orderId,
+        customerId: order.customerId,
+        amount: amountPaid,
+        paymentType: 'order_payment',
+        paymentMethod,
+        status: 'success',
+        razorpayPaymentId,
+        recordedById: null,
+        // Preserves the exact Razorpay method (e.g. "wallet", "emi") even
+        // when it had to be approximated into the constrained paymentMethod
+        // column above — see webhookController.ts's RAZORPAY_METHOD_MAP.
+        notes: `Razorpay method: ${rawRazorpayMethod}`,
+      },
+    });
+
+    await tx.order.update({
+      where: { id: orderId },
+      data: { paymentMethod, paymentStatus: 'paid' },
+    });
+
+    await tx.invoice.updateMany({
+      where: { orderId },
+      data: { paymentLinkStatus: 'paid' },
+    });
+  });
+
+  // CLAUDE.md: WhatsApp + SMS always fire together for every customer
+  // notification, never one as a fallback for the other — same as every
+  // other sendNotification call site in this file. 'payment_receipt' was
+  // already a valid CommunicationMessageType/live DB constraint value, just
+  // never actually used by any code path until now. Safe to await directly
+  // like every other call site here: sendNotification internally uses
+  // Promise.allSettled for the actual WhatsApp/SMS sends, so a channel
+  // failure is logged (communicationLog status: 'failed') rather than
+  // thrown — it can't undo the payment that was already committed above.
+  await sendNotification(
+    order.customer,
+    'payment_receipt',
+    {
+      name: MSG91_TEMPLATES.paymentReceipt.name,
+      bodyVariables: [order.orderNumber, String(amountPaid), PAYMENT_METHOD_LABELS[paymentMethod]],
+    },
+    orderId
+  );
+
+  return { status: 'paid' };
+};
+
 export const reviseAmount = async (
   orderId: string,
   newAmount: number,
   reason: string,
   revisedById: string
 ) => {
-  const order = await prisma.order.findUnique({ where: { id: orderId }, include: { customer: true } });
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: { customer: { include: { branch: { select: { whatsappNumber: true } } } } },
+  });
 
   if (!order) {
     const err = new Error('Order not found.');
@@ -491,7 +644,7 @@ export const reviseAmount = async (
     return tx.order.update({
       where: { id: orderId },
       data: { finalAmount: newAmount, amountWasRevised: true },
-      include: { customer: true },
+      include: { customer: { include: { branch: { select: { whatsappNumber: true } } } } },
     });
   });
 
@@ -499,7 +652,10 @@ export const reviseAmount = async (
   await sendNotification(
     updatedOrder.customer,
     'amount_revision',
-    `Your Peach & Blue order ${order.orderNumber}'s amount was revised to ₹${newAmount}. Reason: ${reason}`,
+    {
+      name: MSG91_TEMPLATES.amountRevision.name,
+      bodyVariables: [order.orderNumber, String(newAmount), reason],
+    },
     orderId
   );
 

@@ -16,7 +16,7 @@ import {
   PricingUnit,
 } from '../../api/garments';
 import { getServiceTag, SPECIAL_CARE_TAG } from '../../theme/serviceTag';
-import { ColorTokens, radii, spacing } from '../../theme/theme';
+import { ColorTokens, fonts, radii, spacing } from '../../theme/theme';
 
 export const GarmentCatalogueScreen: React.FC = () => {
   const { colors } = useTheme();
@@ -374,7 +374,8 @@ const createStyles = (colors: ColorTokens) =>
       paddingBottom: 14,
     },
     title: {
-      fontFamily: 'Lora_600SemiBold',
+      fontFamily: fonts.headingSemiBold,
+      fontWeight: '600',
       fontSize: 16,
       color: colors.cream,
     },
@@ -450,7 +451,8 @@ const createStyles = (colors: ColorTokens) =>
       padding: spacing.lg,
     },
     modalTitle: {
-      fontFamily: 'Lora_600SemiBold',
+      fontFamily: fonts.headingSemiBold,
+      fontWeight: '600',
       fontSize: 15,
       color: colors.navyDeep,
       marginBottom: spacing.md,

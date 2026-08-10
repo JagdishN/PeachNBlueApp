@@ -61,7 +61,7 @@ earlier version of this flow, **`STAFF_TEST_PHONE`/`ADMIN_TEST_PHONE` must
 be real phone numbers already seeded in the target database** with the
 matching role — an unregistered number 404s here exactly like it would in
 production. With `MOCK_AUTH` on, the only thing that's faked is OTP
-delivery: the code is always the fixed `123456` instead of a real Twilio
+delivery: the code is always the fixed `123456` instead of a real MSG91
 send, so you don't need a working OTP path to run this — you do still need
 at least one real staff account and one real admin account to log in as.
 If no staff account exists yet in your target DB, create one first via the
