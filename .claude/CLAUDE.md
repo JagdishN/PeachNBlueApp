@@ -38,13 +38,23 @@ Customers reference a branch (`customers.branch_id`) and a `location_label` (fre
 
 **Admin WhatsApp notification on pickup — IMPLEMENTED (2026-08-10).** See "Order workflow" item 4a below.
 
+**Important, confirmed clarification on which numbers are which — do not conflate these (2026-08-10):**
+- **`+91 93981 25151` is the client's own number for manually taking orders by phone/WhatsApp — this is NEVER connected to MSG91's API and never sends automated messages.** It was briefly, mistakenly connected to MSG91 during setup (and, as a direct consequence, was what `Branch.whatsappNumber` held in the live DB until this note — see below) and has since been disconnected; don't reconnect it.
+- **Each branch gets a separate, dedicated number specifically for MSG91/API use** — this is what actually sends automated pickup confirmations, invoices, delivery updates, and admin notifications. **Branch 1's dedicated number is confirmed: `+91 70137 25151`.**
+- When a new branch opens, the client provides a new dedicated number for that branch, connected to MSG91 the same way — added under the **same Meta WABA** as existing branch numbers (per the setup recommendation below), so templates already approved apply automatically without re-approval per branch.
+- A number connected to MSG91's WhatsApp Business API **cannot simultaneously run as a normal WhatsApp/WhatsApp Business phone app** — this is why the client's manual order-taking number must stay separate from every branch's API-connected number.
+
+**Fixed in the live DB (2026-08-10), verified before changing anything**: the Attapur branch's `whatsappNumber` was `+919398125151` (the manual number, per the clarification above — confirmed directly against the live DB before touching it, not assumed from the report alone) — updated to the correct dedicated number `+917013725151`. `phoneNumber` is untouched, since that field's purpose (the number customers manually call/message) is correctly still the manual number.
+
+**Setup recommendation for MSG91/Meta**: register every branch's number under the **same Meta Business Manager / same WhatsApp Business Account (WABA)**, not a separate WABA per branch. Message templates are approved at the WABA level — doing this means templates approved once work across all branch numbers automatically, rather than needing re-approval every time a new branch opens.
+
 **First branch, created in the live DB:**
 ```json
 {
   "branchName": "Attapur",
   "branchType": "area",
   "phoneNumber": "+919398125151",
-  "whatsappNumber": "+919398125151",
+  "whatsappNumber": "+917013725151",
   "address": "Attapur, Hyderabad",
   "city": "Hyderabad – 500048"
 }
@@ -63,7 +73,7 @@ Customers reference a branch (`customers.branch_id`) and a `location_label` (fre
 4a. **Admin WhatsApp pickup notification — IMPLEMENTED (2026-08-10).** When staff confirms the item count at pickup (order creation), the branch-scoped admin(s) for that order's branch — or every unscoped/global admin if the branch has none of its own — get a WhatsApp message too, not just the customer. `orderService.ts::createOrder` queries `prisma.user.findMany({ where: { role: 'admin', id: { not: input.createdById }, OR: [{ branchId: null }, { branchId: input.branchId }] } })` (same branch-resolution pattern `reviseAmount`'s existing "Amount Revised" push notification already uses, and excludes the creator themselves the same way, for the case an admin logs a pickup directly) and sends via the new `notificationService.ts::notifyAdminsOfPickup`. Deliberately **WhatsApp only, no SMS, no `communications_log` row** — this targets internal admin `User` rows, not a customer; the "both channels always fire" non-negotiable above is specifically about customer-facing notifications, and `communications_log.customer_id` is a required FK with no admin-notification concept (same reasoning push notifications via `pushService.ts` already don't log there either). Sent from the order's branch's own WhatsApp number (see "Branches" above). Tests: `src/__tests__/orderService.test.ts`'s "createOrder — admin pickup notification" block (query construction, correct fromNumber, no-admins-found no-op), `src/__tests__/notificationService.test.ts`'s `notifyAdminsOfPickup` block (per-admin send, one admin's failure doesn't block the others).
 
 5. Order status becomes **Picked/Pending** (this is the only pre-delivery status the customer sees). Internally, staff/admin can track finer sub-stages — keep `internal_status` separate from the customer-facing status; derive the customer-facing label in application code rather than storing it as a second column that can drift out of sync.
-6. **Before delivery, admin may revise the final amount.** If revised: log old amount, new amount, reason, and who changed it (`order_amount_revisions`), and send the customer a WhatsApp + SMS message with the revised amount and the reason.
+6. **Before delivery, admin may revise the final amount.** If revised: log old amount, new amount, reason, and who changed it (`order_amount_revisions`), and send the customer a WhatsApp message (see "Messaging migration — MSG91, WhatsApp-only" — SMS is no longer sent) with the revised amount and the reason.
 7. At delivery, the executive **verifies payment status** and marks the order both **Delivered** and **Payment Received**. Supported payment modes, confirmed as four distinct types: **Cash, UPI, Net Banking, Credit Card** — `paymentMethod` needs to support all four distinctly, not the earlier two-value `qr_online | cash`.
 8. Customer/order/payment/delivery data is kept **separately per flat** via `Customer.locationLabel` + `branchId`. **Partially superseded (2026-07-25, see "Customer phone number uniqueness — RESOLVED" below)**: this no longer means a phone number can span multiple flats — `Customer.phoneNumber` is now globally unique, one phone number = one customer/flat, period.
 
@@ -362,6 +372,10 @@ Two real limitations apply on the trial tier, both matter for testing expectatio
 **Tests**: `src/__tests__/msg91Client.test.ts` (replaces `twilioClient.test.ts` — request shape, header/body composition, `body_1`/`body_2`/... mapping, `header_1` document component, error surfacing, `resolveWhatsappFrom` fallback), `src/__tests__/notificationService.test.ts` (rewritten for the template signature — branch-number resolution, `communications_log` sent/failed rows, `notifyAdminsOfPickup` never logging), plus updated assertions in `src/__tests__/orderService.test.ts` and `src/__tests__/invoiceReissue.test.ts` wherever they previously asserted on the old free-text body shape. `tsc --noEmit` clean both sides, backend suite **223/223 passing** (was 220).
 
 **Not done, and can't be from this environment**: real end-to-end verification (no MSG91 template is approved yet, so nothing can actually send — see the sequencing decision above), and confirming the request/response shape in `msg91Client.ts` against a real account.
+
+**Update (2026-08-10): branch number setup progressing on the client's end, real account details reported back — see "Branches" above for the sender-number clarification/fix.**
+
+**TEMPORARY, needs revisiting: OTP is currently sent via a Utility-category WhatsApp template, not Authentication.** Meta blocked Authentication-category template creation on the branch's new dedicated number ("This WhatsApp Business account does not have permission to create message template") — likely either (a) the new-number volume/verification gate Authentication templates require, or (b) the client's Facebook account needing two-factor authentication enabled (in progress as of this writing) before Meta allows certain Business Manager actions. Utility-category OTP works functionally identically for the login flow, just without Meta's built-in anti-phishing protections specific to Authentication templates (e.g. discouraging forwarding the code). **Once the client's 2FA is confirmed enabled and/or the number builds up message volume, retry creating the proper Authentication template and switch `MSG91_TEMPLATES.otpLogin`'s `name` to it** — don't leave this as a permanent state without circling back. No code change needed to make that switch, since the template category isn't something this codebase's request shape encodes — it's purely which approved template name `otpLogin` points at.
 
 ---
 
