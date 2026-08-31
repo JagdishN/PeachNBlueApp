@@ -20,7 +20,7 @@ import {
   Customer,
 } from '../../api/customers';
 import { fetchBranches, Branch } from '../../api/branches';
-import { ColorTokens, radii, spacing } from '../../theme/theme';
+import { ColorTokens, fonts, radii, spacing } from '../../theme/theme';
 
 const BILLING_MODE_LABEL: Record<BillingMode, string> = {
   daily: 'Daily',
@@ -474,7 +474,8 @@ const createStyles = (colors: ColorTokens) =>
       paddingBottom: 14,
     },
     title: {
-      fontFamily: 'Lora_600SemiBold',
+      fontFamily: fonts.headingSemiBold,
+      fontWeight: '600',
       fontSize: 16,
       color: colors.cream,
     },
@@ -564,7 +565,8 @@ const createStyles = (colors: ColorTokens) =>
       maxHeight: '85%',
     },
     modalTitle: {
-      fontFamily: 'Lora_600SemiBold',
+      fontFamily: fonts.headingSemiBold,
+      fontWeight: '600',
       fontSize: 15,
       color: colors.navyDeep,
     },

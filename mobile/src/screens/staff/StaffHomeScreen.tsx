@@ -9,7 +9,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { fetchBranch, Branch } from '../../api/branches';
 import { listOrders, Order, InternalStatus } from '../../api/orders';
 import { getDisplayName } from '../../utils/displayName';
-import { ColorTokens, radii, spacing } from '../../theme/theme';
+import { ColorTokens, fonts, radii, spacing } from '../../theme/theme';
 import type { StaffStackParamList } from '../../navigation/StaffStack';
 
 type Nav = NativeStackNavigationProp<StaffStackParamList, 'StaffHome'>;
@@ -152,7 +152,8 @@ const createStyles = (colors: ColorTokens) =>
       color: colors.cream,
     },
     title: {
-      fontFamily: 'Lora_600SemiBold',
+      fontFamily: fonts.headingSemiBold,
+      fontWeight: '600',
       fontSize: 16,
       color: colors.cream,
     },

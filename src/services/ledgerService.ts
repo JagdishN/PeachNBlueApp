@@ -1,5 +1,6 @@
 import prisma from '../prisma/client';
 import { sendNotification } from './notificationService';
+import { MSG91_TEMPLATES } from '../constants/msg91Templates';
 
 // Records both an entry_type='charge'/'payment' row AND its running
 // balance_after atomically — a payment update and its ledger entry must
@@ -91,7 +92,10 @@ export const getAgingReport = async (branchId?: string): Promise<AgingRow[]> => 
 };
 
 export const sendReminder = async (customerId: string): Promise<void> => {
-  const customer = await prisma.customer.findUnique({ where: { id: customerId } });
+  const customer = await prisma.customer.findUnique({
+    where: { id: customerId },
+    include: { branch: { select: { whatsappNumber: true } } },
+  });
 
   if (!customer) {
     const err = new Error('Customer not found.');
@@ -106,9 +110,8 @@ export const sendReminder = async (customerId: string): Promise<void> => {
 
   const balance = Number(lastEntry?.balanceAfter ?? 0);
 
-  await sendNotification(
-    customer,
-    'payment_reminder',
-    `Your Peach & Blue account has an outstanding balance of ₹${balance}. Please settle at your earliest convenience.`
-  );
+  await sendNotification(customer, 'payment_reminder', {
+    name: MSG91_TEMPLATES.paymentReminder.name,
+    bodyVariables: [String(balance)],
+  });
 };

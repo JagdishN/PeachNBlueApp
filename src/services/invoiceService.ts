@@ -79,19 +79,35 @@ export const generateInvoice = async (orderId: string): Promise<GeneratedInvoice
 
   const amount = discountedSubtotal + additionalChargesTotal;
 
-  const paymentLink = await createPaymentLink({
-    amount,
-    orderNumber: order.orderNumber,
-    orderId: order.id,
-    customerName: order.customer.fullName,
-    customerPhone: order.customer.phoneNumber,
-  });
+  // Monthly-billing customers settle via the ledger, not a per-order payment
+  // (CLAUDE.md "Payment marking" / orderService.ts's recordPayment already
+  // rejects a manual payment attempt for them) — a real, payable Razorpay
+  // link contradicted that even before the webhook existed, since paying it
+  // would have no corresponding "mark paid" path. Decided (2026-08-09,
+  // confirmed via AskUserQuestion) to fix this at the source rather than
+  // teach the webhook to reconcile a payment that shouldn't be possible:
+  // skip real payment-link creation entirely for these orders. The PDF/QR
+  // invoice still goes out — renderInvoicePdf already handles a null
+  // paymentLinkUrl by omitting the QR/link — just with no live payable link.
+  const isMonthlyBilling = order.billingMode === 'monthly_billing';
+
+  const paymentLink = isMonthlyBilling
+    ? null
+    : await createPaymentLink({
+        amount,
+        orderNumber: order.orderNumber,
+        orderId: order.id,
+        customerName: order.customer.fullName,
+        customerPhone: order.customer.phoneNumber,
+      });
 
   const previousInvoice = order.invoice;
   if (previousInvoice?.razorpayPaymentLinkId) {
     // Best-effort — CLAUDE.md: the part that actually prevents a
     // double-payment/stale-amount risk. cancelPaymentLink swallows its own
-    // failures, so this never blocks the new link from going out.
+    // failures, so this never blocks the new link from going out. Runs
+    // unconditionally (even for a now-monthly-billing order) to clean up a
+    // legacy real link from before the fix above existed.
     await cancelPaymentLink(previousInvoice.razorpayPaymentLinkId);
   }
 
@@ -116,7 +132,7 @@ export const generateInvoice = async (orderId: string): Promise<GeneratedInvoice
     discountPercent,
     additionalChargesTotal,
     amount,
-    paymentLinkUrl: paymentLink.shortUrl,
+    paymentLinkUrl: paymentLink?.shortUrl ?? null,
     turnaroundLabel: TURNAROUND_LABEL,
   });
 
@@ -125,9 +141,9 @@ export const generateInvoice = async (orderId: string): Promise<GeneratedInvoice
   const invoiceData = {
     invoiceNumber,
     pdfUrl,
-    razorpayPaymentLinkId: paymentLink.id,
-    paymentLinkUrl: paymentLink.shortUrl,
-    paymentLinkStatus: 'created',
+    razorpayPaymentLinkId: paymentLink?.id ?? null,
+    paymentLinkUrl: paymentLink?.shortUrl ?? null,
+    paymentLinkStatus: paymentLink ? 'created' : null,
     amount,
     version,
   };

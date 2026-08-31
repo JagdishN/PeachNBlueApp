@@ -6,6 +6,7 @@ export interface AuthPayload {
   userId: string;
   role: 'staff' | 'admin';
   branchId: string | null;
+  type?: string;
 }
 
 export interface AuthRequest extends Request {
@@ -24,6 +25,16 @@ export const authenticate = (req: AuthRequest, res: Response, next: NextFunction
 
   try {
     const payload = jwt.verify(token, JWT_SECRET) as AuthPayload;
+
+    // A refresh token (see authController.ts) is only ever valid at
+    // POST /api/auth/refresh-token — rejecting it here means a stolen
+    // refresh token can't also be used directly as a long-lived access
+    // token for its full 2-day life.
+    if (payload.type === 'refresh') {
+      res.status(401).json({ error: 'Invalid or expired token' });
+      return;
+    }
+
     req.auth = payload;
     next();
   } catch (error) {

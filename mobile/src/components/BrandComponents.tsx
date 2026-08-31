@@ -59,5 +59,6 @@ const styles = StyleSheet.create({
   logoAmp: {
     fontFamily: fonts.headingItalic,
     fontStyle: 'italic',
+    fontWeight: '600',
   },
 });

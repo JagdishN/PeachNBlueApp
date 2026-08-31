@@ -202,6 +202,58 @@ describe('generateInvoice — reissue (prior Invoice row exists)', () => {
 
 });
 
+// CLAUDE.md "Razorpay webhook — implemented" / the AskUserQuestion decision:
+// monthly-billing customers settle via the ledger, not a real payable link —
+// generating one anyway (the pre-existing behavior) contradicted that even
+// before the webhook made it consequential. Fixed at the source here rather
+// than taught to the webhook.
+describe('generateInvoice — monthly-billing orders never get a real payment link', () => {
+  const MONTHLY_ORDER = { ...BASE_ORDER, billingMode: 'monthly_billing' };
+
+  it('does not call createPaymentLink', async () => {
+    prismaMock.order.findUnique.mockResolvedValue(MONTHLY_ORDER as any);
+
+    await generateInvoice('order-1');
+
+    expect(createPaymentLinkMock).not.toHaveBeenCalled();
+  });
+
+  it('persists null razorpayPaymentLinkId/paymentLinkUrl and a null paymentLinkStatus', async () => {
+    prismaMock.order.findUnique.mockResolvedValue(MONTHLY_ORDER as any);
+
+    const result = await generateInvoice('order-1');
+
+    expect(result.paymentLinkUrl).toBeNull();
+    const upsertArgs = prismaMock.invoice.upsert.mock.calls[0][0] as any;
+    expect(upsertArgs.create).toMatchObject({
+      razorpayPaymentLinkId: null,
+      paymentLinkUrl: null,
+      paymentLinkStatus: null,
+    });
+  });
+
+  it('still cancels a legacy real link from before this fix existed (defensive cleanup, harmless no-op otherwise)', async () => {
+    prismaMock.order.findUnique.mockResolvedValue({
+      ...MONTHLY_ORDER,
+      invoice: { id: 'invoice-1', invoiceNumber: 'PB-INV-AAAA1111', razorpayPaymentLinkId: 'plink_legacy', version: 1 },
+    } as any);
+
+    await generateInvoice('order-1');
+
+    expect(cancelPaymentLinkMock).toHaveBeenCalledWith('plink_legacy');
+    expect(createPaymentLinkMock).not.toHaveBeenCalled();
+  });
+
+  it('still generates and uploads the PDF (invoice, just no live link)', async () => {
+    prismaMock.order.findUnique.mockResolvedValue(MONTHLY_ORDER as any);
+
+    const result = await generateInvoice('order-1');
+
+    expect(uploadInvoicePdfMock).toHaveBeenCalled();
+    expect(result.pdfUrl).not.toBeNull();
+  });
+});
+
 describe('generateInvoice — order not found', () => {
   it('throws when the order does not exist', async () => {
     prismaMock.order.findUnique.mockResolvedValue(null);

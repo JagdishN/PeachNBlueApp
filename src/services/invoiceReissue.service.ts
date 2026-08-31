@@ -1,6 +1,7 @@
 import prisma from '../prisma/client';
 import { generateInvoice } from './invoiceService';
 import { sendNotification } from './notificationService';
+import { MSG91_TEMPLATES } from '../constants/msg91Templates';
 
 // CLAUDE.md "Per-flat discounts — RESOLVED": both triggers (discount
 // applied, amount manually revised) call this one shared function, which
@@ -13,7 +14,9 @@ export const reissueInvoice = async (orderId: string): Promise<void> => {
     where: { id: orderId },
     select: {
       orderNumber: true,
-      customer: { select: { id: true, phoneNumber: true, whatsappNumber: true } },
+      customer: {
+        select: { id: true, phoneNumber: true, whatsappNumber: true, branch: { select: { whatsappNumber: true } } },
+      },
     },
   });
 
@@ -23,12 +26,22 @@ export const reissueInvoice = async (orderId: string): Promise<void> => {
 
   const invoice = await generateInvoice(orderId);
 
+  // paymentLinkUrl is null for monthly-billing orders (see invoiceService.ts)
+  // — this reissue path still runs for them (a discount change still affects
+  // what they owe via the ledger), just with no live link to reference.
   await sendNotification(
     order.customer,
     'invoice_reissued',
-    `Your Peach & Blue order ${order.orderNumber}'s invoice has been updated. Amount to be paid: ₹${invoice.amount}. New payment link: ${invoice.paymentLinkUrl}`,
-    orderId,
-    invoice.pdfUrl ?? undefined
+    {
+      name: MSG91_TEMPLATES.invoiceReissued.name,
+      bodyVariables: [
+        order.orderNumber,
+        String(invoice.amount),
+        invoice.paymentLinkUrl ? `New payment link: ${invoice.paymentLinkUrl}` : 'This will be settled via your monthly statement.',
+      ],
+      headerMediaUrl: invoice.pdfUrl ?? undefined,
+    },
+    orderId
   );
 };
 

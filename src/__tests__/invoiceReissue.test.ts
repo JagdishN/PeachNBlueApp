@@ -16,6 +16,7 @@ import prisma from '../prisma/client';
 import { generateInvoice } from '../services/invoiceService';
 import { sendNotification } from '../services/notificationService';
 import { reissueInvoice, reissueAllOpenInvoicesForCustomer } from '../services/invoiceReissue.service';
+import { MSG91_TEMPLATES } from '../constants/msg91Templates';
 
 const prismaMock = prisma as unknown as DeepMockProxy<PrismaClient>;
 const generateInvoiceMock = generateInvoice as jest.Mock;
@@ -48,7 +49,7 @@ describe('reissueInvoice', () => {
     expect(generateInvoiceMock).toHaveBeenCalledWith('order-1');
   });
 
-  it('sends an invoice_reissued notification with the new amount, link, and PDF as WhatsApp media', async () => {
+  it('sends an invoice_reissued notification with the new amount, link, and PDF as a document header', async () => {
     prismaMock.order.findUnique.mockResolvedValue(ORDER as any);
     generateInvoiceMock.mockResolvedValue({
       amount: 900,
@@ -62,11 +63,13 @@ describe('reissueInvoice', () => {
     expect(sendNotificationMock).toHaveBeenCalledWith(
       ORDER.customer,
       'invoice_reissued',
-      expect.stringContaining('900'),
-      'order-1',
-      'https://storage.example/new.pdf'
+      {
+        name: MSG91_TEMPLATES.invoiceReissued.name,
+        bodyVariables: ['PB-ABCD1234', '900', 'New payment link: https://rzp.io/l/new'],
+        headerMediaUrl: 'https://storage.example/new.pdf',
+      },
+      'order-1'
     );
-    expect(sendNotificationMock.mock.calls[0][2]).toContain('https://rzp.io/l/new');
   });
 
   it('throws when the order does not exist, without calling generateInvoice', async () => {
@@ -74,6 +77,26 @@ describe('reissueInvoice', () => {
 
     await expect(reissueInvoice('missing-order')).rejects.toThrow('not found');
     expect(generateInvoiceMock).not.toHaveBeenCalled();
+  });
+
+  // invoiceService.ts no longer creates a real Razorpay link for
+  // monthly-billing orders — paymentLinkUrl comes back null. Regression
+  // guard against interpolating "New payment link: null" into a template
+  // variable.
+  it('sends a monthly-statement message, not a broken null link, when paymentLinkUrl is null', async () => {
+    prismaMock.order.findUnique.mockResolvedValue(ORDER as any);
+    generateInvoiceMock.mockResolvedValue({
+      amount: 900,
+      paymentLinkUrl: null,
+      pdfUrl: 'https://storage.example/new.pdf',
+      wasReissue: true,
+    });
+
+    await reissueInvoice('order-1');
+
+    const template = sendNotificationMock.mock.calls[0][2];
+    expect(template.bodyVariables.join(' ')).not.toContain('null');
+    expect(template.bodyVariables).toContain('This will be settled via your monthly statement.');
   });
 });
 

@@ -49,8 +49,8 @@ export const LoginScreen: React.FC = () => {
     setError(null);
     setLoading(true);
     try {
-      const { token, user } = await verifyOtp(phoneNumber, otp.trim());
-      await signIn(token, user);
+      const { token, refreshToken, user } = await verifyOtp(phoneNumber, otp.trim());
+      await signIn(token, refreshToken, user);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Sign in failed. Try again.');
     } finally {

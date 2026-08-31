@@ -12,7 +12,7 @@ import { fetchGarments, Garment } from '../../api/garments';
 import { createOrder } from '../../api/orders';
 import { searchCustomers, createCustomer, markBagIssued, CustomerLookup } from '../../api/customers';
 import { ApiError } from '../../api/client';
-import { ColorTokens, radii, spacing } from '../../theme/theme';
+import { ColorTokens, fonts, radii, spacing } from '../../theme/theme';
 import { getServiceTag, SPECIAL_CARE_TAG } from '../../theme/serviceTag';
 import type { StaffStackParamList } from '../../navigation/StaffStack';
 
@@ -657,7 +657,8 @@ const createStyles = (colors: ColorTokens) =>
       paddingBottom: 14,
     },
     title: {
-      fontFamily: 'Lora_600SemiBold',
+      fontFamily: fonts.headingSemiBold,
+      fontWeight: '600',
       fontSize: 16,
       color: colors.cream,
     },

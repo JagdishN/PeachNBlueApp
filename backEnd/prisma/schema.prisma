@@ -323,8 +323,13 @@ model Payment {
   razorpayOrderId  String? @map("razorpay_order_id") @db.VarChar(100)
   // Values: pending | success | failed | refunded
   status          String   @default("pending") @db.VarChar(20)
-  recordedBy      User     @relation(fields: [recordedById], references: [id])
-  recordedById    String   @map("recorded_by") @db.Uuid
+  // Nullable: a staff/admin-recorded payment (orderService.ts::recordPayment)
+  // always has a human actor here, but a Razorpay-webhook-driven payment
+  // (webhookController.ts, customer paid online, nobody at Peach & Blue
+  // touched it) genuinely has none — null means "the system," not a missing
+  // audit trail for a human action.
+  recordedBy      User?    @relation(fields: [recordedById], references: [id])
+  recordedById    String?  @map("recorded_by") @db.Uuid
   notes           String?
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 

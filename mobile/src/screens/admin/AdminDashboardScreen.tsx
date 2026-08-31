@@ -11,7 +11,7 @@ import { fetchBranch, Branch } from '../../api/branches';
 import { fetchSummary, ReportSummary } from '../../api/reports';
 import { fetchAgingReport, AgingRow } from '../../api/ledger';
 import { listOrders, Order } from '../../api/orders';
-import { ColorTokens, radii, spacing } from '../../theme/theme';
+import { ColorTokens, fonts, radii, spacing } from '../../theme/theme';
 import type { AdminStackParamList } from '../../navigation/AdminStack';
 
 type Nav = NativeStackNavigationProp<AdminStackParamList>;
@@ -167,7 +167,8 @@ const createStyles = (colors: ColorTokens) =>
       color: colors.cream,
     },
     title: {
-      fontFamily: 'Lora_600SemiBold',
+      fontFamily: fonts.headingSemiBold,
+      fontWeight: '600',
       fontSize: 16,
       color: colors.cream,
     },
@@ -210,7 +211,8 @@ const createStyles = (colors: ColorTokens) =>
       padding: 11,
     },
     statNum: {
-      fontFamily: 'Lora_700Bold',
+      fontFamily: fonts.heading,
+      fontWeight: '700',
       fontSize: 18,
       color: colors.navyDeep,
     },

@@ -11,6 +11,7 @@ jest.mock('../prisma/client', () => ({
 }));
 jest.mock('../services/notificationService', () => ({
   sendNotification: jest.fn().mockResolvedValue(undefined),
+  notifyAdminsOfPickup: jest.fn().mockResolvedValue(undefined),
 }));
 jest.mock('../services/pushService', () => ({
   sendToUser: jest.fn().mockResolvedValue(undefined),
@@ -39,6 +40,9 @@ const token = (role: 'staff' | 'admin', branchId: string | null = null, userId =
 beforeEach(() => {
   mockReset(prismaMock);
   prismaMock.$transaction.mockImplementation(((cb: any) => cb(prismaMock)) as any);
+  // Default: no admins found for the pickup-notification lookup that
+  // createOrder now runs (CLAUDE.md order workflow item 4a).
+  prismaMock.user.findMany.mockResolvedValue([]);
 });
 
 // CLAUDE.md "Staff-scoped order visibility": a staff caller must not be able
@@ -67,7 +71,7 @@ describe('POST / — staffId trust (staff cannot assign to someone else)', () =>
         finalAmount: args.data.finalAmount,
         staffId: args.data.staffId,
         orderItems: args.data.orderItems.create,
-        customer: { id: 'customer-1' },
+        customer: { id: 'customer-1', branch: { whatsappNumber: null } },
       })) as any);
   });
 

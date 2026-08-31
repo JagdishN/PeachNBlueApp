@@ -17,7 +17,7 @@ import {
 import { fetchUsers, StaffUser } from '../../api/users';
 import { getDisplayName } from '../../utils/displayName';
 import { ApiError } from '../../api/client';
-import { ColorTokens, radii, spacing } from '../../theme/theme';
+import { ColorTokens, fonts, radii, spacing } from '../../theme/theme';
 
 type OrderStatusRoute = RouteProp<{ OrderStatus: { orderId: string } }, 'OrderStatus'>;
 
@@ -347,7 +347,8 @@ const createStyles = (colors: ColorTokens) =>
       marginTop: -14,
     },
     title: {
-      fontFamily: 'Lora_600SemiBold',
+      fontFamily: fonts.headingSemiBold,
+      fontWeight: '600',
       fontSize: 16,
       color: colors.cream,
     },

@@ -11,7 +11,7 @@ import { ApiError } from '../../api/client';
 import { fetchUsers, createUser, StaffUser, UserRole } from '../../api/users';
 import { fetchBranches, Branch } from '../../api/branches';
 import { getDisplayName } from '../../utils/displayName';
-import { ColorTokens, radii, spacing } from '../../theme/theme';
+import { ColorTokens, fonts, radii, spacing } from '../../theme/theme';
 
 const UNSCOPED_KEY = '__unscoped__';
 
@@ -230,7 +230,8 @@ const createStyles = (colors: ColorTokens) =>
       paddingBottom: 14,
     },
     title: {
-      fontFamily: 'Lora_600SemiBold',
+      fontFamily: fonts.headingSemiBold,
+      fontWeight: '600',
       fontSize: 16,
       color: colors.cream,
     },
@@ -320,7 +321,8 @@ const createStyles = (colors: ColorTokens) =>
       maxHeight: '85%',
     },
     modalTitle: {
-      fontFamily: 'Lora_600SemiBold',
+      fontFamily: fonts.headingSemiBold,
+      fontWeight: '600',
       fontSize: 15,
       color: colors.navyDeep,
       marginBottom: spacing.md,

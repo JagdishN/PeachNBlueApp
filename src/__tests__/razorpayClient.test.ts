@@ -1,17 +1,26 @@
 const createMock = jest.fn();
 const cancelMock = jest.fn();
+const validateWebhookSignatureMock = jest.fn();
 
 jest.mock('razorpay', () => {
-  return jest.fn().mockImplementation(() => ({
+  // validateWebhookSignature is a STATIC method on the real Razorpay class
+  // (Razorpay.validateWebhookSignature(...), not an instance method) — has
+  // to be attached to the mock constructor function itself, not returned
+  // from mockImplementation, or verifyWebhookSignature below would call
+  // undefined.
+  const MockRazorpay: any = jest.fn().mockImplementation(() => ({
     paymentLink: { create: createMock, cancel: cancelMock },
   }));
+  MockRazorpay.validateWebhookSignature = validateWebhookSignatureMock;
+  return MockRazorpay;
 });
 
-import { createPaymentLink, cancelPaymentLink } from '../lib/razorpayClient';
+import { createPaymentLink, cancelPaymentLink, verifyWebhookSignature } from '../lib/razorpayClient';
 
 beforeEach(() => {
   createMock.mockReset();
   cancelMock.mockReset();
+  validateWebhookSignatureMock.mockReset();
 });
 
 describe('createPaymentLink', () => {
@@ -45,5 +54,22 @@ describe('cancelPaymentLink (best-effort)', () => {
     await cancelPaymentLink('plink_old');
 
     expect(cancelMock).toHaveBeenCalledWith('plink_old');
+  });
+});
+
+describe('verifyWebhookSignature', () => {
+  it('delegates to Razorpay.validateWebhookSignature with the raw body, signature, and configured secret', () => {
+    validateWebhookSignatureMock.mockReturnValue(true);
+
+    const result = verifyWebhookSignature('{"event":"payment_link.paid"}', 'sig123');
+
+    expect(result).toBe(true);
+    expect(validateWebhookSignatureMock).toHaveBeenCalledWith('{"event":"payment_link.paid"}', 'sig123', expect.any(String));
+  });
+
+  it('returns false for an invalid signature rather than throwing', () => {
+    validateWebhookSignatureMock.mockReturnValue(false);
+
+    expect(verifyWebhookSignature('{}', 'bad-sig')).toBe(false);
   });
 });
