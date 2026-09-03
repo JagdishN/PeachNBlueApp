@@ -481,7 +481,15 @@ describe('createOrder — invoice generation is non-blocking', () => {
     ).resolves.toBeDefined();
   });
 
-  it('sends a second pickup_confirmation with the invoice details once generateInvoice resolves', async () => {
+  // RESOLVED (2026-09-03): real template is `generate_invoice` — real
+  // pulled definition shows body_1/2/3 + a URL button, no document-header.
+  // Real gap found the same day via a live send: the template's fixed text
+  // ends "...Scan the QR code in your invoice, or tap below to pay online"
+  // — it presupposes the customer already has the PDF, but there's no
+  // header component and no spare body variable for a link. Fixed by
+  // appending the PDF link onto {{3}} as plain text (WhatsApp auto-links
+  // it), same mechanism already proven for invoice_reissued.
+  it('sends a second pickup_confirmation with the invoice details (PDF link appended to the amount) once generateInvoice resolves', async () => {
     mockGarments([FIXED_PIECE_GARMENT]);
     generateInvoiceMock.mockResolvedValue({
       amount: 129,
@@ -494,20 +502,42 @@ describe('createOrder — invoice generation is non-blocking', () => {
     // Flush the microtask queue so the un-awaited .then() chain runs.
     await new Promise((resolve) => setImmediate(resolve));
 
-    // Qualify by headerMediaUrl (only the follow-up invoice message passes
+    // Qualify by buttonUrlParam (only the follow-up invoice message passes
     // one — the instant synchronous message doesn't).
-    const invoiceCall = sendNotificationMock.mock.calls.find(
-      (call: any) => call[2].headerMediaUrl === 'https://storage.example/inv.pdf'
-    );
+    const invoiceCall = sendNotificationMock.mock.calls.find((call: any) => call[2].buttonUrlParam === '/x');
     expect(invoiceCall).toBeDefined();
     expect(invoiceCall[1]).toBe('pickup_confirmation');
-    expect(invoiceCall[2].bodyVariables).toContain('Pay online: https://rzp.io/l/x');
+    expect(invoiceCall[2].name).toBe(MSG91_TEMPLATES.invoiceReady.name);
+    expect(invoiceCall[2].bodyVariables).toEqual([
+      baseInput.customerName,
+      'PB-TEST',
+      '129. Invoice: https://storage.example/inv.pdf',
+    ]);
+  });
+
+  it('falls back to the bare amount when pdfUrl is somehow null', async () => {
+    mockGarments([FIXED_PIECE_GARMENT]);
+    generateInvoiceMock.mockResolvedValue({
+      amount: 129,
+      paymentLinkUrl: 'https://rzp.io/l/x',
+      pdfUrl: null,
+      wasReissue: false,
+    });
+
+    await createOrder({ ...baseInput, items: [{ garmentId: 'g-shirt', quantity: 1 }] });
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const invoiceCall = sendNotificationMock.mock.calls.find((call: any) => call[2].buttonUrlParam === '/x');
+    expect(invoiceCall[2].bodyVariables).toEqual([baseInput.customerName, 'PB-TEST', '129']);
   });
 
   // invoiceService.ts no longer creates a real Razorpay link for
-  // monthly-billing orders — paymentLinkUrl comes back null. Regression
-  // guard against interpolating "Pay online: null" into a template variable.
-  it('sends a monthly-statement message, not a broken null link, when paymentLinkUrl is null', async () => {
+  // monthly-billing orders — paymentLinkUrl comes back null. The real
+  // generate_invoice template has no fallback text slot the way the old
+  // placeholder version did (no button param to give without a real URL),
+  // so this notification is skipped entirely, same precedent as
+  // invoiceReissued/delivery_confirmation.
+  it('skips the follow-up notification entirely (no button to send) when paymentLinkUrl is null', async () => {
     mockGarments([FIXED_PIECE_GARMENT]);
     generateInvoiceMock.mockResolvedValue({
       amount: 129,
@@ -519,12 +549,8 @@ describe('createOrder — invoice generation is non-blocking', () => {
     await createOrder({ ...baseInput, items: [{ garmentId: 'g-shirt', quantity: 1 }] });
     await new Promise((resolve) => setImmediate(resolve));
 
-    const invoiceCall = sendNotificationMock.mock.calls.find(
-      (call: any) => call[2].headerMediaUrl === 'https://storage.example/inv.pdf'
-    );
-    expect(invoiceCall).toBeDefined();
-    expect(invoiceCall[2].bodyVariables.join(' ')).not.toContain('null');
-    expect(invoiceCall[2].bodyVariables).toContain('This will be settled via your monthly statement.');
+    const invoiceCall = sendNotificationMock.mock.calls.find((call: any) => call[2].buttonUrlParam !== undefined);
+    expect(invoiceCall).toBeUndefined();
   });
 });
 
@@ -687,11 +713,11 @@ describe('updateStatus — delivery_confirmation', () => {
     prismaMock.customer.findUnique.mockResolvedValue({ discountEnabled: false, discountPercent: 0 } as any);
   });
 
-  // CORRECTED (2026-09-03): delivery_confirmation's real approved template
-  // has no URL button component (confirmed with the client against a real
-  // pulled definition) — the link is appended as plain text onto the
-  // amount-due variable instead of sent via a nonexistent button.
-  it('sends delivery_confirmation with the customer name, order#, and the link appended as text onto the amount-due variable — unpaid daily order with a real link', async () => {
+  // RE-CORRECTED (2026-09-03): a pulled sample briefly showed no button on
+  // this template, so the link was moved into plain body text — the client
+  // then confirmed delivery_confirmation genuinely has a real button_1 (the
+  // payment link) after all. Back to a button, suffix-only.
+  it('sends delivery_confirmation with the customer name, order#, amount due, and the payment link suffix as a button param — unpaid daily order with a real link', async () => {
     prismaMock.order.update.mockResolvedValue({
       id: 'order-1',
       orderNumber: 'PB-TEST',
@@ -714,7 +740,8 @@ describe('updateStatus — delivery_confirmation', () => {
       {
         name: MSG91_TEMPLATES.deliveryConfirmation.name,
         language: MSG91_TEMPLATES.deliveryConfirmation.language,
-        bodyVariables: ['Test Customer', 'PB-TEST', '500. Pay online: https://rzp.io/l/AbCd1234'],
+        bodyVariables: ['Test Customer', 'PB-TEST', '500'],
+        buttonUrlParam: '/AbCd1234',
       },
       'order-1'
     );

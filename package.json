@@ -5,7 +5,7 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "cross-env NODE_ENV=development ts-node-dev --respawn --transpile-only src/server.ts",
-    "build": "tsc",
+    "build": "tsc && node -e \"require('fs').cpSync('src/assets','dist/assets',{recursive:true})\"",
     "start": "cross-env NODE_ENV=production node dist/server.js",
     "prisma": "prisma",
     "test": "jest"
@@ -21,7 +21,6 @@
     "helmet": "^7.1.0",
     "ioredis": "^5.4.1",
     "jsonwebtoken": "^9.0.2",
-    "qrcode": "^1.5.4",
     "razorpay": "^2.9.8",
     "react": "^19.2.7"
   },
@@ -31,7 +30,6 @@
     "@types/jest": "^29.5.12",
     "@types/jsonwebtoken": "^9.0.1",
     "@types/node": "^20.14.6",
-    "@types/qrcode": "^1.5.6",
     "@types/react": "^19.2.17",
     "@types/supertest": "^6.0.2",
     "cross-env": "^10.1.0",

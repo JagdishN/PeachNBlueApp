@@ -25,9 +25,12 @@ interface TemplateMessage {
   // Positional — see src/constants/msg91Templates.ts for each template's
   // variable order/meaning.
   bodyVariables: string[];
-  // Only for templates with a document header component (e.g. the invoice
-  // PDF) — omit for templates with no header.
+  // Only for templates with a header media component — omit for templates
+  // with no header. See msg91Client.ts's Msg91TemplateMessage.headerType for
+  // "document" (e.g. the invoice PDF) vs "image" (e.g. delivery_confirmation's
+  // fixed background image) — defaults to "document" if omitted.
   headerMediaUrl?: string;
+  headerType?: 'document' | 'image';
   // Only for templates with a dynamic-URL button component — see
   // msg91Client.ts's Msg91TemplateMessage.buttonUrlParam.
   buttonUrlParam?: string;
@@ -59,6 +62,7 @@ export const sendNotification = async (
       language: template.language,
       bodyVariables: template.bodyVariables,
       headerMediaUrl: template.headerMediaUrl,
+      headerType: template.headerType,
       buttonUrlParam: template.buttonUrlParam,
     });
   } catch (err) {

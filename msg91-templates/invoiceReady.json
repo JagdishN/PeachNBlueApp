@@ -1,3 +1,12 @@
 {
-  "_paste_here": "No real template exists yet for this message (the pickup-time 'your invoice is ready, here's the PDF and payment link' follow-up). Leave this placeholder until one is created and approved in Meta Business Manager, then paste its get-template-curl response for the real approved name. See ../README.md."
+  "name": "generate_invoice",
+  "language": { "code": "en", "policy": "deterministic" },
+  "namespace": "5999f766_6b06_4a8a_b3c5_fba3d412a89e",
+  "components": {
+    "body_1": { "type": "text" },
+    "body_2": { "type": "text" },
+    "body_3": { "type": "text" },
+    "button_1": { "subtype": "url", "type": "text" }
+  },
+  "_note": "Client-confirmed (2026-09-03): this is the real approved template for the pickup-time invoice-ready follow-up, replacing the placeholder pb_invoice_ready name that was in the code before. No document-header component (unlike an earlier, since-superseded design note that assumed one) — button_1 is the payment link. orderService.ts::createOrder's follow-up send updated to match: [customer name, order number, amount] as body variables, the link via buttonUrlParam (suffix-only), no headerMediaUrl."
 }

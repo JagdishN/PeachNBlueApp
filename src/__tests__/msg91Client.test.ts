@@ -110,11 +110,15 @@ describe('sendWhatsAppTemplate', () => {
     });
   });
 
-  it('adds a header_1 document component when headerMediaUrl is given', async () => {
+  // Generic template name — no currently-approved template actually has a
+  // document header (generate_invoice, once assumed to need one, turned out
+  // to have only body + button, per its real pulled definition). This
+  // exercises msg91Client.ts's header mechanic itself, not a real shape.
+  it('adds a header_1 document component when headerMediaUrl is given, defaulting to type "document"', async () => {
     await sendWhatsAppTemplate({
       toPhoneNumber: '919000000001',
       fromNumber: '919398125151',
-      templateName: 'pb_invoice_ready',
+      templateName: 'some_template_with_a_document_header',
       bodyVariables: ['PB-ABC1', '450', 'Pay online: https://rzp.io/l/x'],
       headerMediaUrl: 'https://storage.example/invoice.pdf',
     });
@@ -126,11 +130,30 @@ describe('sendWhatsAppTemplate', () => {
     });
   });
 
+  // headerType added 2026-09-03: delivery_confirmation's real header_1 is an
+  // "image" (a fixed background), not a "document" like the invoice PDF.
+  it('adds a header_1 image component when headerType is "image"', async () => {
+    await sendWhatsAppTemplate({
+      toPhoneNumber: '919000000001',
+      fromNumber: '919398125151',
+      templateName: 'delivery_confirmation',
+      bodyVariables: ['Test Customer', 'PB-ABC1', '450'],
+      headerMediaUrl: 'https://storage.example/background.jpg',
+      headerType: 'image',
+    });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.payload.template.to_and_components[0].components.header_1).toEqual({
+      type: 'image',
+      value: 'https://storage.example/background.jpg',
+    });
+  });
+
   // Uses a generic template name here — this test exercises msg91Client.ts's
   // button_1 mechanic itself, not any specific template's real shape.
-  // (invoice_reissued/delivery_confirmation turned out NOT to have a real
-  // button component — see msg91Templates.ts; the current real user of this
-  // mechanic is account_login's mandatory OTP "Copy Code" button.)
+  // (delivery_confirmation is a real current user of this mechanic — see
+  // msg91Templates.ts; account_login's mandatory OTP "Copy Code" button is
+  // the other.)
   it('adds a button_1 dynamic-URL component when buttonUrlParam is given', async () => {
     await sendWhatsAppTemplate({
       toPhoneNumber: '919000000001',

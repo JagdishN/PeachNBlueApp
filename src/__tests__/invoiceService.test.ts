@@ -41,7 +41,15 @@ const BASE_ORDER = {
     branch: { branchName: 'Attapur' },
   },
   orderItems: [
-    { itemName: "Men's Shirt", quantity: 2, unitPrice: 129, weightKg: null, pricePerKg: null, lineTotal: 258 },
+    {
+      itemName: "Men's Shirt",
+      quantity: 2,
+      unitPrice: 129,
+      weightKg: null,
+      pricePerKg: null,
+      lineTotal: 258,
+      garment: { serviceType: 'dry_clean' },
+    },
   ],
   invoice: null as any,
 };

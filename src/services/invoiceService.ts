@@ -36,6 +36,17 @@ const formatQuantityLabel = (item: OrderItemLine): string =>
 const formatUnitPriceLabel = (item: OrderItemLine): string =>
   item.weightKg != null ? `₹${item.pricePerKg}/kg` : `₹${item.unitPrice}`;
 
+// serviceType is deliberately a free-form string, not a hard enum (CLAUDE.md
+// "Admin can add new service types") — a fixed label map would silently
+// break for a genuinely new admin-added type, so this just title-cases the
+// raw value as a generic fallback, same reasoning mobile's serviceTag.ts
+// already uses for an unrecognized type.
+const formatServiceTypeLabel = (serviceType: string): string =>
+  serviceType
+    .split('_')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+
 // Shared core for BOTH the fresh-invoice-at-pickup path and the reissue
 // path (CLAUDE.md: discount change and amount revision "should call the
 // same shared invoice-reissue function, not two separate implementations").
@@ -48,7 +59,19 @@ const formatUnitPriceLabel = (item: OrderItemLine): string =>
 export const generateInvoice = async (orderId: string): Promise<GeneratedInvoice> => {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
-    include: { customer: { include: { branch: true } }, orderItems: true, invoice: true },
+    include: {
+      customer: { include: { branch: true } },
+      // Real invoice-design gap found 2026-09-03 (a real reference PDF
+      // sample the client built showed a "Service" column per line item —
+      // CLAUDE.md's own "Major pricing model update" point 5 already
+      // documents that the same garment name can legitimately appear at
+      // different prices across service tiers, so showing which tier a
+      // line was billed at removes real ambiguity on the printed invoice).
+      // OrderItem itself has no serviceType column (it's on the linked
+      // GarmentCatalogue row), so this needs the join.
+      orderItems: { include: { garment: { select: { serviceType: true } } } },
+      invoice: true,
+    },
   });
 
   if (!order) {
@@ -124,6 +147,7 @@ export const generateInvoice = async (orderId: string): Promise<GeneratedInvoice
     branchName: order.customer.branch.branchName,
     items: order.orderItems.map((item) => ({
       itemName: item.itemName,
+      serviceTypeLabel: formatServiceTypeLabel(item.garment.serviceType),
       quantityLabel: formatQuantityLabel(item),
       unitPriceLabel: formatUnitPriceLabel(item),
       lineTotal: Number(item.lineTotal),

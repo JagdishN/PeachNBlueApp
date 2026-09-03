@@ -49,25 +49,26 @@ export const MSG91_TEMPLATES = {
     requiresOtpButton: true,
   },
 
-  // Real Meta-approved name/shape, confirmed 2026-09-02 — but this specific
-  // template is BACK UNDER META REVIEW (resubmitted without a Header
-  // field), not yet Approved. Do not send until confirmed Approved in the
-  // MSG91/Meta dashboard, even though the other customer-facing templates
-  // below are already clear. {{1}} customer name, {{2}} order number,
-  // {{3}} estimated amount — turnaround time (24-48h) is fixed template
-  // text, not a variable.
-  pickupConfirmation: { name: 'pickup_confirmation', variableCount: 3, status: 'under_review' as const, language: 'en' },
+  // Real Meta-approved name/shape, confirmed 2026-09-02. Was briefly BACK
+  // UNDER META REVIEW (resubmitted without a Header field) — **CONFIRMED
+  // Active again directly by the client (2026-09-03)**, and confirmed via a
+  // real human-received delivery (the OTP-flow test and the admin pickup
+  // notification test both used this template and arrived). {{1}} customer
+  // name, {{2}} order number, {{3}} estimated amount — turnaround time
+  // (24-48h) is fixed template text, not a variable.
+  pickupConfirmation: { name: 'pickup_confirmation', variableCount: 3, status: 'approved' as const, language: 'en' },
 
-  // No approved template exists for this message at all. This is the
-  // fire-and-forget follow-up orderService.ts::createOrder sends once
-  // generateInvoice resolves (PDF + payment link, sent as a document
-  // header) — the approved "pickup_confirmation" template's fixed text
-  // (see above) has no payment-link mention, so it cannot carry this. A
-  // second template covering "your invoice is ready, here's the PDF and
-  // payment link" needs to be created and approved in Meta Business
-  // Manager before this call site can actually send. `name` is a
-  // placeholder only, kept so the code path is structurally ready.
-  invoiceReady: { name: 'pb_invoice_ready', variableCount: 3, status: 'not_created' as const, language: 'en' },
+  // RESOLVED (2026-09-03): real template exists, name is `generate_invoice`
+  // — client pulled its real definition (/msg91-templates/invoiceReady.json)
+  // and confirmed it. {{1}} customer name, {{2}} order number, {{3}}
+  // estimated amount; URL button (the payment link, suffix-only per Meta's
+  // dynamic-URL mechanism — see utils/paymentLink.ts). No document-header
+  // component — supersedes an earlier design note (in an old, stale
+  // document re-pasted into this project) describing one; the real pulled
+  // definition has none, so orderService.ts no longer attaches the invoice
+  // PDF to this message (the PDF is still generated/stored regardless, per
+  // the shared invoiceService.ts flow — just not attached here).
+  invoiceReady: { name: 'generate_invoice', variableCount: 3, status: 'approved' as const, language: 'en', hasPaymentLinkButton: true },
 
   // Real Meta-approved name/shape, confirmed 2026-09-02 (Approved).
   // {{1}} customer name, {{2}} order number, {{3}} new amount, {{4}} reason
@@ -109,12 +110,18 @@ export const MSG91_TEMPLATES = {
   // template's fixed text ("Amount due: Rs.{{3}}") would be factually
   // wrong to send in that case. Monthly-billing orders are excluded
   // entirely (no real payment link, same as invoiceReissued above).
-  // {{1}} customer name, {{2}} order number, {{3}} amount due. CORRECTED
-  // (2026-09-03): same fix and same reason as invoiceReissued above — no
-  // real URL button component exists on this template either
-  // (/msg91-templates/deliveryConfirmation.json), confirmed with the
-  // client. The link is appended as plain text onto {{3}} instead.
-  deliveryConfirmation: { name: 'delivery_confirmation', variableCount: 3, status: 'approved' as const, language: 'en' },
+  // {{1}} customer name, {{2}} order number, {{3}} amount due; URL button
+  // (the payment link, suffix-only per Meta's dynamic-URL mechanism — see
+  // utils/paymentLink.ts). RE-CORRECTED (2026-09-03): a pulled sample
+  // briefly showed no button/header at all, and the link was moved to plain
+  // body text as a result — the client then confirmed this template
+  // genuinely does have both a real button_1 (the payment link) and a
+  // header_1 (a fixed background image). The button is wired back in
+  // (orderService.ts); the header is NOT — no real hosted image URL exists
+  // yet, so header_1 is deliberately omitted rather than sent broken.
+  // invoice_reissued was NOT reconfirmed the same way and still uses the
+  // plain-text-in-body approach — don't assume it also has a button.
+  deliveryConfirmation: { name: 'delivery_confirmation', variableCount: 3, status: 'approved' as const, language: 'en', hasPaymentLinkButton: true },
 
   // Real Meta-approved name/shape, confirmed 2026-09-02 (Approved) — but
   // NOT YET WIRED to any code path. Monthly billing/statements are not yet

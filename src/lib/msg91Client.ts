@@ -50,22 +50,28 @@ export interface Msg91TemplateMessage {
   // surrounding template text itself (a Meta platform rule, not
   // MSG91-specific) — see src/constants/msg91Templates.ts.
   bodyVariables: string[];
-  // Only for templates created with a document header component (e.g. the
-  // invoice PDF) — omit for templates with no header.
+  // Only for templates with a header media component — omit for templates
+  // with no header. headerType distinguishes a "document" header (e.g. the
+  // invoice PDF, a per-message file) from an "image" header (e.g.
+  // delivery_confirmation's fixed background/branding image, the same URL
+  // on every send) — defaults to "document" for backward compatibility with
+  // the one call site that used this before headerType existed.
   headerMediaUrl?: string;
-  // Only for templates with a real BUTTONS component. CORRECTED
-  // (2026-09-03): invoice_reissued/delivery_confirmation were originally
-  // assumed to carry the Razorpay payment link via a dynamic-URL button —
-  // confirmed against real pulled definitions (/msg91-templates) that
-  // neither actually has one, so both now append the link as plain body
-  // text instead (see msg91Templates.ts). The only current real user of
-  // this field is otpLogin's mandatory "Copy Code" button (its value is the
-  // OTP code itself, not a URL suffix — see otpService.ts). If a future
-  // template genuinely does have a dynamic-URL button, Meta's mechanism
-  // configures a FIXED base URL at template-approval time and only a
-  // trailing suffix is left variable at send time — don't pass a full URL
-  // here without checking that against the template's real definition
-  // first, the way account_login's button param was verified.
+  headerType?: 'document' | 'image';
+  // Only for templates with a real BUTTONS component. Corrected twice on
+  // 2026-09-03: first removed from invoice_reissued/delivery_confirmation
+  // after a pulled sample showed neither had a button; then re-added to
+  // delivery_confirmation after the client confirmed it genuinely does have
+  // one (button_1 is the payment link) — see /msg91-templates and
+  // orderService.ts's use of extractPaymentLinkSuffix. invoice_reissued was
+  // NOT reconfirmed and still sends the link as plain body text — don't
+  // assume it also got a button back without checking the same way. otpLogin
+  // also uses this field, for its mandatory "Copy Code" button (value is the
+  // OTP code itself, not a URL suffix — see otpService.ts). Meta's
+  // dynamic-URL button mechanism configures a FIXED base URL at
+  // template-approval time and only a trailing suffix is left variable at
+  // send time — don't pass a full URL without checking the template's real
+  // definition first, the way account_login's button param was verified.
   buttonUrlParam?: string;
 }
 
@@ -100,6 +106,7 @@ export const sendWhatsAppTemplate = async ({
   language,
   bodyVariables,
   headerMediaUrl,
+  headerType,
   buttonUrlParam,
 }: Msg91TemplateMessage): Promise<void> => {
   const to = normalizePhoneNumber(toPhoneNumber);
@@ -110,7 +117,7 @@ export const sendWhatsAppTemplate = async ({
   );
 
   if (headerMediaUrl) {
-    components.header_1 = { type: 'document', value: headerMediaUrl };
+    components.header_1 = { type: headerType ?? 'document', value: headerMediaUrl };
   }
 
   if (buttonUrlParam) {
