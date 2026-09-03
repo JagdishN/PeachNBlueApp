@@ -74,6 +74,26 @@ describe('sendWhatsAppTemplate', () => {
     });
   });
 
+  // Real bug found 2026-09-03: User.phoneNumber, Customer.phoneNumber, and
+  // Branch.whatsappNumber are all stored in the live DB with a literal "+"
+  // prefix (needed for authController.ts's exact-string login lookup) — but
+  // MSG91's API needs digits-only. Every real send pulled one of these
+  // straight into toPhoneNumber/fromNumber with no stripping, meaning real
+  // production sends (unlike this session's manually-typed digit-only
+  // scratch-script tests) were very likely silently failing on both ends.
+  it('strips a leading "+" (and any other non-digit characters) from both toPhoneNumber and fromNumber', async () => {
+    await sendWhatsAppTemplate({
+      toPhoneNumber: '+91 98850 25151',
+      fromNumber: '+917013725151',
+      templateName: 'pb_otp_login',
+      bodyVariables: ['654321'],
+    });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.integrated_number).toBe('917013725151');
+    expect(body.payload.template.to_and_components[0].to).toEqual(['919885025151']);
+  });
+
   it('maps multiple bodyVariables to body_1, body_2, ... in order', async () => {
     await sendWhatsAppTemplate({
       toPhoneNumber: '919000000001',

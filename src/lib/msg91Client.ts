@@ -77,6 +77,22 @@ export const formatMsg91Error = (err: unknown): string => {
   return err instanceof Error ? err.message : String(err);
 };
 
+// Real bug found 2026-09-03: User.phoneNumber, Customer.phoneNumber, and
+// Branch.whatsappNumber are all stored in the live DB WITH a literal "+"
+// prefix (CLAUDE.md "Admin accounts" — required for authController.ts's
+// exact-string login lookup to match what LoginScreen.tsx sends). Every
+// real send in this app (OTP included) pulls a number straight from one of
+// those columns into toPhoneNumber/fromNumber with no stripping — but
+// MSG91's WhatsApp API needs digits-only, country code first, no "+" (the
+// same finding this session already made and worked around in throwaway
+// scratch scripts, but never reconciled back into the real app code). That
+// means every genuine production send — not the manually-typed digit-only
+// scratch-script tests that "confirmed" delivery so far — was very likely
+// carrying a "+" on both ends and silently failing. Stripped here, once, as
+// the last-mile defense before hitting the API, so every caller is covered
+// regardless of which DB column the number came from.
+const normalizePhoneNumber = (phone: string): string => phone.replace(/[^0-9]/g, '');
+
 export const sendWhatsAppTemplate = async ({
   toPhoneNumber,
   fromNumber,
@@ -86,6 +102,9 @@ export const sendWhatsAppTemplate = async ({
   headerMediaUrl,
   buttonUrlParam,
 }: Msg91TemplateMessage): Promise<void> => {
+  const to = normalizePhoneNumber(toPhoneNumber);
+  const from = normalizePhoneNumber(fromNumber);
+
   const components: Record<string, unknown> = Object.fromEntries(
     bodyVariables.map((value, index) => [`body_${index + 1}`, { type: 'text', value }])
   );
@@ -110,7 +129,7 @@ export const sendWhatsAppTemplate = async ({
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      integrated_number: fromNumber,
+      integrated_number: from,
       content_type: 'template',
       payload: {
         // CORRECTED (2026-09-02): a top-level `payload.to` was added
@@ -136,7 +155,7 @@ export const sendWhatsAppTemplate = async ({
           namespace: MSG91_WABA_NAMESPACE,
           to_and_components: [
             {
-              to: [toPhoneNumber],
+              to: [to],
               components,
             },
           ],
