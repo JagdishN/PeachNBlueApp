@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppScreen } from '../../components/AppScreen';
@@ -7,8 +7,8 @@ import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { ColorTokens, fonts, spacing, radii } from '../../theme/theme';
 
-// Houses the About content CLAUDE.md requires ("Technology by NIVENXA" on
-// the About page) plus Log Out — previously there was no way to sign out
+// Houses the About content CLAUDE.md requires ("Technology by Nivenxa
+// Technologies", a tappable link, on the About page) plus Log Out — previously there was no way to sign out
 // anywhere in the app at all (AuthContext.signOut existed but nothing
 // called it). The light/dark toggle used to live here as a two-button row —
 // moved to a single icon switch directly on the Admin/Staff home app bars
@@ -41,7 +41,13 @@ export const SettingsScreen: React.FC = () => {
           <Text style={styles.appName}>Peach & Blue</Text>
           <Text style={styles.tagline}>Fresh. Clean. Perfectly cared for.</Text>
           <Text style={styles.version}>Version 1.0.0</Text>
-          <Text style={styles.nivenxa}>Technology by NIVENXA</Text>
+          <Pressable
+            onPress={() => Linking.openURL('https://nivenxa.com/technologies')}
+            accessibilityRole="link"
+            hitSlop={{ top: 10, bottom: 10, left: 12, right: 12 }}
+          >
+            <Text style={styles.nivenxa}>Technology by Nivenxa Technologies</Text>
+          </Pressable>
         </View>
 
         <Text style={styles.sectionTitle}>Account</Text>
@@ -122,6 +128,7 @@ const createStyles = (colors: ColorTokens) =>
       fontWeight: '700',
       color: colors.navyText,
       marginTop: spacing.xs,
+      textDecorationLine: 'underline',
     },
     logoutButton: {
       flexDirection: 'row',

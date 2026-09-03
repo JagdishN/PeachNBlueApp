@@ -1,5 +1,36 @@
+import path from 'path';
+import fs from 'fs';
 import { Document, Page, View, Text, StyleSheet, Image, renderToBuffer } from '@react-pdf/renderer';
-import QRCode from 'qrcode';
+
+// Static UPI QR (2026-09-03, client decision): "Option 2" for paying an
+// invoice — scan this directly on the printed/PDF invoice via any UPI app,
+// alongside "Option 1" (the Razorpay payment link sent as the WhatsApp
+// message's button). Unlike the Razorpay QR below (generated per-order from
+// that order's payment link), this is one fixed, static image — the
+// business's own UPI QR code, not order-specific and not regenerated.
+// Real file now provided: src/assets/Peach_Blue_QR.jpeg (uploaded directly
+// to disk by the client, not extracted from a chat image — that isn't
+// something this service can do). __dirname here resolves relative to
+// wherever this file actually runs from (src/ under ts-node-dev in dev,
+// dist/ under the compiled build in production) — package.json's `build`
+// script was updated to copy src/assets to dist/assets (via fs.cpSync) so
+// this same relative path resolves correctly in both.
+const UPI_QR_IMAGE_PATH = path.join(__dirname, '../assets/Peach_Blue_QR.jpeg');
+
+// Real bug found 2026-09-03: react-pdf's <Image src="..."> treats a bare
+// filesystem path as something to fetch() over the network, not read from
+// disk — it silently failed ("fetch failed", logged but not thrown) and
+// produced a PDF with no image where the QR should be, exactly like the
+// existing Razorpay QR block already avoids by using a base64 data URI
+// (QRCode.toDataURL) rather than a path. Fixed by reading the file directly
+// and building the same kind of data URI at render time.
+const readUpiQrDataUrl = (): string | null => {
+  if (!fs.existsSync(UPI_QR_IMAGE_PATH)) {
+    return null;
+  }
+  const base64 = fs.readFileSync(UPI_QR_IMAGE_PATH).toString('base64');
+  return `data:image/jpeg;base64,${base64}`;
+};
 
 // Brand colors per CLAUDE.md — peach/coral for accents, navy for text/pricing.
 // Placeholder hex values read off client artwork, not an official brand
@@ -19,6 +50,7 @@ const styles = StyleSheet.create({
   tableRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#eeeeee', paddingVertical: 4 },
   tableHeaderRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: NAVY, paddingBottom: 4, marginBottom: 2 },
   colItem: { flex: 3 },
+  colService: { flex: 2 },
   colQty: { flex: 1, textAlign: 'right' },
   colPrice: { flex: 1, textAlign: 'right' },
   colTotal: { flex: 1, textAlign: 'right' },
@@ -26,13 +58,19 @@ const styles = StyleSheet.create({
   totalsRow: { flexDirection: 'row', width: 200, justifyContent: 'space-between', marginBottom: 3 },
   grandTotalRow: { flexDirection: 'row', width: 200, justifyContent: 'space-between', marginTop: 4, paddingTop: 4, borderTopWidth: 1, borderTopColor: NAVY },
   grandTotalText: { fontWeight: 700, fontSize: 13 },
+  qrOptionsRow: { flexDirection: 'row', justifyContent: 'center', gap: 40 },
   qrBlock: { marginTop: 20, alignItems: 'center' },
-  qrImage: { width: 110, height: 110 },
+  qrImage: { width: 250, height: 250 },
   footer: { position: 'absolute', bottom: 24, left: 32, right: 32, textAlign: 'center', fontSize: 7, color: '#999999' },
 });
 
 export interface InvoicePdfItem {
   itemName: string;
+  // Real invoice-design gap found 2026-09-03: the same garment name can
+  // legitimately be billed at different prices across service tiers
+  // (CLAUDE.md "Major pricing model update" point 5) — printing which tier
+  // a line was billed at removes that ambiguity for the customer.
+  serviceTypeLabel: string;
   quantityLabel: string; // pre-formatted: "3" for piece items, "3.5 kg" for per-kg items
   unitPriceLabel: string;
   lineTotal: number;
@@ -61,7 +99,7 @@ export interface InvoicePdfData {
 const formatInr = (value: number): string => `₹${value.toFixed(2)}`;
 
 export const renderInvoicePdf = async (data: InvoicePdfData): Promise<Buffer> => {
-  const qrDataUrl = data.paymentLinkUrl ? await QRCode.toDataURL(data.paymentLinkUrl) : null;
+  const upiQrDataUrl = readUpiQrDataUrl();
 
   const doc = (
     <Document>
@@ -91,6 +129,7 @@ export const renderInvoicePdf = async (data: InvoicePdfData): Promise<Buffer> =>
         <View style={styles.table}>
           <View style={styles.tableHeaderRow}>
             <Text style={styles.colItem}>Item</Text>
+            <Text style={styles.colService}>Service</Text>
             <Text style={styles.colQty}>Qty</Text>
             <Text style={styles.colPrice}>Price</Text>
             <Text style={styles.colTotal}>Total</Text>
@@ -98,6 +137,7 @@ export const renderInvoicePdf = async (data: InvoicePdfData): Promise<Buffer> =>
           {data.items.map((item, i) => (
             <View style={styles.tableRow} key={i}>
               <Text style={styles.colItem}>{item.itemName}</Text>
+              <Text style={styles.colService}>{item.serviceTypeLabel}</Text>
               <Text style={styles.colQty}>{item.quantityLabel}</Text>
               <Text style={styles.colPrice}>{item.unitPriceLabel}</Text>
               <Text style={styles.colTotal}>{formatInr(item.lineTotal)}</Text>
@@ -132,14 +172,32 @@ export const renderInvoicePdf = async (data: InvoicePdfData): Promise<Buffer> =>
           Turnaround time is typically {data.turnaroundLabel} hours from pickup.
         </Text>
 
-        {qrDataUrl && (
-          <View style={styles.qrBlock}>
-            <Image src={qrDataUrl} style={styles.qrImage} />
-            <Text style={{ marginTop: 6, fontSize: 8 }}>Scan to pay via Card or Net Banking</Text>
+        {/* CORRECTED (2026-09-03), per explicit client decision: dropped the
+            Razorpay-generated QR entirely (it duplicated the payment link
+            already sent as the WhatsApp message's button, and the client
+            wants only the business's own static UPI QR shown here) — only
+            renders when there's a live payment link (monthly-billing orders
+            have nothing to point at either way, same as before) AND the
+            static UPI QR asset is actually present on disk. */}
+        {data.paymentLinkUrl && upiQrDataUrl && (
+          <View style={styles.section}>
+            <Text style={{ fontSize: 9, marginBottom: 8 }}>
+              Scan the QR code below to pay via UPI, or use the payment link sent on WhatsApp.
+            </Text>
+            <View style={styles.qrOptionsRow}>
+              <View style={styles.qrBlock}>
+                <Image src={upiQrDataUrl} style={styles.qrImage} />
+                <Text style={{ marginTop: 6, fontSize: 8 }}>Scan with any UPI app</Text>
+              </View>
+            </View>
           </View>
         )}
 
-        <Text style={styles.footer}>Powered by NIVENXA</Text>
+        {/* CLAUDE.md "Non-negotiables": wording updated from "NIVENXA" to
+            "Nivenxa Technologies" everywhere else in the app — this file
+            was missed at the time. Non-interactive here (a PDF has no tap
+            target), matching the splash screen's treatment. */}
+        <Text style={styles.footer}>Powered by Nivenxa Technologies</Text>
       </Page>
     </Document>
   );

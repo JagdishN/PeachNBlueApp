@@ -15,8 +15,10 @@ export const SplashScreen: React.FC = () => {
     <View style={styles.splash}>
       <SplashLogo size="large" />
       <Text style={styles.tagline}>Fresh. Clean. Perfectly cared for.</Text>
+      {/* Splash stays a timed, non-interactive display (CLAUDE.md) — unlike
+          the footer/About link, this text is not tappable. */}
       <View style={styles.poweredBy}>
-        <Text style={styles.poweredByText}>Powered by NIVENXA</Text>
+        <Text style={styles.poweredByText}>Powered by Nivenxa Technologies</Text>
       </View>
     </View>
   );

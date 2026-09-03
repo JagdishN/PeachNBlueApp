@@ -107,6 +107,7 @@ beforeEach(() => {
   prismaMock.$transaction.mockImplementation(((cb: any) => cb(prismaMock)) as any);
   prismaMock.customer.upsert.mockResolvedValue({
     id: 'customer-1',
+    fullName: baseInput.customerName,
     phoneNumber: baseInput.customerPhoneNumber,
     whatsappNumber: null,
     billingMode: 'daily',
@@ -121,6 +122,7 @@ beforeEach(() => {
       orderItems: args.data.orderItems.create,
       customer: {
         id: 'customer-1',
+        fullName: baseInput.customerName,
         phoneNumber: baseInput.customerPhoneNumber,
         whatsappNumber: null,
         branch: { whatsappNumber: null },
@@ -386,12 +388,19 @@ describe('createOrder — admin pickup notification', () => {
 
     await createOrder({ ...baseInput, items: [{ garmentId: 'g-shirt', quantity: 1 }] });
 
+    // Regression guard (2026-09-03): the admin pickup notice now reuses
+    // pickupConfirmation instead of the separate, never-approved
+    // adminPickupNotification template — per explicit client decision.
     expect(notifyAdminsOfPickupMock).toHaveBeenCalledWith(
       [
         { id: 'admin-1', phoneNumber: '9000000001' },
         { id: 'admin-2', phoneNumber: '9000000002' },
       ],
-      expect.objectContaining({ bodyVariables: expect.arrayContaining(['PB-TEST']) }),
+      expect.objectContaining({
+        name: MSG91_TEMPLATES.pickupConfirmation.name,
+        language: MSG91_TEMPLATES.pickupConfirmation.language,
+        bodyVariables: expect.arrayContaining(['PB-TEST']),
+      }),
       '+919398125151'
     );
   });
@@ -472,7 +481,15 @@ describe('createOrder — invoice generation is non-blocking', () => {
     ).resolves.toBeDefined();
   });
 
-  it('sends a second pickup_confirmation with the invoice details once generateInvoice resolves', async () => {
+  // RESOLVED (2026-09-03): real template is `generate_invoice` — real
+  // pulled definition shows body_1/2/3 + a URL button, no document-header.
+  // Real gap found the same day via a live send: the template's fixed text
+  // ends "...Scan the QR code in your invoice, or tap below to pay online"
+  // — it presupposes the customer already has the PDF, but there's no
+  // header component and no spare body variable for a link. Fixed by
+  // appending the PDF link onto {{3}} as plain text (WhatsApp auto-links
+  // it), same mechanism already proven for invoice_reissued.
+  it('sends a second pickup_confirmation with the invoice details (PDF link appended to the amount) once generateInvoice resolves', async () => {
     mockGarments([FIXED_PIECE_GARMENT]);
     generateInvoiceMock.mockResolvedValue({
       amount: 129,
@@ -485,20 +502,42 @@ describe('createOrder — invoice generation is non-blocking', () => {
     // Flush the microtask queue so the un-awaited .then() chain runs.
     await new Promise((resolve) => setImmediate(resolve));
 
-    // Qualify by headerMediaUrl (only the follow-up invoice message passes
+    // Qualify by buttonUrlParam (only the follow-up invoice message passes
     // one — the instant synchronous message doesn't).
-    const invoiceCall = sendNotificationMock.mock.calls.find(
-      (call: any) => call[2].headerMediaUrl === 'https://storage.example/inv.pdf'
-    );
+    const invoiceCall = sendNotificationMock.mock.calls.find((call: any) => call[2].buttonUrlParam === '/x');
     expect(invoiceCall).toBeDefined();
     expect(invoiceCall[1]).toBe('pickup_confirmation');
-    expect(invoiceCall[2].bodyVariables).toContain('Pay online: https://rzp.io/l/x');
+    expect(invoiceCall[2].name).toBe(MSG91_TEMPLATES.invoiceReady.name);
+    expect(invoiceCall[2].bodyVariables).toEqual([
+      baseInput.customerName,
+      'PB-TEST',
+      '129. Invoice: https://storage.example/inv.pdf',
+    ]);
+  });
+
+  it('falls back to the bare amount when pdfUrl is somehow null', async () => {
+    mockGarments([FIXED_PIECE_GARMENT]);
+    generateInvoiceMock.mockResolvedValue({
+      amount: 129,
+      paymentLinkUrl: 'https://rzp.io/l/x',
+      pdfUrl: null,
+      wasReissue: false,
+    });
+
+    await createOrder({ ...baseInput, items: [{ garmentId: 'g-shirt', quantity: 1 }] });
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const invoiceCall = sendNotificationMock.mock.calls.find((call: any) => call[2].buttonUrlParam === '/x');
+    expect(invoiceCall[2].bodyVariables).toEqual([baseInput.customerName, 'PB-TEST', '129']);
   });
 
   // invoiceService.ts no longer creates a real Razorpay link for
-  // monthly-billing orders — paymentLinkUrl comes back null. Regression
-  // guard against interpolating "Pay online: null" into a template variable.
-  it('sends a monthly-statement message, not a broken null link, when paymentLinkUrl is null', async () => {
+  // monthly-billing orders — paymentLinkUrl comes back null. The real
+  // generate_invoice template has no fallback text slot the way the old
+  // placeholder version did (no button param to give without a real URL),
+  // so this notification is skipped entirely, same precedent as
+  // invoiceReissued/delivery_confirmation.
+  it('skips the follow-up notification entirely (no button to send) when paymentLinkUrl is null', async () => {
     mockGarments([FIXED_PIECE_GARMENT]);
     generateInvoiceMock.mockResolvedValue({
       amount: 129,
@@ -510,12 +549,8 @@ describe('createOrder — invoice generation is non-blocking', () => {
     await createOrder({ ...baseInput, items: [{ garmentId: 'g-shirt', quantity: 1 }] });
     await new Promise((resolve) => setImmediate(resolve));
 
-    const invoiceCall = sendNotificationMock.mock.calls.find(
-      (call: any) => call[2].headerMediaUrl === 'https://storage.example/inv.pdf'
-    );
-    expect(invoiceCall).toBeDefined();
-    expect(invoiceCall[2].bodyVariables.join(' ')).not.toContain('null');
-    expect(invoiceCall[2].bodyVariables).toContain('This will be settled via your monthly statement.');
+    const invoiceCall = sendNotificationMock.mock.calls.find((call: any) => call[2].buttonUrlParam !== undefined);
+    expect(invoiceCall).toBeUndefined();
   });
 });
 
@@ -529,12 +564,13 @@ describe('updateStatus — delivery billingMode branch', () => {
   // read live off order.customer. customer.billingMode is deliberately
   // omitted/different here in a couple of tests below to prove the branch
   // really reads the order's own field, not the customer's current one.
-  const buildOrderUpdate = (billingMode: 'daily' | 'monthly_billing') => ({
+  const buildOrderUpdate = (billingMode: 'daily' | 'monthly_billing', paymentStatus: string = 'paid') => ({
     id: 'order-1',
     orderNumber: 'PB-TEST',
     finalAmount: 500,
     billingMode,
-    customer: { id: 'customer-1' },
+    paymentStatus,
+    customer: { id: 'customer-1', fullName: 'Test Customer' },
   });
 
   // All tests in this block call updateStatus with role 'staff' and
@@ -557,13 +593,19 @@ describe('updateStatus — delivery billingMode branch', () => {
   });
 
   it('does not post a ledger charge for a daily customer\'s delivered order (regression)', async () => {
+    // paymentStatus defaults to 'paid' here (buildOrderUpdate) — the normal
+    // case, since the mobile app bundles recordPayment before this status
+    // update. discountEnabled/discountPercent are still looked up (needed
+    // either for the ledger charge or the delivery_confirmation amount —
+    // see the dedicated describe block below), just not acted on here.
     prismaMock.order.update.mockResolvedValue(buildOrderUpdate('daily') as any);
     prismaMock.orderStatusHistory.create.mockResolvedValue({} as any);
+    prismaMock.customer.findUnique.mockResolvedValue({ discountEnabled: false, discountPercent: 0 } as any);
 
     await updateStatus('order-1', 'delivered', 'user-1', 'staff');
 
     expect(recordChargeMock).not.toHaveBeenCalled();
-    expect(prismaMock.customer.findUnique).not.toHaveBeenCalled();
+    expect(sendNotificationMock).not.toHaveBeenCalled();
   });
 
   it('does not post a ledger charge for a monthly-billing customer on a non-delivered transition', async () => {
@@ -648,6 +690,109 @@ describe('updateStatus — delivery billingMode branch', () => {
     await updateStatus('order-1', 'delivered', 'user-1', 'staff');
 
     expect(recordChargeMock).toHaveBeenCalledWith('customer-1', 'order-1', 500, 'Order PB-TEST');
+  });
+});
+
+// CLAUDE.md "Approved WhatsApp Templates" / delivery_confirmation wiring
+// (2026-09-02, "Razorpay/delivery_confirmation button wiring"): only fires
+// when payment genuinely hasn't been collected yet at the delivered
+// transition — confirmed via AskUserQuestion given the real risk of sending
+// a customer a factually wrong "Amount due" message.
+describe('updateStatus — delivery_confirmation', () => {
+  const CUSTOMER = {
+    id: 'customer-1',
+    fullName: 'Test Customer',
+    phoneNumber: '9999999999',
+    whatsappNumber: null,
+    branch: { whatsappNumber: '917013725151' },
+  };
+
+  beforeEach(() => {
+    prismaMock.order.findUnique.mockResolvedValue({ staffId: 'user-1' } as any);
+    prismaMock.orderStatusHistory.create.mockResolvedValue({} as any);
+    prismaMock.customer.findUnique.mockResolvedValue({ discountEnabled: false, discountPercent: 0 } as any);
+  });
+
+  // RE-CORRECTED (2026-09-03): a pulled sample briefly showed no button on
+  // this template, so the link was moved into plain body text — the client
+  // then confirmed delivery_confirmation genuinely has a real button_1 (the
+  // payment link) after all. Back to a button, suffix-only.
+  it('sends delivery_confirmation with the customer name, order#, amount due, and the payment link suffix as a button param — unpaid daily order with a real link', async () => {
+    prismaMock.order.update.mockResolvedValue({
+      id: 'order-1',
+      orderNumber: 'PB-TEST',
+      finalAmount: 500,
+      billingMode: 'daily',
+      paymentStatus: 'pending',
+      customer: CUSTOMER,
+    } as any);
+    prismaMock.invoice.findUnique.mockResolvedValue({ paymentLinkUrl: 'https://rzp.io/l/AbCd1234' } as any);
+
+    await updateStatus('order-1', 'delivered', 'user-1', 'staff');
+
+    expect(prismaMock.invoice.findUnique).toHaveBeenCalledWith({
+      where: { orderId: 'order-1' },
+      select: { paymentLinkUrl: true },
+    });
+    expect(sendNotificationMock).toHaveBeenCalledWith(
+      CUSTOMER,
+      'delivery_confirmation',
+      {
+        name: MSG91_TEMPLATES.deliveryConfirmation.name,
+        language: MSG91_TEMPLATES.deliveryConfirmation.language,
+        bodyVariables: ['Test Customer', 'PB-TEST', '500'],
+        buttonUrlParam: '/AbCd1234',
+      },
+      'order-1'
+    );
+  });
+
+  it('does not send delivery_confirmation when payment is already recorded (the normal bundled staff flow)', async () => {
+    prismaMock.order.update.mockResolvedValue({
+      id: 'order-1',
+      orderNumber: 'PB-TEST',
+      finalAmount: 500,
+      billingMode: 'daily',
+      paymentStatus: 'paid',
+      customer: CUSTOMER,
+    } as any);
+
+    await updateStatus('order-1', 'delivered', 'user-1', 'staff');
+
+    expect(prismaMock.invoice.findUnique).not.toHaveBeenCalled();
+    expect(sendNotificationMock).not.toHaveBeenCalled();
+  });
+
+  it('does not send delivery_confirmation for a monthly-billing order, even if unpaid (no real payment link, settled via the ledger)', async () => {
+    prismaMock.order.update.mockResolvedValue({
+      id: 'order-1',
+      orderNumber: 'PB-TEST',
+      finalAmount: 500,
+      billingMode: 'monthly_billing',
+      paymentStatus: 'pending',
+      customer: CUSTOMER,
+    } as any);
+
+    await updateStatus('order-1', 'delivered', 'user-1', 'staff');
+
+    expect(prismaMock.invoice.findUnique).not.toHaveBeenCalled();
+    expect(sendNotificationMock).not.toHaveBeenCalled();
+  });
+
+  it('does not send delivery_confirmation when unpaid but no invoice/payment link exists yet', async () => {
+    prismaMock.order.update.mockResolvedValue({
+      id: 'order-1',
+      orderNumber: 'PB-TEST',
+      finalAmount: 500,
+      billingMode: 'daily',
+      paymentStatus: 'pending',
+      customer: CUSTOMER,
+    } as any);
+    prismaMock.invoice.findUnique.mockResolvedValue(null);
+
+    await updateStatus('order-1', 'delivered', 'user-1', 'staff');
+
+    expect(sendNotificationMock).not.toHaveBeenCalled();
   });
 });
 
@@ -924,7 +1069,7 @@ describe('recordOnlinePayment', () => {
       customerId: 'customer-1',
       paymentStatus: 'pending',
       billingMode: 'daily',
-      customer: { id: 'customer-1', phoneNumber: '9999999999', whatsappNumber: null },
+      customer: { id: 'customer-1', fullName: 'Test Customer', phoneNumber: '9999999999', whatsappNumber: null },
     } as any);
     prismaMock.payment.create.mockResolvedValue({} as any);
     prismaMock.order.update.mockResolvedValue({} as any);
@@ -933,9 +1078,14 @@ describe('recordOnlinePayment', () => {
     await recordOnlinePayment('order-1', 'net_banking', 499, 'pay_1', 'netbanking');
 
     expect(sendNotificationMock).toHaveBeenCalledWith(
-      { id: 'customer-1', phoneNumber: '9999999999', whatsappNumber: null },
+      { id: 'customer-1', fullName: 'Test Customer', phoneNumber: '9999999999', whatsappNumber: null },
       'payment_receipt',
-      { name: MSG91_TEMPLATES.paymentReceipt.name, bodyVariables: ['PB-TEST1234', '499', 'Net Banking'] },
+      // Approved template's variable order is name, amount, order#, method.
+      {
+        name: MSG91_TEMPLATES.paymentReceipt.name,
+        language: MSG91_TEMPLATES.paymentReceipt.language,
+        bodyVariables: ['Test Customer', '499', 'PB-TEST1234', 'Net Banking'],
+      },
       'order-1'
     );
   });

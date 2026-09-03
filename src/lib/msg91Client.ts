@@ -1,19 +1,31 @@
-import { MSG91_AUTH_KEY, MSG91_INTEGRATED_NUMBER } from '../config';
+import { MSG91_AUTH_KEY, MSG91_INTEGRATED_NUMBER, MSG91_WABA_NAMESPACE } from '../config';
 
-const MSG91_WHATSAPP_ENDPOINT = 'https://api.msg91.com/api/v5/whatsapp/whatsapp-outbound-message/';
+// VERIFIED against a real, authoritative MSG91 doc cURL example for this
+// exact template (2026-09-02) — note the /bulk/ suffix. The endpoint
+// WITHOUT it (used by every version of this file before this fix) silently
+// accepts requests (status: "success") but never actually dispatches them —
+// the real, functional endpoint has always been this one.
+const MSG91_WHATSAPP_ENDPOINT = 'https://api.msg91.com/api/v5/whatsapp/whatsapp-outbound-message/bulk/';
 
-// ⚠️ UNVERIFIED AGAINST A LIVE ACCOUNT — read before touching.
-// MSG91's real WhatsApp API reference is auth-walled / marketing-only from
-// this environment: their public docs pages (docs.msg91.com/whatsapp/*,
-// msg91.com/help/...) don't expose the actual endpoint/request contract,
-// and api.msg91.com itself 401s without a real authkey. Unlike the
-// Razorpay webhook work earlier this project (verified directly against
-// fetched docs), this request shape is built from MSG91's commonly
-// published v5 WhatsApp template-message examples — NOT fetched/confirmed
-// here. Before relying on this: use MSG91's dashboard test-send tool (or a
-// real send) against a real authkey + integrated number + approved
-// template, and correct this file's body shape if the real API rejects it
-// or responds differently than assumed below.
+// ✅ CONFIRMED DELIVERED (2026-09-03) for account_login specifically — see
+// CLAUDE.md "Live send verification". Getting here took four rounds of
+// MSG91 returning status: "success" while nothing actually arrived: a
+// missing `namespace`, a wrong `language` code, a missing mandatory OTP
+// button, and finally the actual root cause — the endpoint URL itself was
+// wrong the entire time (missing a required /bulk/ suffix; the non-/bulk/
+// endpoint silently accepts and "succeeds" without ever dispatching). The
+// button_1 shape (`type: "text"`, `value` as a plain string) and the
+// removal of `payload.to` were corrected against a real authoritative MSG91
+// doc cURL example for this template.
+//
+// This confirms the request SHAPE below is correct. It does NOT confirm
+// every template's `language`/component fields are right — only
+// account_login's have been reconciled against a real pulled definition so
+// far (see src/constants/msg91Templates.ts and /msg91-templates at the repo
+// root). Treat any other template as unverified until its own real
+// definition has been pulled and a send against it has been confirmed
+// received on a real phone, the same way this one was — a "success"
+// response alone was never reliable evidence for this integration.
 export interface Msg91TemplateMessage {
   toPhoneNumber: string;
   // The sending branch's own MSG91-integrated WhatsApp number (CLAUDE.md
@@ -21,14 +33,46 @@ export interface Msg91TemplateMessage {
   // defaulted here.
   fromNumber: string;
   templateName: string;
+  // The template's actual approved language code (e.g. "en", "en_US") —
+  // VERIFIED to matter, not a cosmetic detail: `account_login`'s real
+  // approved language is "en_US", confirmed 2026-09-02 by pulling its
+  // template definition directly from MSG91, while this file previously
+  // hardcoded a bare "en" for every send unconditionally. Sending the wrong
+  // language code is a plausible reason a request can return MSG91
+  // status: "success" while Meta still silently drops delivery — same
+  // failure signature as the namespace bug above. Defaults to "en" only as
+  // a fallback for callers that don't know better; real call sites should
+  // pass whatever src/constants/msg91Templates.ts records for that
+  // template, not rely on this default.
+  language?: string;
   // Positional — mapped to body_1, body_2, ... in template variable order.
   // WhatsApp templates only allow variable VALUES to be dynamic, never the
   // surrounding template text itself (a Meta platform rule, not
   // MSG91-specific) — see src/constants/msg91Templates.ts.
   bodyVariables: string[];
-  // Only for templates created with a document header component (e.g. the
-  // invoice PDF) — omit for templates with no header.
+  // Only for templates with a header media component — omit for templates
+  // with no header. headerType distinguishes a "document" header (e.g. the
+  // invoice PDF, a per-message file) from an "image" header (e.g.
+  // delivery_confirmation's fixed background/branding image, the same URL
+  // on every send) — defaults to "document" for backward compatibility with
+  // the one call site that used this before headerType existed.
   headerMediaUrl?: string;
+  headerType?: 'document' | 'image';
+  // Only for templates with a real BUTTONS component. Corrected twice on
+  // 2026-09-03: first removed from invoice_reissued/delivery_confirmation
+  // after a pulled sample showed neither had a button; then re-added to
+  // delivery_confirmation after the client confirmed it genuinely does have
+  // one (button_1 is the payment link) — see /msg91-templates and
+  // orderService.ts's use of extractPaymentLinkSuffix. invoice_reissued was
+  // NOT reconfirmed and still sends the link as plain body text — don't
+  // assume it also got a button back without checking the same way. otpLogin
+  // also uses this field, for its mandatory "Copy Code" button (value is the
+  // OTP code itself, not a URL suffix — see otpService.ts). Meta's
+  // dynamic-URL button mechanism configures a FIXED base URL at
+  // template-approval time and only a trailing suffix is left variable at
+  // send time — don't pass a full URL without checking the template's real
+  // definition first, the way account_login's button param was verified.
+  buttonUrlParam?: string;
 }
 
 export const formatMsg91Error = (err: unknown): string => {
@@ -39,19 +83,50 @@ export const formatMsg91Error = (err: unknown): string => {
   return err instanceof Error ? err.message : String(err);
 };
 
+// Real bug found 2026-09-03: User.phoneNumber, Customer.phoneNumber, and
+// Branch.whatsappNumber are all stored in the live DB WITH a literal "+"
+// prefix (CLAUDE.md "Admin accounts" — required for authController.ts's
+// exact-string login lookup to match what LoginScreen.tsx sends). Every
+// real send in this app (OTP included) pulls a number straight from one of
+// those columns into toPhoneNumber/fromNumber with no stripping — but
+// MSG91's WhatsApp API needs digits-only, country code first, no "+" (the
+// same finding this session already made and worked around in throwaway
+// scratch scripts, but never reconciled back into the real app code). That
+// means every genuine production send — not the manually-typed digit-only
+// scratch-script tests that "confirmed" delivery so far — was very likely
+// carrying a "+" on both ends and silently failing. Stripped here, once, as
+// the last-mile defense before hitting the API, so every caller is covered
+// regardless of which DB column the number came from.
+const normalizePhoneNumber = (phone: string): string => phone.replace(/[^0-9]/g, '');
+
 export const sendWhatsAppTemplate = async ({
   toPhoneNumber,
   fromNumber,
   templateName,
+  language,
   bodyVariables,
   headerMediaUrl,
+  headerType,
+  buttonUrlParam,
 }: Msg91TemplateMessage): Promise<void> => {
+  const to = normalizePhoneNumber(toPhoneNumber);
+  const from = normalizePhoneNumber(fromNumber);
+
   const components: Record<string, unknown> = Object.fromEntries(
     bodyVariables.map((value, index) => [`body_${index + 1}`, { type: 'text', value }])
   );
 
   if (headerMediaUrl) {
-    components.header_1 = { type: 'document', value: headerMediaUrl };
+    components.header_1 = { type: headerType ?? 'document', value: headerMediaUrl };
+  }
+
+  if (buttonUrlParam) {
+    // VERIFIED against a real, authoritative MSG91 doc cURL example for
+    // account_login (2026-09-02) — type is "text" (not "button"), and value
+    // is a plain string (not an array). Every earlier version of this file
+    // sent { type: 'button', value: [buttonUrlParam] }, which was wrong on
+    // both counts.
+    components.button_1 = { subtype: 'url', type: 'text', value: buttonUrlParam };
   }
 
   const response = await fetch(MSG91_WHATSAPP_ENDPOINT, {
@@ -61,17 +136,33 @@ export const sendWhatsAppTemplate = async ({
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      integrated_number: fromNumber,
+      integrated_number: from,
       content_type: 'template',
       payload: {
+        // CORRECTED (2026-09-02): a top-level `payload.to` was added
+        // earlier after the WRONG endpoint (no /bulk/ suffix — see
+        // MSG91_WHATSAPP_ENDPOINT above) 400'd without it. The real,
+        // authoritative doc cURL example for the actual working /bulk/
+        // endpoint has no such field — only `to_and_components[].to`
+        // below. Removed to match the real documented contract exactly,
+        // now that it's actually known rather than inferred.
         messaging_product: 'whatsapp',
         type: 'template',
         template: {
           name: templateName,
-          language: { code: 'en', policy: 'deterministic' },
+          language: { code: language ?? 'en', policy: 'deterministic' },
+          // VERIFIED against a real live payload (2026-09-02, "Live send
+          // verification — namespace fix"): omitting this is why every send
+          // before this fix returned MSG91 status: "success" but never
+          // actually delivered — a working dashboard-composed send included
+          // it, an identical-looking API call without it silently failed.
+          // The WABA's namespace GUID, same value for every template under
+          // it — get it from MSG91's dashboard if it ever needs updating
+          // (e.g. after another WABA rebuild).
+          namespace: MSG91_WABA_NAMESPACE,
           to_and_components: [
             {
-              to: [toPhoneNumber],
+              to: [to],
               components,
             },
           ],

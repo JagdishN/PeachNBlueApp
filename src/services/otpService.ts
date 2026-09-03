@@ -87,7 +87,16 @@ export const sendOtpViaChannels = async (phoneNumber: string, otp: string): Prom
       toPhoneNumber: phoneNumber,
       fromNumber: resolveWhatsappFrom(undefined),
       templateName: MSG91_TEMPLATES.otpLogin.name,
+      language: MSG91_TEMPLATES.otpLogin.language,
       bodyVariables: [otp],
+      // account_login's real template definition (pulled directly from
+      // MSG91, 2026-09-02, "Live send verification") has a mandatory
+      // BUTTONS component (Meta's OTP "Copy Code" one-tap autofill) whose
+      // {{1}} is the same OTP code, not a link — see
+      // MSG91_TEMPLATES.otpLogin.requiresOtpButton. Omitting this is
+      // plausibly why every OTP test before this fix failed even once the
+      // namespace bug was fixed.
+      buttonUrlParam: MSG91_TEMPLATES.otpLogin.requiresOtpButton ? otp : undefined,
     });
   } catch (err) {
     console.error(`Failed to send OTP via WhatsApp to ${phoneNumber}: ${formatMsg91Error(err)}`);
