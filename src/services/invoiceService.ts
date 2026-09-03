@@ -33,8 +33,10 @@ interface OrderItemLine {
 const formatQuantityLabel = (item: OrderItemLine): string =>
   item.weightKg != null ? `${item.weightKg} kg` : `${item.quantity}`;
 
+// "Rs." not "₹" — see invoicePdfService.tsx's formatInr for why (Helvetica,
+// the only font @react-pdf/renderer uses here, has no ₹ glyph).
 const formatUnitPriceLabel = (item: OrderItemLine): string =>
-  item.weightKg != null ? `₹${item.pricePerKg}/kg` : `₹${item.unitPrice}`;
+  item.weightKg != null ? `Rs. ${item.pricePerKg}/kg` : `Rs. ${item.unitPrice}`;
 
 // serviceType is deliberately a free-form string, not a hard enum (CLAUDE.md
 // "Admin can add new service types") — a fixed label map would silently

@@ -96,7 +96,14 @@ export interface InvoicePdfData {
   turnaroundLabel: string; // e.g. "24–48" — matches orderService.ts's pickup_confirmation phrasing
 }
 
-const formatInr = (value: number): string => `₹${value.toFixed(2)}`;
+// "Rs." rather than "₹": @react-pdf/renderer's built-in Helvetica font has
+// no ₹ glyph at all — it silently substitutes a fallback character (a
+// superscript "¹") on every amount, a real cosmetic bug found 2026-09-03
+// via an actual rendered/delivered invoice, not caught by tsc/Jest (no test
+// renders real glyphs). Matches the wording the WhatsApp templates already
+// use for the same underlying reason ("Amount due: Rs.{{3}}") rather than
+// embedding a whole new font file just for one symbol.
+const formatInr = (value: number): string => `Rs. ${value.toFixed(2)}`;
 
 export const renderInvoicePdf = async (data: InvoicePdfData): Promise<Buffer> => {
   const upiQrDataUrl = readUpiQrDataUrl();
