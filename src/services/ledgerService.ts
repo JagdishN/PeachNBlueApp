@@ -91,6 +91,67 @@ export const getAgingReport = async (branchId?: string): Promise<AgingRow[]> => 
     .sort((a, b) => (b.daysSinceLastCharge ?? 0) - (a.daysSinceLastCharge ?? 0));
 };
 
+export interface MonthlyStatementResult {
+  sent: number;
+  skipped: number;
+}
+
+// monthly_statement_ready — real Meta-approved shape confirmed 2026-09-02
+// (the client's own dashboard-composed test, the send that first surfaced
+// the missing-namespace bug): {{1}} name, {{2}} statement period, {{3}}
+// total due. No header/button component, so this is a plain text
+// notification — no statement PDF is generated (nothing in this template
+// could carry one).
+//
+// "Total due" is the customer's current running ledger balance (same value
+// getAgingReport/sendReminder already use) — a conventional running-balance
+// statement (credit card/utility bill style) reports the current amount
+// owed, not a re-summed "charges just in this period" figure that could
+// disagree with the ledger's own balanceAfter running total. Customers with
+// a zero/negative balance are skipped (same convention getAgingReport
+// already uses) — nothing meaningful to state if nothing is owed.
+export const generateMonthlyStatements = async (): Promise<MonthlyStatementResult> => {
+  const customers = await prisma.customer.findMany({
+    where: { billingMode: 'monthly_billing' },
+    include: { branch: { select: { whatsappNumber: true } } },
+  });
+
+  // The month just ended, not the current (still in-progress) one — this
+  // runs on the 1st of the month (see jobs/index.ts), so "now" is already
+  // the new month.
+  const now = new Date();
+  const periodDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const periodLabel = periodDate.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+
+  let sent = 0;
+  let skipped = 0;
+
+  // Sequential, not Promise.all — same reasoning as
+  // reissueAllOpenInvoicesForCustomer (avoid bursting MSG91's rate limits
+  // when there are many monthly-billing customers).
+  for (const customer of customers) {
+    const lastEntry = await prisma.ledgerEntry.findFirst({
+      where: { customerId: customer.id },
+      orderBy: { createdAt: 'desc' },
+    });
+    const balance = Number(lastEntry?.balanceAfter ?? 0);
+
+    if (balance <= 0) {
+      skipped += 1;
+      continue;
+    }
+
+    await sendNotification(customer, 'monthly_statement', {
+      name: MSG91_TEMPLATES.monthlyStatementReady.name,
+      language: MSG91_TEMPLATES.monthlyStatementReady.language,
+      bodyVariables: [customer.fullName, periodLabel, String(balance)],
+    });
+    sent += 1;
+  }
+
+  return { sent, skipped };
+};
+
 export const sendReminder = async (customerId: string): Promise<void> => {
   const customer = await prisma.customer.findUnique({
     where: { id: customerId },

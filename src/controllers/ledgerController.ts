@@ -12,3 +12,12 @@ export const sendReminderHandler = async (req: AuthRequest, res: Response): Prom
   await ledgerService.sendReminder(req.params.customerId);
   res.status(200).json({ message: 'Reminder sent' });
 };
+
+// Manual trigger — same on-demand + cron pairing sendReminder already has
+// (the cron itself is registered in jobs/index.ts, 1st of every month).
+// Lets admin re-run/test statement generation without waiting for the
+// schedule.
+export const runMonthlyStatementsHandler = async (req: AuthRequest, res: Response): Promise<void> => {
+  const result = await ledgerService.generateMonthlyStatements();
+  res.status(200).json(result);
+};
