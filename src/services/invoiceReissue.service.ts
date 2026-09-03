@@ -15,7 +15,13 @@ export const reissueInvoice = async (orderId: string): Promise<void> => {
     select: {
       orderNumber: true,
       customer: {
-        select: { id: true, phoneNumber: true, whatsappNumber: true, branch: { select: { whatsappNumber: true } } },
+        select: {
+          id: true,
+          fullName: true,
+          phoneNumber: true,
+          whatsappNumber: true,
+          branch: { select: { whatsappNumber: true } },
+        },
       },
     },
   });
@@ -28,18 +34,38 @@ export const reissueInvoice = async (orderId: string): Promise<void> => {
 
   // paymentLinkUrl is null for monthly-billing orders (see invoiceService.ts)
   // — this reissue path still runs for them (a discount change still affects
-  // what they owe via the ledger), just with no live link to reference.
+  // what they owe via the ledger), just with no live link to reference. The
+  // approved invoice_reissued template has no body-variable branch for "no
+  // link, settled via statement" the way the old placeholder version did, so
+  // this notification is skipped entirely for a monthly-billing reissue; the
+  // reissued invoice/ledger state itself is still updated above regardless.
+  if (!invoice.paymentLinkUrl) {
+    return;
+  }
+
+  // CORRECTED (2026-09-03): the approved template turned out to have no URL
+  // button component at all — a real pulled definition (see
+  // /msg91-templates/invoiceReissued.json) showed only body_1/2/3, no
+  // button_1, contradicting the client's original approved-templates doc.
+  // Confirmed directly with the client ("I think I have not added
+  // buttons"). Per explicit decision, the payment link is now appended as
+  // plain text onto the {{3}} (amount) body variable instead of a button —
+  // WhatsApp auto-links a plain-text URL in body content, no button
+  // component or template resubmission required. The approved template also
+  // has no document-header component (unlike the old placeholder version)
+  // — the reissued PDF is generated/stored either way, just not attached to
+  // this WhatsApp message.
   await sendNotification(
     order.customer,
     'invoice_reissued',
     {
       name: MSG91_TEMPLATES.invoiceReissued.name,
+      language: MSG91_TEMPLATES.invoiceReissued.language,
       bodyVariables: [
+        order.customer.fullName,
         order.orderNumber,
-        String(invoice.amount),
-        invoice.paymentLinkUrl ? `New payment link: ${invoice.paymentLinkUrl}` : 'This will be settled via your monthly statement.',
+        `${invoice.amount}. Pay online: ${invoice.paymentLinkUrl}`,
       ],
-      headerMediaUrl: invoice.pdfUrl ?? undefined,
     },
     orderId
   );

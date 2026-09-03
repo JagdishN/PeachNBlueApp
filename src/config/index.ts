@@ -62,6 +62,16 @@ export const MSG91_AUTH_KEY = getEnv('MSG91_AUTH_KEY');
 // one of the numbers registered under the MSG91/Meta WABA this authkey
 // belongs to.
 export const MSG91_INTEGRATED_NUMBER = getEnv('MSG91_INTEGRATED_NUMBER');
+// The WABA's namespace GUID (assigned by Meta at WABA creation, same value
+// for every template under it) — REQUIRED for real delivery, discovered
+// 2026-09-02 via a live send comparison (CLAUDE.md "Live send verification
+// — namespace fix"): omitting it lets MSG91's own API validation accept the
+// request (200 "success") but Meta silently drops delivery downstream,
+// since name+language alone apparently isn't enough for MSG91 to resolve
+// which approved template to actually send. Get this from MSG91's
+// dashboard (Manage Templates, or a successful send's request payload) if
+// it ever needs to change (e.g. after another WABA rebuild).
+export const MSG91_WABA_NAMESPACE = getEnv('MSG91_WABA_NAMESPACE');
 
 // New-style Supabase API keys (sb_publishable_… / sb_secret_…) for
 // @supabase/server — no hardcoded fallback here on purpose: these are live
@@ -86,6 +96,12 @@ if (!JWT_SECRET || JWT_SECRET === 'replace-with-secret') {
 
 if (!MSG91_AUTH_KEY || !MSG91_INTEGRATED_NUMBER) {
   console.warn('Warning: MSG91_AUTH_KEY/MSG91_INTEGRATED_NUMBER not set. OTP and customer notifications will fail to send.');
+}
+
+if (!MSG91_WABA_NAMESPACE) {
+  console.warn(
+    'Warning: MSG91_WABA_NAMESPACE not set. Sends may return "success" from MSG91 but silently fail to actually deliver (see CLAUDE.md "Live send verification — namespace fix").'
+  );
 }
 
 if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY || !SUPABASE_SECRET_KEY) {

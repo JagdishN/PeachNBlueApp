@@ -223,7 +223,8 @@ export const createOrder = async (input: CreateOrderInput) => {
     'pickup_confirmation',
     {
       name: MSG91_TEMPLATES.pickupConfirmation.name,
-      bodyVariables: [order.orderNumber, String(estimatedAmount)],
+      language: MSG91_TEMPLATES.pickupConfirmation.language,
+      bodyVariables: [order.customer.fullName, order.orderNumber, String(estimatedAmount)],
     },
     order.id
   );
@@ -243,10 +244,15 @@ export const createOrder = async (input: CreateOrderInput) => {
   });
 
   if (pickupAdmins.length > 0) {
+    // Reuses pickupConfirmation (2026-09-03, client decision) rather than a
+    // separate never-approved adminPickupNotification template — same
+    // 3-variable shape, locationLabel filling the slot the customer-facing
+    // send uses for the customer's name.
     await notifyAdminsOfPickup(
       pickupAdmins,
       {
-        name: MSG91_TEMPLATES.adminPickupNotification.name,
+        name: MSG91_TEMPLATES.pickupConfirmation.name,
+        language: MSG91_TEMPLATES.pickupConfirmation.language,
         bodyVariables: [input.locationLabel, order.orderNumber, String(estimatedAmount)],
       },
       resolveWhatsappFrom(order.customer.branch.whatsappNumber)
@@ -277,6 +283,7 @@ export const createOrder = async (input: CreateOrderInput) => {
         'pickup_confirmation',
         {
           name: MSG91_TEMPLATES.invoiceReady.name,
+          language: MSG91_TEMPLATES.invoiceReady.language,
           // paymentLinkUrl is null for monthly-billing orders (invoiceService
           // no longer creates a real Razorpay link for them — settled via
           // the ledger, not per-order) — the template's fixed text can't
@@ -420,7 +427,7 @@ export const updateStatus = async (
   // changed setting) — CLAUDE.md "Monthly billing retroactivity — RESOLVED":
   // flipping a customer's billing mode must only affect orders created
   // after the flip, not ones already in flight.
-  if (newStatus === 'delivered' && order.billingMode === 'monthly_billing') {
+  if (newStatus === 'delivered') {
     const discountFields = await prisma.customer.findUnique({
       where: { id: order.customer.id },
       select: { discountEnabled: true, discountPercent: true },
@@ -429,7 +436,51 @@ export const updateStatus = async (
       Number(order.finalAmount),
       discountFields ?? { discountEnabled: false, discountPercent: 0 }
     );
-    await recordCharge(order.customer.id, order.id, payableAmount, `Order ${order.orderNumber}`);
+
+    if (order.billingMode === 'monthly_billing') {
+      await recordCharge(order.customer.id, order.id, payableAmount, `Order ${order.orderNumber}`);
+    } else if (order.paymentStatus !== 'paid') {
+      // CLAUDE.md "Approved WhatsApp Templates" / delivery_confirmation:
+      // fires only when payment genuinely hasn't been collected yet at
+      // this point — the mobile app's normal flow bundles recordPayment +
+      // this status update into one staff action, so paymentStatus is
+      // usually already 'paid' by the time updateStatus runs; the approved
+      // template's fixed text ("Amount due: Rs.X") would be factually
+      // wrong to send to a customer who just paid. Confirmed via
+      // AskUserQuestion rather than guessed, given the real risk of
+      // sending an inaccurate customer-facing message.
+      const invoice = await prisma.invoice.findUnique({
+        where: { orderId },
+        select: { paymentLinkUrl: true },
+      });
+
+      // No real payment link exists for a monthly-billing order (handled
+      // above, so unreachable here) — this guard is for the case an order
+      // somehow has no invoice/link yet; there's nothing to append if so.
+      //
+      // CORRECTED (2026-09-03), same fix and same reason as
+      // invoiceReissue.service.ts: delivery_confirmation's real approved
+      // template turned out to have no URL button component either (see
+      // /msg91-templates/deliveryConfirmation.json) — confirmed directly
+      // with the client. The link is appended as plain text onto the
+      // {{3}} (amount due) body variable instead of a button.
+      if (invoice?.paymentLinkUrl) {
+        await sendNotification(
+          order.customer,
+          'delivery_confirmation',
+          {
+            name: MSG91_TEMPLATES.deliveryConfirmation.name,
+            language: MSG91_TEMPLATES.deliveryConfirmation.language,
+            bodyVariables: [
+              order.customer.fullName,
+              order.orderNumber,
+              `${payableAmount}. Pay online: ${invoice.paymentLinkUrl}`,
+            ],
+          },
+          orderId
+        );
+      }
+    }
   }
 
   return order;
@@ -602,8 +653,16 @@ export const recordOnlinePayment = async (
     order.customer,
     'payment_receipt',
     {
+      // Approved template's variable order is name, amount, order#, method
+      // — amount before order number, unlike every other template here.
       name: MSG91_TEMPLATES.paymentReceipt.name,
-      bodyVariables: [order.orderNumber, String(amountPaid), PAYMENT_METHOD_LABELS[paymentMethod]],
+      language: MSG91_TEMPLATES.paymentReceipt.language,
+      bodyVariables: [
+        order.customer.fullName,
+        String(amountPaid),
+        order.orderNumber,
+        PAYMENT_METHOD_LABELS[paymentMethod],
+      ],
     },
     orderId
   );
@@ -654,7 +713,8 @@ export const reviseAmount = async (
     'amount_revision',
     {
       name: MSG91_TEMPLATES.amountRevision.name,
-      bodyVariables: [order.orderNumber, String(newAmount), reason],
+      language: MSG91_TEMPLATES.amountRevision.language,
+      bodyVariables: [order.customer.fullName, order.orderNumber, String(newAmount), reason],
     },
     orderId
   );

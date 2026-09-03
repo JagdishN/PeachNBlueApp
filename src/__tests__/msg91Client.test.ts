@@ -6,6 +6,7 @@ jest.mock('../config', () => ({
   // The shared fallback sender — CLAUDE.md "Branches": used only when a
   // branch has no WhatsApp number of its own configured yet.
   MSG91_INTEGRATED_NUMBER: '919999999999',
+  MSG91_WABA_NAMESPACE: 'namespace_test',
 }));
 
 import { formatMsg91Error, sendWhatsAppTemplate, resolveWhatsappFrom } from '../lib/msg91Client';
@@ -42,8 +43,12 @@ describe('sendWhatsAppTemplate', () => {
       bodyVariables: ['654321'],
     });
 
+    // Regression guard (2026-09-02): the endpoint WITHOUT /bulk/ silently
+    // accepts requests (status: "success") but never dispatches them — this
+    // shipped for the entire life of this integration until caught against
+    // a real, authoritative MSG91 doc cURL example for account_login.
     expect(fetchMock).toHaveBeenCalledWith(
-      'https://api.msg91.com/api/v5/whatsapp/whatsapp-outbound-message/',
+      'https://api.msg91.com/api/v5/whatsapp/whatsapp-outbound-message/bulk/',
       expect.objectContaining({
         method: 'POST',
         headers: expect.objectContaining({ authkey: 'authkey_test', 'Content-Type': 'application/json' }),
@@ -52,6 +57,16 @@ describe('sendWhatsAppTemplate', () => {
 
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(body.integrated_number).toBe('919398125151');
+    // A top-level payload.to was added, then removed again — it turned out
+    // to only be required by the WRONG (non-/bulk/) endpoint above; the
+    // real documented request for the working endpoint has no such field,
+    // only the nested to_and_components[].to asserted below.
+    expect(body.payload.to).toBeUndefined();
+    // Regression guard (2026-09-02, "Live send verification — namespace
+    // fix"): a real dashboard-composed send that DID deliver included this;
+    // an otherwise-identical API call without it returned MSG91 status:
+    // "success" but never actually delivered.
+    expect(body.payload.template.namespace).toBe('namespace_test');
     expect(body.payload.template.name).toBe('pb_otp_login');
     expect(body.payload.template.to_and_components[0].to).toEqual(['919000000001']);
     expect(body.payload.template.to_and_components[0].components).toEqual({
@@ -88,6 +103,32 @@ describe('sendWhatsAppTemplate', () => {
     expect(body.payload.template.to_and_components[0].components.header_1).toEqual({
       type: 'document',
       value: 'https://storage.example/invoice.pdf',
+    });
+  });
+
+  // Uses a generic template name here — this test exercises msg91Client.ts's
+  // button_1 mechanic itself, not any specific template's real shape.
+  // (invoice_reissued/delivery_confirmation turned out NOT to have a real
+  // button component — see msg91Templates.ts; the current real user of this
+  // mechanic is account_login's mandatory OTP "Copy Code" button.)
+  it('adds a button_1 dynamic-URL component when buttonUrlParam is given', async () => {
+    await sendWhatsAppTemplate({
+      toPhoneNumber: '919000000001',
+      fromNumber: '919398125151',
+      templateName: 'some_template_with_a_button',
+      bodyVariables: ['Test Customer', 'PB-ABC1', '450'],
+      buttonUrlParam: 'https://rzp.io/l/new',
+    });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    // Regression guard (2026-09-02): verified against a real, authoritative
+    // MSG91 doc cURL example — type is "text" (not "button"), and value is
+    // a plain string (not an array). Every earlier version of this file got
+    // both wrong.
+    expect(body.payload.template.to_and_components[0].components.button_1).toEqual({
+      subtype: 'url',
+      type: 'text',
+      value: 'https://rzp.io/l/new',
     });
   });
 

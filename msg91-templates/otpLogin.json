@@ -1,0 +1,8 @@
+{
+  "_paste_here": "curl --location --request POST 'https://api.msg91.com/api/v5/whatsapp/whatsapp-outbound-message/bulk/' --header 'Content-Type: application/json' --header 'authkey: <authkey>' --data-raw '{\n  \"integrated_number\": \"917013725151\",\n  \"content_type\": \"template\",\n  \"payload\": {\n    \"messaging_product\": \"whatsapp\",\n    \"type\": \"template\",\n    \"template\": {\n      \"name\": \"account_login\",\n      \"language\": {\n        \"code\": \"en_US\",\n        \"policy\": \"deterministic\"\n      },\n      \"namespace\": \"5999f766_6b06_4a8a_b3c5_fba3d412a89e\",\n      \"to_and_components\": [\n        {\n          \"to\": [\n            \"<list_of_phone_numbers>\"\n          ],\n          \"components\": {\n            \"body_1\": {\n              \"type\": \"text\",\n              \"value\": \"value1\"\n            },\n            \"button_1\": {\n              \"subtype\": \"url\",\n              \"type\": \"text\",\n              \"value\": \"<{{url text variable}}>\"\n            }\n          }\n        }\n      ]\n    }\n  }\n}'",
+  "_already_known_and_reconciled_into_code": {
+    "language": "en_US",
+    "hasMandatoryButtonComponent": true,
+    "buttonPurpose": "Meta 'Copy Code' one-tap OTP autofill — button_1's value is the OTP code itself, same as body_1"
+  }
+}

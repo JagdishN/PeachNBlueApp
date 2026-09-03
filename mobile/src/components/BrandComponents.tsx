@@ -1,17 +1,35 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { fonts } from '../theme/theme';
 
-// Fixed, non-themable NIVENXA attribution — CLAUDE.md: "Powered by NIVENXA"
-// footer on every screen. Deliberately hardcoded literal hex, not theme
-// tokens (not even the "fixed" chrome/cream tokens) — this must always read
-// as the app builder's mark, independent of anything Peach & Blue themes,
-// including any future rebrand of the app's own palette.
+// Nivenxa Technologies attribution URL — CLAUDE.md "Non-negotiables":
+// deliberately routes to the software arm specifically (nivenxa.com's
+// /technologies path), not the parent NIVENXA brand generally, for
+// marketing/lead-generation value. Treated as a firm-wide template decision
+// for future client apps, not a Peach & Blue-specific choice.
+const NIVENXA_TECHNOLOGIES_URL = 'https://nivenxa.com/technologies';
+
+// Fixed, non-themable Nivenxa Technologies attribution — CLAUDE.md: a
+// tappable "Powered by Nivenxa Technologies" footer on every screen (splash
+// screen carries the same wording but stays non-interactive — see
+// SplashScreen.tsx). Deliberately hardcoded literal hex, not theme tokens
+// (not even the "fixed" chrome/cream tokens) — this must always read as the
+// app builder's mark, independent of anything Peach & Blue themes, including
+// any future rebrand of the app's own palette.
 export const NivenxaFooter: React.FC = () => (
-  <View style={styles.footer}>
-    <Text style={styles.footerText}>POWERED BY NIVENXA</Text>
-  </View>
+  <Pressable
+    style={styles.footer}
+    onPress={() => Linking.openURL(NIVENXA_TECHNOLOGIES_URL)}
+    accessibilityRole="link"
+    // The footer bar itself stays a visually subtle 22px strip (original
+    // branding requirement), but that's too thin a real tap target on its
+    // own — hitSlop pads the actual touchable area beyond the visible bar
+    // without growing it on screen.
+    hitSlop={{ top: 10, bottom: 10, left: 12, right: 12 }}
+  >
+    <Text style={styles.footerText}>POWERED BY NIVENXA TECHNOLOGIES</Text>
+  </Pressable>
 );
 
 interface SplashLogoProps {
@@ -46,6 +64,9 @@ const styles = StyleSheet.create({
     fontSize: 8.5,
     fontWeight: '600',
     letterSpacing: 0.5,
+    // Subtle tappability affordance — same convention as the About-page
+    // credit (SettingsScreen.tsx), not a new pattern invented here.
+    textDecorationLine: 'underline',
   },
   logoWrap: {
     flexDirection: 'row',

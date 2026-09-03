@@ -112,6 +112,7 @@ export const sendReminder = async (customerId: string): Promise<void> => {
 
   await sendNotification(customer, 'payment_reminder', {
     name: MSG91_TEMPLATES.paymentReminder.name,
-    bodyVariables: [String(balance)],
+    language: MSG91_TEMPLATES.paymentReminder.language,
+    bodyVariables: [customer.fullName, String(balance)],
   });
 };

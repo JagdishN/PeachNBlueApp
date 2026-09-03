@@ -1,0 +1,4 @@
+{
+  "_paste_here": "Replace this whole object with the raw JSON response for template name 'pb_admin_pickup_notification' from MSG91's get-template-curl endpoint. See ../README.md.",
+  "_note": "Approval status unknown — this internal (admin-facing, not customer-facing) template wasn't covered by the client's approved-templates doc at all. Confirm it even exists on the MSG91 side before relying on the placeholder name."
+}

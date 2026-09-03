@@ -32,7 +32,7 @@ beforeEach(() => {
 describe('reissueInvoice', () => {
   const ORDER = {
     orderNumber: 'PB-ABCD1234',
-    customer: { id: 'customer-1', phoneNumber: '9999999999', whatsappNumber: null },
+    customer: { id: 'customer-1', fullName: 'Test Customer', phoneNumber: '9999999999', whatsappNumber: null },
   };
 
   it('delegates the actual PDF/payment-link work to invoiceService.generateInvoice (the one shared implementation)', async () => {
@@ -49,7 +49,13 @@ describe('reissueInvoice', () => {
     expect(generateInvoiceMock).toHaveBeenCalledWith('order-1');
   });
 
-  it('sends an invoice_reissued notification with the new amount, link, and PDF as a document header', async () => {
+  // Real Meta-approved invoice_reissued template (CLAUDE.md "Approved
+  // WhatsApp Templates", 2026-09-02): name/order#/amount as body variables.
+  // CORRECTED (2026-09-03): the template turned out to have no URL button
+  // component (confirmed directly with the client against a real pulled
+  // definition) — the link is now appended as plain text onto the amount
+  // variable instead of sent via a nonexistent button.
+  it('sends an invoice_reissued notification with the customer name, order#, and the link appended as text onto the amount variable', async () => {
     prismaMock.order.findUnique.mockResolvedValue(ORDER as any);
     generateInvoiceMock.mockResolvedValue({
       amount: 900,
@@ -65,8 +71,8 @@ describe('reissueInvoice', () => {
       'invoice_reissued',
       {
         name: MSG91_TEMPLATES.invoiceReissued.name,
-        bodyVariables: ['PB-ABCD1234', '900', 'New payment link: https://rzp.io/l/new'],
-        headerMediaUrl: 'https://storage.example/new.pdf',
+        language: MSG91_TEMPLATES.invoiceReissued.language,
+        bodyVariables: ['Test Customer', 'PB-ABCD1234', '900. Pay online: https://rzp.io/l/new'],
       },
       'order-1'
     );
@@ -80,10 +86,11 @@ describe('reissueInvoice', () => {
   });
 
   // invoiceService.ts no longer creates a real Razorpay link for
-  // monthly-billing orders — paymentLinkUrl comes back null. Regression
-  // guard against interpolating "New payment link: null" into a template
-  // variable.
-  it('sends a monthly-statement message, not a broken null link, when paymentLinkUrl is null', async () => {
+  // monthly-billing orders — paymentLinkUrl comes back null. The approved
+  // invoice_reissued template has no body-variable slot for "settled via
+  // your monthly statement", so this notification is skipped entirely in
+  // that case rather than sent with nothing to append.
+  it('skips the notification entirely (no link to append) when paymentLinkUrl is null', async () => {
     prismaMock.order.findUnique.mockResolvedValue(ORDER as any);
     generateInvoiceMock.mockResolvedValue({
       amount: 900,
@@ -94,9 +101,7 @@ describe('reissueInvoice', () => {
 
     await reissueInvoice('order-1');
 
-    const template = sendNotificationMock.mock.calls[0][2];
-    expect(template.bodyVariables.join(' ')).not.toContain('null');
-    expect(template.bodyVariables).toContain('This will be settled via your monthly statement.');
+    expect(sendNotificationMock).not.toHaveBeenCalled();
   });
 });
 

@@ -17,12 +17,20 @@ interface NotifiableCustomer {
 
 interface TemplateMessage {
   name: string;
+  // The template's real approved language (e.g. "en", "en_US") — see
+  // msg91Client.ts's Msg91TemplateMessage.language for why this matters and
+  // isn't just cosmetic. Callers should pass src/constants/msg91Templates.ts's
+  // `language` field for the template being sent, not hardcode this.
+  language?: string;
   // Positional — see src/constants/msg91Templates.ts for each template's
   // variable order/meaning.
   bodyVariables: string[];
   // Only for templates with a document header component (e.g. the invoice
   // PDF) — omit for templates with no header.
   headerMediaUrl?: string;
+  // Only for templates with a dynamic-URL button component — see
+  // msg91Client.ts's Msg91TemplateMessage.buttonUrlParam.
+  buttonUrlParam?: string;
 }
 
 // Sends a customer notification over WhatsApp — the only channel now
@@ -48,8 +56,10 @@ export const sendNotification = async (
       toPhoneNumber: whatsappTarget,
       fromNumber,
       templateName: template.name,
+      language: template.language,
       bodyVariables: template.bodyVariables,
       headerMediaUrl: template.headerMediaUrl,
+      buttonUrlParam: template.buttonUrlParam,
     });
   } catch (err) {
     status = 'failed';
@@ -87,6 +97,7 @@ export const notifyAdminsOfPickup = async (
         toPhoneNumber: admin.phoneNumber,
         fromNumber,
         templateName: template.name,
+        language: template.language,
         bodyVariables: template.bodyVariables,
       })
     )
