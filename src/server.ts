@@ -14,6 +14,7 @@ import deviceRoutes from './routes/devices';
 import webhookRoutes from './routes/webhooks';
 import { errorHandler } from './middleware/errorHandler';
 import { staffFieldFilter } from './middleware/staffFieldFilter';
+import { registerJobs } from './jobs';
 import { PORT } from './config';
 
 const app = express();
@@ -42,6 +43,8 @@ app.use('/api/v1/reports', reportRoutes);
 app.use('/api/v1/devices', deviceRoutes);
 
 app.use(errorHandler);
+
+registerJobs();
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);

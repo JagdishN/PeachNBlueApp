@@ -116,9 +116,15 @@ export const MSG91_TEMPLATES = {
   // briefly showed no button/header at all, and the link was moved to plain
   // body text as a result — the client then confirmed this template
   // genuinely does have both a real button_1 (the payment link) and a
-  // header_1 (a fixed background image). The button is wired back in
-  // (orderService.ts); the header is NOT — no real hosted image URL exists
-  // yet, so header_1 is deliberately omitted rather than sent broken.
+  // header_1 (a fixed background image). Both are wired in orderService.ts.
+  // RESOLVED (2026-09-03): header_1 turned out to be MANDATORY, not
+  // decorative — a live send comparison confirmed the message never arrives
+  // at all when header_1 is omitted (MSG91 still returns status: "success"
+  // either way), same silent-drop-on-missing-component failure mode as the
+  // missing-namespace/missing-OTP-button/wrong-endpoint bugs before it.
+  // Client confirmed (after seeing a test send) using the Peach & Blue UPI
+  // QR image itself as the permanent header — see
+  // DELIVERY_CONFIRMATION_HEADER_IMAGE_URL in orderService.ts.
   // invoice_reissued was NOT reconfirmed the same way and still uses the
   // plain-text-in-body approach — don't assume it also has a button.
   deliveryConfirmation: { name: 'delivery_confirmation', variableCount: 3, status: 'approved' as const, language: 'en', hasPaymentLinkButton: true },

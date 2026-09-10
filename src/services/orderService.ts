@@ -12,6 +12,21 @@ import { reissueInvoice } from './invoiceReissue.service';
 import { calculatePayableAmount } from '../utils/pricing';
 import { extractPaymentLinkSuffix } from '../utils/paymentLink';
 
+// delivery_confirmation's header_1 (image) — real gap found and confirmed
+// 2026-09-03 via a live send comparison: MSG91 returns status: "success"
+// whether or not header_1 is included, but the message only actually
+// arrives when it IS present — same silent-drop-on-missing-required-
+// component failure mode this integration has already hit for a missing
+// namespace, a missing OTP button, and the wrong endpoint. So this can't be
+// left optional/omitted the way it was before. Client confirmed (via
+// AskUserQuestion) using the Peach & Blue UPI QR image itself as the
+// permanent header, after seeing it in a test send — uploaded once to a
+// stable, non-timestamped filename (not the per-order invoice PDF pattern,
+// since this is one fixed asset reused on every send) in the same public
+// "invoices" Supabase Storage bucket.
+const DELIVERY_CONFIRMATION_HEADER_IMAGE_URL =
+  'https://lljvligcuqolaoxsaeal.supabase.co/storage/v1/object/public/invoices/delivery-confirmation-header.jpeg';
+
 // Note: ledger-charge side effects on delivery are intentionally NOT wired
 // here yet — that lands when the backend's Razorpay/ledger delivery-time
 // work (still pending) is built. updateStatus today only transitions
@@ -476,13 +491,16 @@ export const updateStatus = async (
       // on this template, so the link was moved into plain body text (see
       // the git history / prior version of this comment) — the client then
       // confirmed delivery_confirmation genuinely DOES have a real button_1
-      // (the payment link) and a header_1 (a fixed background image, not
-      // wired yet — no real image URL provided; skip the header until one
-      // exists rather than send a broken/missing header component). Back to
-      // a real button, suffix-only per Meta's dynamic-URL mechanism — see
-      // utils/paymentLink.ts. invoice_reissued was NOT reconfirmed the same
-      // way and still uses the plain-text-in-body approach — don't assume
-      // it also got its button back.
+      // (the payment link) and a header_1 (a fixed background image). Back
+      // to a real button, suffix-only per Meta's dynamic-URL mechanism —
+      // see utils/paymentLink.ts. invoice_reissued was NOT reconfirmed the
+      // same way and still uses the plain-text-in-body approach — don't
+      // assume it also got its button back.
+      //
+      // header_1 is now always sent too (see
+      // DELIVERY_CONFIRMATION_HEADER_IMAGE_URL above) — confirmed 2026-09-03
+      // via a live send comparison that omitting it, not just leaving it
+      // decorative, is why this template was silently never delivering.
       if (invoice?.paymentLinkUrl) {
         await sendNotification(
           order.customer,
@@ -492,6 +510,8 @@ export const updateStatus = async (
             language: MSG91_TEMPLATES.deliveryConfirmation.language,
             bodyVariables: [order.customer.fullName, order.orderNumber, String(payableAmount)],
             buttonUrlParam: extractPaymentLinkSuffix(invoice.paymentLinkUrl),
+            headerMediaUrl: DELIVERY_CONFIRMATION_HEADER_IMAGE_URL,
+            headerType: 'image',
           },
           orderId
         );

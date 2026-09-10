@@ -742,6 +742,8 @@ describe('updateStatus — delivery_confirmation', () => {
         language: MSG91_TEMPLATES.deliveryConfirmation.language,
         bodyVariables: ['Test Customer', 'PB-TEST', '500'],
         buttonUrlParam: '/AbCd1234',
+        headerMediaUrl: expect.stringContaining('delivery-confirmation-header'),
+        headerType: 'image',
       },
       'order-1'
     );
