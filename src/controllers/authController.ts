@@ -1,7 +1,16 @@
 import { Request, Response } from 'express';
 import jwt, { SignOptions } from 'jsonwebtoken';
 import prisma from '../prisma/client';
-import { JWT_EXPIRES_IN, JWT_REFRESH_EXPIRES_IN, JWT_SECRET, MOCK_AUTH, NODE_ENV, OTP_EXPIRY_MINUTES } from '../config';
+import {
+  JWT_EXPIRES_IN,
+  JWT_REFRESH_EXPIRES_IN,
+  JWT_SECRET,
+  MOCK_AUTH,
+  NODE_ENV,
+  OTP_EXPIRY_MINUTES,
+  REVIEWER_TEST_OTP,
+  REVIEWER_TEST_PHONE,
+} from '../config';
 import { checkOtpRateLimit, generateOtp, saveOtpAttempt, sendOtpViaChannels, verifyOtpCode } from '../services/otpService';
 import { UserRole } from '../types/enums';
 
@@ -33,6 +42,14 @@ const createRefreshToken = (userId: string) => {
   });
 };
 
+// App-store/Play-Store review bypass — see CLAUDE.md "Reviewer test-number
+// OTP bypass". Exact-match only, against one specific non-real phone number
+// (never a pattern/wildcard/NODE_ENV toggle) — an empty REVIEWER_TEST_PHONE
+// (the default, outside of an active store review) means this never
+// matches anything, for any input.
+const isReviewerTestPhone = (phoneNumber: string): boolean =>
+  REVIEWER_TEST_PHONE !== '' && phoneNumber === REVIEWER_TEST_PHONE;
+
 export const requestOtp = async (req: Request, res: Response): Promise<void> => {
   const { phoneNumber } = req.body;
 
@@ -48,6 +65,17 @@ export const requestOtp = async (req: Request, res: Response): Promise<void> => 
 
   if (!user) {
     res.status(404).json({ error: 'User not found' });
+    return;
+  }
+
+  // Reviewer bypass: skip rate-limiting and OTP generation/save entirely —
+  // nothing is ever stored for this number, since verifyOtp below checks the
+  // fixed REVIEWER_TEST_OTP directly rather than anything from
+  // saveOtpAttempt/verifyOtpCode's Redis-backed store. No real MSG91 send
+  // happens either way, so no WhatsApp message goes out and no MSG91
+  // credits/quota are spent on a number that could never receive it.
+  if (isReviewerTestPhone(phoneNumber)) {
+    res.status(200).json({ message: 'OTP sent if the user exists' });
     return;
   }
 
@@ -90,11 +118,26 @@ export const verifyOtp = async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  const verified = await verifyOtpCode(phoneNumber, otp);
+  // Reviewer bypass: exact phone match AND exact fixed-OTP match, checked
+  // directly instead of through verifyOtpCode — requestOtp above never saved
+  // anything to Redis/the mock store for this number. Falls through to the
+  // exact same JWT-issuance code below as a real verification (item 3 of the
+  // spec: "same code path... not a separate insecure branch") rather than a
+  // parallel/weaker login path.
+  const isBypass = isReviewerTestPhone(phoneNumber);
+  const verified = isBypass ? otp === REVIEWER_TEST_OTP : await verifyOtpCode(phoneNumber, otp);
 
   if (!verified) {
     res.status(401).json({ error: 'Invalid or expired OTP' });
     return;
+  }
+
+  if (isBypass) {
+    // Deliberately loud, visible logging (item 6 of the spec) — this is the
+    // one phone number in the whole system that authenticates without a
+    // real WhatsApp OTP, so every successful use should stand out in server
+    // logs rather than blend into routine request logging.
+    console.warn(`[REVIEWER_BYPASS] Test-number OTP login used: phone=${phoneNumber} at=${new Date().toISOString()}`);
   }
 
   const token = createAccessToken({ id: user.id, role: user.role as UserRole, branchId: user.branchId });

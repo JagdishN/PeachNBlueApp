@@ -86,6 +86,19 @@ export const RAZORPAY_KEY_ID = getEnv('RAZORPAY_KEY_ID');
 export const RAZORPAY_KEY_SECRET = getEnv('RAZORPAY_KEY_SECRET');
 export const RAZORPAY_WEBHOOK_SECRET = getEnv('RAZORPAY_WEBHOOK_SECRET');
 
+// App-store/Play-Store review bypass (see authController.ts) — an exact-match
+// allowlist of exactly ONE non-real phone number, so app reviewers (who
+// cannot receive a real WhatsApp OTP) can still log in. Deliberately NOT
+// gated on NODE_ENV — this ships in the production build reviewers actually
+// test, and safety comes from the exact-match requirement on both values
+// (a real staff/customer number can never coincidentally equal this), not
+// from an environment check. Left unset (empty string) outside of when a
+// store review is actually in progress is fine — authController.ts's
+// isReviewerTestPhone() treats an empty REVIEWER_TEST_PHONE as "never
+// matches," so this is inert by default, not a standing backdoor.
+export const REVIEWER_TEST_PHONE = getEnv('REVIEWER_TEST_PHONE');
+export const REVIEWER_TEST_OTP = getEnv('REVIEWER_TEST_OTP');
+
 if (!DATABASE_URL) {
   throw new Error('DATABASE_URL is required in environment variables.');
 }
