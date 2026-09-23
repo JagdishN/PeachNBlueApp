@@ -18,6 +18,8 @@ const configMock = {
   MOCK_AUTH: false,
   NODE_ENV: 'test',
   OTP_EXPIRY_MINUTES: 10,
+  REVIEWER_TEST_PHONE: '',
+  REVIEWER_TEST_OTP: '',
 };
 jest.mock('../config', () => configMock);
 
@@ -67,6 +69,8 @@ const existingUser = {
 beforeEach(() => {
   mockReset(prismaMock);
   configMock.MOCK_AUTH = false;
+  configMock.REVIEWER_TEST_PHONE = '';
+  configMock.REVIEWER_TEST_OTP = '';
   otpMocks.checkOtpRateLimit.mockReset().mockResolvedValue(true);
   otpMocks.generateOtp.mockReset().mockReturnValue('654321');
   otpMocks.saveOtpAttempt.mockReset().mockResolvedValue(undefined);
@@ -132,6 +136,65 @@ describe('POST /request-otp', () => {
     expect(otpMocks.generateOtp).not.toHaveBeenCalled();
     expect(otpMocks.saveOtpAttempt).toHaveBeenCalledWith(existingUser.phoneNumber, '123456', 10);
     expect(otpMocks.sendOtpViaChannels).not.toHaveBeenCalled();
+  });
+
+  // App-store/Play-Store review bypass — see CLAUDE.md "Reviewer test-number
+  // OTP bypass". A store reviewer can't receive a real WhatsApp OTP, so this
+  // number skips rate-limiting/generation/send entirely rather than trying
+  // (and failing) to deliver one.
+  describe('reviewer test-number bypass', () => {
+    const reviewerUser = { ...existingUser, id: 'reviewer-1', phoneNumber: '+911234567890' };
+
+    beforeEach(() => {
+      configMock.REVIEWER_TEST_PHONE = '+911234567890';
+      configMock.REVIEWER_TEST_OTP = '123456';
+    });
+
+    it('returns success without checking the rate limit, generating an OTP, or sending anything', async () => {
+      prismaMock.user.findUnique.mockResolvedValue(reviewerUser as any);
+
+      const res = await request(app)
+        .post('/api/auth/request-otp')
+        .send({ phoneNumber: reviewerUser.phoneNumber });
+
+      expect(res.status).toBe(200);
+      expect(otpMocks.checkOtpRateLimit).not.toHaveBeenCalled();
+      expect(otpMocks.generateOtp).not.toHaveBeenCalled();
+      expect(otpMocks.saveOtpAttempt).not.toHaveBeenCalled();
+      expect(otpMocks.sendOtpViaChannels).not.toHaveBeenCalled();
+    });
+
+    it('still 404s if no seeded user exists at the reviewer phone number', async () => {
+      prismaMock.user.findUnique.mockResolvedValue(null);
+
+      const res = await request(app)
+        .post('/api/auth/request-otp')
+        .send({ phoneNumber: reviewerUser.phoneNumber });
+
+      expect(res.status).toBe(404);
+    });
+
+    it('does NOT bypass a different phone number just because REVIEWER_TEST_PHONE is configured', async () => {
+      prismaMock.user.findUnique.mockResolvedValue(existingUser as any);
+
+      const res = await request(app).post('/api/auth/request-otp').send({ phoneNumber: existingUser.phoneNumber });
+
+      expect(res.status).toBe(200);
+      expect(otpMocks.checkOtpRateLimit).toHaveBeenCalled();
+      expect(otpMocks.generateOtp).toHaveBeenCalled();
+    });
+
+    it('is inert (never matches) when REVIEWER_TEST_PHONE is unset, even for that literal number', async () => {
+      configMock.REVIEWER_TEST_PHONE = '';
+      prismaMock.user.findUnique.mockResolvedValue(reviewerUser as any);
+
+      const res = await request(app)
+        .post('/api/auth/request-otp')
+        .send({ phoneNumber: reviewerUser.phoneNumber });
+
+      expect(res.status).toBe(200);
+      expect(otpMocks.checkOtpRateLimit).toHaveBeenCalled();
+    });
   });
 });
 
@@ -210,6 +273,71 @@ describe('POST /verify-otp', () => {
     // Deliberately minimal — role/branchId are re-read from the DB on
     // refresh, not baked into this longer-lived token.
     expect(decoded.role).toBeUndefined();
+  });
+
+  describe('reviewer test-number bypass', () => {
+    const reviewerUser = { ...existingUser, id: 'reviewer-1', phoneNumber: '+911234567890' };
+    let warnSpy: jest.SpyInstance;
+
+    beforeEach(() => {
+      configMock.REVIEWER_TEST_PHONE = '+911234567890';
+      configMock.REVIEWER_TEST_OTP = '123456';
+      warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    });
+
+    afterEach(() => {
+      warnSpy.mockRestore();
+    });
+
+    it('logs in with the fixed OTP without ever calling verifyOtpCode, and logs the bypass usage', async () => {
+      prismaMock.user.findUnique.mockResolvedValue(reviewerUser as any);
+
+      const res = await request(app)
+        .post('/api/auth/verify-otp')
+        .send({ phoneNumber: reviewerUser.phoneNumber, otp: '123456' });
+
+      expect(res.status).toBe(200);
+      expect(otpMocks.verifyOtpCode).not.toHaveBeenCalled();
+      expect(res.body.user).toMatchObject({ id: 'reviewer-1' });
+      const decoded = jwt.verify(res.body.token, 'test-secret-key') as any;
+      expect(decoded).toMatchObject({ userId: 'reviewer-1', type: 'access' });
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('REVIEWER_BYPASS'));
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining(reviewerUser.phoneNumber));
+    });
+
+    it('401s the reviewer phone number when the wrong OTP is submitted — not an automatic pass', async () => {
+      prismaMock.user.findUnique.mockResolvedValue(reviewerUser as any);
+
+      const res = await request(app)
+        .post('/api/auth/verify-otp')
+        .send({ phoneNumber: reviewerUser.phoneNumber, otp: '000000' });
+
+      expect(res.status).toBe(401);
+      expect(warnSpy).not.toHaveBeenCalled();
+    });
+
+    it('does not bypass a different phone number, even one that happens to submit the fixed reviewer OTP', async () => {
+      prismaMock.user.findUnique.mockResolvedValue(existingUser as any);
+
+      const res = await request(app)
+        .post('/api/auth/verify-otp')
+        .send({ phoneNumber: existingUser.phoneNumber, otp: '123456' });
+
+      expect(res.status).toBe(200);
+      expect(otpMocks.verifyOtpCode).toHaveBeenCalledWith(existingUser.phoneNumber, '123456');
+    });
+
+    it('is inert (real verifyOtpCode path used) when REVIEWER_TEST_PHONE is unset, even for that literal number', async () => {
+      configMock.REVIEWER_TEST_PHONE = '';
+      prismaMock.user.findUnique.mockResolvedValue(reviewerUser as any);
+
+      const res = await request(app)
+        .post('/api/auth/verify-otp')
+        .send({ phoneNumber: reviewerUser.phoneNumber, otp: '123456' });
+
+      expect(res.status).toBe(200);
+      expect(otpMocks.verifyOtpCode).toHaveBeenCalledWith(reviewerUser.phoneNumber, '123456');
+    });
   });
 });
 
