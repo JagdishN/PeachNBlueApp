@@ -7,6 +7,8 @@ import { BranchesScreen } from '../screens/admin/BranchesScreen';
 import { CustomerManagementScreen } from '../screens/admin/CustomerManagementScreen';
 import { StaffManagementScreen } from '../screens/admin/StaffManagementScreen';
 import { useTheme } from '../context/ThemeContext';
+import { Ionicons } from '@expo/vector-icons';
+
 
 export type AdminTabParamList = {
   Orders: undefined;
@@ -17,6 +19,15 @@ export type AdminTabParamList = {
   Staff: undefined;
 };
 
+const ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
+  Orders: 'receipt-outline',
+  Catalogue: 'shirt-outline',
+  Customers: 'people-outline',
+  Ledger: 'wallet-outline',
+  Branches: 'business-outline',
+  Staff: 'person-outline',
+};
+
 const Tab = createBottomTabNavigator<AdminTabParamList>();
 
 // Matches the mockup's bottom .tab-bar (Orders / Catalogue / Ledger / Branches).
@@ -25,14 +36,17 @@ export const AdminTabs: React.FC = () => {
 
   return (
     <Tab.Navigator
-      screenOptions={{
+      screenOptions={({ route }) => ({
         headerShown: false,
         tabBarActiveTintColor: colors.white,
         tabBarInactiveTintColor: '#8FA0BE',
         tabBarActiveBackgroundColor: colors.peachPrimary,
         tabBarStyle: { backgroundColor: colors.chrome, borderTopWidth: 0 },
         tabBarLabelStyle: { fontSize: 9, fontWeight: '700' },
-      }}
+        tabBarIcon: ({ color, size }) => (
+          <Ionicons name={ICONS[route.name]} size={size} color={color} />
+        ),
+      })}
     >
       <Tab.Screen name="Orders" component={AdminDashboardScreen} />
       <Tab.Screen name="Catalogue" component={GarmentCatalogueScreen} />

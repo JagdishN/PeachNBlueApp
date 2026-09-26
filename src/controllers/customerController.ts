@@ -65,9 +65,13 @@ export const createCustomerHandler = async (req: AuthRequest, res: Response): Pr
 };
 
 // Staff + admin — backs the mobile New Order Entry screen's phone-lookup
-// step. Branch-scoped the same way listCustomersHandler is below: a
-// branch-scoped user's own branchId always wins; an unscoped admin may pass
-// ?branchId= to narrow, or omit it to search every branch.
+// step, which doubles as a flat/house-no lookup ("Phone / Flat No" field).
+// Branch-scoped the same way listCustomersHandler is below: a branch-scoped
+// user's own branchId always wins; an unscoped admin may pass ?branchId= to
+// narrow, or omit it to search every branch. `phone` is a loose name kept
+// for backward compatibility with the mobile client's existing query param —
+// it's really "phone or flat" now, matched as a partial (contains) against
+// either field, not the exact-phoneNumber-only match this used to be.
 export const searchCustomersHandler = async (req: AuthRequest, res: Response): Promise<void> => {
   const { phone, branchId } = req.query;
 
@@ -77,17 +81,29 @@ export const searchCustomersHandler = async (req: AuthRequest, res: Response): P
   }
 
   const effectiveBranchId = req.auth!.branchId ?? (typeof branchId === 'string' ? branchId : undefined);
+  const query = phone.trim();
 
   const customers = await prisma.customer.findMany({
     where: {
-      phoneNumber: phone,
+      OR: [{ phoneNumber: { contains: query } }, { locationLabel: { contains: query, mode: 'insensitive' } }],
       ...(effectiveBranchId ? { branchId: effectiveBranchId } : {}),
     },
     select: customerSelectForRole(req.auth!.role),
     orderBy: { locationLabel: 'asc' },
   });
 
-  res.status(200).json({ customers });
+  // Flat No. is first preference over a phone match (client requirement) —
+  // sort the (typically small, branch-scoped) result set in memory rather
+  // than push this into the query itself, since "does this match belong to
+  // the flat field" isn't expressible as a single orderBy clause.
+  const lowerQuery = query.toLowerCase();
+  const ranked = [...customers].sort((a, b) => {
+    const flatRank = (c: (typeof customers)[number]) => (c.locationLabel?.toLowerCase().includes(lowerQuery) ? 0 : 1);
+    const diff = flatRank(a) - flatRank(b);
+    return diff !== 0 ? diff : (a.locationLabel ?? '').localeCompare(b.locationLabel ?? '');
+  });
+
+  res.status(200).json({ customers: ranked });
 };
 
 // Staff + admin — CLAUDE.md "Laundry bag tracking": the bag is free and

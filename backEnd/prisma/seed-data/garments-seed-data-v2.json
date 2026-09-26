@@ -13,7 +13,7 @@
     {
       "category": "Laundry Services (Per KG)",
       "itemName": "Wash & Steam Iron (Bulk)",
-      "serviceType": "ironing",
+      "serviceType": "wash_fold",
       "pricingUnit": "per_kg",
       "price": 150,
       "_note": "Per KG bulk pricing, minimum 5kg per order",
@@ -749,7 +749,7 @@
     {
       "category": "Wash & Iron (Per Piece)",
       "itemName": "Men's Shirt",
-      "serviceType": "ironing",
+      "serviceType": "wash_fold",
       "pricingUnit": "per_piece",
       "price": 49,
       "_note": "Basic wash+iron tier — same garment names may also appear in the Dry Cleaning tier above at a different (higher) price. This is intentional: same item, different service level, not a duplicate.",
@@ -758,7 +758,7 @@
     {
       "category": "Wash & Iron (Per Piece)",
       "itemName": "Men's T-Shirt",
-      "serviceType": "ironing",
+      "serviceType": "wash_fold",
       "pricingUnit": "per_piece",
       "price": 49,
       "_note": "Basic wash+iron tier — same garment names may also appear in the Dry Cleaning tier above at a different (higher) price. This is intentional: same item, different service level, not a duplicate.",
@@ -767,7 +767,7 @@
     {
       "category": "Wash & Iron (Per Piece)",
       "itemName": "Men's Jeans",
-      "serviceType": "ironing",
+      "serviceType": "wash_fold",
       "pricingUnit": "per_piece",
       "price": 49,
       "_note": "Basic wash+iron tier — same garment names may also appear in the Dry Cleaning tier above at a different (higher) price. This is intentional: same item, different service level, not a duplicate.",
@@ -776,7 +776,7 @@
     {
       "category": "Wash & Iron (Per Piece)",
       "itemName": "Men's Pants",
-      "serviceType": "ironing",
+      "serviceType": "wash_fold",
       "pricingUnit": "per_piece",
       "price": 49,
       "_note": "Basic wash+iron tier — same garment names may also appear in the Dry Cleaning tier above at a different (higher) price. This is intentional: same item, different service level, not a duplicate.",
@@ -785,7 +785,7 @@
     {
       "category": "Wash & Iron (Per Piece)",
       "itemName": "Men's Kurta",
-      "serviceType": "ironing",
+      "serviceType": "wash_fold",
       "pricingUnit": "per_piece",
       "price": 69,
       "_note": "Basic wash+iron tier — same garment names may also appear in the Dry Cleaning tier above at a different (higher) price. This is intentional: same item, different service level, not a duplicate.",
@@ -794,7 +794,7 @@
     {
       "category": "Wash & Iron (Per Piece)",
       "itemName": "Women's T-Shirt",
-      "serviceType": "ironing",
+      "serviceType": "wash_fold",
       "pricingUnit": "per_piece",
       "price": 49,
       "_note": "Basic wash+iron tier — same garment names may also appear in the Dry Cleaning tier above at a different (higher) price. This is intentional: same item, different service level, not a duplicate.",
@@ -803,7 +803,7 @@
     {
       "category": "Wash & Iron (Per Piece)",
       "itemName": "Women's Jeans",
-      "serviceType": "ironing",
+      "serviceType": "wash_fold",
       "pricingUnit": "per_piece",
       "price": 49,
       "_note": "Basic wash+iron tier — same garment names may also appear in the Dry Cleaning tier above at a different (higher) price. This is intentional: same item, different service level, not a duplicate.",
@@ -812,7 +812,7 @@
     {
       "category": "Wash & Iron (Per Piece)",
       "itemName": "Women's Pants",
-      "serviceType": "ironing",
+      "serviceType": "wash_fold",
       "pricingUnit": "per_piece",
       "price": 49,
       "_note": "Basic wash+iron tier — same garment names may also appear in the Dry Cleaning tier above at a different (higher) price. This is intentional: same item, different service level, not a duplicate.",
@@ -821,7 +821,7 @@
     {
       "category": "Wash & Iron (Per Piece)",
       "itemName": "Kids Shirt",
-      "serviceType": "ironing",
+      "serviceType": "wash_fold",
       "pricingUnit": "per_piece",
       "price": 39,
       "_note": "Basic wash+iron tier — same garment names may also appear in the Dry Cleaning tier above at a different (higher) price. This is intentional: same item, different service level, not a duplicate.",
@@ -830,7 +830,7 @@
     {
       "category": "Wash & Iron (Per Piece)",
       "itemName": "Kids T-Shirt",
-      "serviceType": "ironing",
+      "serviceType": "wash_fold",
       "pricingUnit": "per_piece",
       "price": 39,
       "_note": "Basic wash+iron tier — same garment names may also appear in the Dry Cleaning tier above at a different (higher) price. This is intentional: same item, different service level, not a duplicate.",
@@ -839,7 +839,7 @@
     {
       "category": "Wash & Iron (Per Piece)",
       "itemName": "Kids Jeans",
-      "serviceType": "ironing",
+      "serviceType": "wash_fold",
       "pricingUnit": "per_piece",
       "price": 39,
       "_note": "Basic wash+iron tier — same garment names may also appear in the Dry Cleaning tier above at a different (higher) price. This is intentional: same item, different service level, not a duplicate.",
@@ -848,7 +848,7 @@
     {
       "category": "Wash & Iron (Per Piece)",
       "itemName": "Kids Pants",
-      "serviceType": "ironing",
+      "serviceType": "wash_fold",
       "pricingUnit": "per_piece",
       "price": 39,
       "_note": "Basic wash+iron tier — same garment names may also appear in the Dry Cleaning tier above at a different (higher) price. This is intentional: same item, different service level, not a duplicate.",
@@ -857,7 +857,7 @@
     {
       "category": "Wash & Iron (Per Piece)",
       "itemName": "Single Bed Sheet (Wash & Iron)",
-      "serviceType": "ironing",
+      "serviceType": "wash_fold",
       "pricingUnit": "per_piece",
       "price": 69,
       "_note": "Basic wash+iron tier — same garment names may also appear in the Dry Cleaning tier above at a different (higher) price. This is intentional: same item, different service level, not a duplicate.",
@@ -866,7 +866,7 @@
     {
       "category": "Wash & Iron (Per Piece)",
       "itemName": "Double Bed Sheet (Wash & Iron)",
-      "serviceType": "ironing",
+      "serviceType": "wash_fold",
       "pricingUnit": "per_piece",
       "price": 89,
       "_note": "Basic wash+iron tier — same garment names may also appear in the Dry Cleaning tier above at a different (higher) price. This is intentional: same item, different service level, not a duplicate.",
@@ -875,7 +875,7 @@
     {
       "category": "Wash & Iron (Per Piece)",
       "itemName": "Blanket (Wash & Iron)",
-      "serviceType": "ironing",
+      "serviceType": "wash_fold",
       "pricingUnit": "per_piece",
       "price": 89,
       "isStartingPrice": true,
