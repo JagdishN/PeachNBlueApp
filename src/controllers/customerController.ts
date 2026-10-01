@@ -134,13 +134,14 @@ export const deleteCustomerHandler = async (req: AuthRequest, res: Response): Pr
 };
 
 // Staff + admin — backs the mobile New Order Entry screen's phone-lookup
-// step, which doubles as a flat/house-no lookup ("Phone / Flat No" field).
-// Branch-scoped the same way listCustomersHandler is below: a branch-scoped
-// user's own branchId always wins; an unscoped admin may pass ?branchId= to
-// narrow, or omit it to search every branch. `phone` is a loose name kept
-// for backward compatibility with the mobile client's existing query param —
-// it's really "phone or flat" now, matched as a partial (contains) against
-// either field, not the exact-phoneNumber-only match this used to be.
+// step, which doubles as a flat/house-no AND name lookup ("Phone, Flat No.
+// or Name" field). Branch-scoped the same way listCustomersHandler is
+// below: a branch-scoped user's own branchId always wins; an unscoped admin
+// may pass ?branchId= to narrow, or omit it to search every branch. `phone`
+// is a loose name kept for backward compatibility with the mobile client's
+// existing query param — it's really "phone, flat, or name" now, matched as
+// a partial (contains) against any of the three fields, not the
+// exact-phoneNumber-only match this used to be.
 export const searchCustomersHandler = async (req: AuthRequest, res: Response): Promise<void> => {
   const { phone, branchId } = req.query;
 
@@ -154,7 +155,11 @@ export const searchCustomersHandler = async (req: AuthRequest, res: Response): P
 
   const customers = await prisma.customer.findMany({
     where: {
-      OR: [{ phoneNumber: { contains: query } }, { locationLabel: { contains: query, mode: 'insensitive' } }],
+      OR: [
+        { phoneNumber: { contains: query } },
+        { locationLabel: { contains: query, mode: 'insensitive' } },
+        { fullName: { contains: query, mode: 'insensitive' } },
+      ],
       ...(effectiveBranchId ? { branchId: effectiveBranchId } : {}),
     },
     select: customerSelectForRole(req.auth!.role),

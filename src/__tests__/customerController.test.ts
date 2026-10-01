@@ -247,7 +247,11 @@ describe('GET /search — phone lookup, staff AND admin', () => {
     expect(prismaMock.customer.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
-          OR: [{ phoneNumber: { contains: '9999999999' } }, { locationLabel: { contains: '9999999999', mode: 'insensitive' } }],
+          OR: [
+            { phoneNumber: { contains: '9999999999' } },
+            { locationLabel: { contains: '9999999999', mode: 'insensitive' } },
+            { fullName: { contains: '9999999999', mode: 'insensitive' } },
+          ],
           branchId: 'branch-1',
         },
       })
@@ -264,7 +268,11 @@ describe('GET /search — phone lookup, staff AND admin', () => {
     expect(prismaMock.customer.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
-          OR: [{ phoneNumber: { contains: '9999999999' } }, { locationLabel: { contains: '9999999999', mode: 'insensitive' } }],
+          OR: [
+            { phoneNumber: { contains: '9999999999' } },
+            { locationLabel: { contains: '9999999999', mode: 'insensitive' } },
+            { fullName: { contains: '9999999999', mode: 'insensitive' } },
+          ],
         },
       })
     );
