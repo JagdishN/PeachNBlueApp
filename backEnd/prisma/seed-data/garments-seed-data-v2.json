@@ -34,7 +34,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 199,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Women's Wear (Dry Cleaning)",
@@ -42,7 +43,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 299,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Women's Wear (Dry Cleaning)",
@@ -50,7 +52,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 349,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Women's Wear (Dry Cleaning)",
@@ -58,7 +61,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 899,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Women's Wear (Dry Cleaning)",
@@ -66,7 +70,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 99,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Women's Wear (Dry Cleaning)",
@@ -74,7 +79,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 129,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Women's Wear (Dry Cleaning)",
@@ -82,7 +88,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 149,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Women's Wear (Dry Cleaning)",
@@ -90,7 +97,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 299,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Women's Wear (Dry Cleaning)",
@@ -98,7 +106,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 399,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Women's Wear (Dry Cleaning)",
@@ -106,7 +115,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 499,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Women's Wear (Dry Cleaning)",
@@ -114,7 +124,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 549,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Women's Wear (Dry Cleaning)",
@@ -122,7 +133,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 249,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Women's Wear (Dry Cleaning)",
@@ -130,7 +142,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 349,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Women's Wear (Dry Cleaning)",
@@ -138,7 +151,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 449,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Women's Wear (Dry Cleaning)",
@@ -146,7 +160,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 699,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Women's Wear (Dry Cleaning)",
@@ -154,7 +169,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 299,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Women's Wear (Dry Cleaning)",
@@ -162,7 +178,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 399,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Women's Wear (Dry Cleaning)",
@@ -170,7 +187,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 449,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Women's Wear (Dry Cleaning)",
@@ -178,7 +196,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 599,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
@@ -186,7 +205,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 129,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
@@ -194,7 +214,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 149,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
@@ -202,7 +223,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 129,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
@@ -210,7 +232,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 129,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
@@ -218,7 +241,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 129,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
@@ -226,7 +250,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 149,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
@@ -234,7 +259,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 199,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
@@ -242,7 +268,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 99,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
@@ -250,7 +277,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 149,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
@@ -258,7 +286,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 249,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
@@ -266,7 +295,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 349,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
@@ -274,7 +304,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 199,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
@@ -282,7 +313,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 249,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
@@ -290,7 +322,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 349,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
@@ -298,7 +331,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 449,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
@@ -306,7 +340,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 999,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
@@ -314,7 +349,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 349,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
@@ -322,7 +358,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 449,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
@@ -330,7 +367,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 599,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
@@ -339,7 +377,8 @@
       "pricingUnit": "per_piece",
       "price": 549,
       "_note": "RESOLVED: client confirmed the original prices were reversed. Corrected to ₹549 (was ₹999).",
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
@@ -348,7 +387,8 @@
       "pricingUnit": "per_piece",
       "price": 999,
       "_note": "RESOLVED: client confirmed the original prices were reversed. Corrected to ₹999 (was ₹549).",
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
@@ -356,7 +396,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 289,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
@@ -364,7 +405,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 649,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
@@ -372,7 +414,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 249,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Men's Wear (Dry Cleaning)",
@@ -380,7 +423,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 249,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Kids Wear (Dry Cleaning)",
@@ -388,7 +432,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 89,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Kids Wear (Dry Cleaning)",
@@ -396,7 +441,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 89,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Kids Wear (Dry Cleaning)",
@@ -404,7 +450,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 89,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Kids Wear (Dry Cleaning)",
@@ -412,7 +459,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 89,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Kids Wear (Dry Cleaning)",
@@ -420,7 +468,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 99,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Kids Wear (Dry Cleaning)",
@@ -428,7 +477,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 189,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Kids Wear (Dry Cleaning)",
@@ -436,7 +486,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 229,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Kids Wear (Dry Cleaning)",
@@ -444,7 +495,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 229,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Kids Wear (Dry Cleaning)",
@@ -452,7 +504,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 299,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Kids Wear (Dry Cleaning)",
@@ -460,7 +513,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 199,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Kids Wear (Dry Cleaning)",
@@ -468,7 +522,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 359,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Kids Wear (Dry Cleaning)",
@@ -476,7 +531,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 189,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Kids Wear (Dry Cleaning)",
@@ -484,7 +540,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 169,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Kids Wear (Dry Cleaning)",
@@ -492,7 +549,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 169,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Kids Wear (Dry Cleaning)",
@@ -500,7 +558,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 169,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Kids Wear (Dry Cleaning)",
@@ -508,7 +567,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 229,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Kids Wear (Dry Cleaning)",
@@ -516,7 +576,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 299,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Kids Wear (Dry Cleaning)",
@@ -524,7 +585,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 459,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Household Items",
@@ -532,7 +594,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 149,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Household Items",
@@ -540,7 +603,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 249,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Household Items",
@@ -548,7 +612,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 299,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Household Items",
@@ -556,7 +621,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 299,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Household Items",
@@ -564,7 +630,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 399,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Household Items",
@@ -572,7 +639,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 399,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Household Items",
@@ -580,7 +648,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 499,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Household Items",
@@ -588,7 +657,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 199,
-      "requiresSpecialCare": true
+      "requiresSpecialCare": true,
+      "isActive": false
     },
     {
       "category": "Household Items",
@@ -596,7 +666,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 349,
-      "requiresSpecialCare": true
+      "requiresSpecialCare": true,
+      "isActive": false
     },
     {
       "category": "Household Items",
@@ -604,7 +675,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 499,
-      "requiresSpecialCare": true
+      "requiresSpecialCare": true,
+      "isActive": false
     },
     {
       "category": "Household Items",
@@ -612,7 +684,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 199,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Household Items",
@@ -620,7 +693,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 299,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Household Items",
@@ -629,7 +703,8 @@
       "pricingUnit": "per_piece",
       "price": 99,
       "isStartingPrice": true,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Household Items",
@@ -638,7 +713,8 @@
       "pricingUnit": "per_piece",
       "price": 49,
       "isStartingPrice": true,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Household Items",
@@ -647,7 +723,8 @@
       "pricingUnit": "per_piece",
       "price": 249,
       "isStartingPrice": true,
-      "requiresSpecialCare": true
+      "requiresSpecialCare": true,
+      "isActive": false
     },
     {
       "category": "Household Items",
@@ -656,7 +733,8 @@
       "pricingUnit": "per_piece",
       "price": 499,
       "isStartingPrice": true,
-      "requiresSpecialCare": true
+      "requiresSpecialCare": true,
+      "isActive": false
     },
     {
       "category": "Accessories",
@@ -666,7 +744,8 @@
       "price": 149,
       "isStartingPrice": true,
       "_note": "RESOLVED: client confirmed the current dry_clean mapping for Accessories is fine as-is — no change needed.",
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Accessories",
@@ -676,7 +755,8 @@
       "price": 599,
       "isStartingPrice": true,
       "_note": "RESOLVED: client confirmed the current dry_clean mapping for Accessories is fine as-is — no change needed.",
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Accessories",
@@ -686,7 +766,8 @@
       "price": 149,
       "isStartingPrice": true,
       "_note": "RESOLVED: client confirmed the current dry_clean mapping for Accessories is fine as-is — no change needed.",
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Accessories",
@@ -696,7 +777,8 @@
       "price": 299,
       "isStartingPrice": true,
       "_note": "RESOLVED: client confirmed the current dry_clean mapping for Accessories is fine as-is — no change needed.",
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Accessories",
@@ -704,7 +786,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 249,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Accessories",
@@ -712,7 +795,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 299,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Accessories",
@@ -720,7 +804,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 599,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Accessories",
@@ -728,7 +813,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 199,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Accessories",
@@ -736,7 +822,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 199,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Accessories",
@@ -744,7 +831,8 @@
       "serviceType": "dry_clean",
       "pricingUnit": "per_piece",
       "price": 99,
-      "requiresSpecialCare": false
+      "requiresSpecialCare": false,
+      "isActive": false
     },
     {
       "category": "Wash & Iron (Per Piece)",
@@ -906,10 +994,10 @@
       "itemName": "Palazzo",
       "serviceType": "ironing",
       "pricingUnit": "per_piece",
-      "price": 18,
+      "price": 16,
       "requiresSpecialCare": false,
       "_tier": "iron_only",
-      "_note": "Reintroduced from the client's FIRST price chart as the iron-only tier. RESOLVED: client confirmed all 5 sections (Women's Wear, Men's Wear, Kids Wear, Delicate & Premium Wear, Home Linen) are genuinely iron-only, not just the two under the literal banner."
+      "_note": "Price corrected to ₹16 per the 2026-09 rate card image — this seed previously had ₹18, which was wrong."
     },
     {
       "category": "Iron Services — Women's Wear",
@@ -992,6 +1080,26 @@
       "_note": "Reintroduced from the client's FIRST price chart as the iron-only tier. RESOLVED: client confirmed all 5 sections (Women's Wear, Men's Wear, Kids Wear, Delicate & Premium Wear, Home Linen) are genuinely iron-only, not just the two under the literal banner."
     },
     {
+      "category": "Iron Services — Women's Wear",
+      "itemName": "Long Frock",
+      "serviceType": "ironing",
+      "pricingUnit": "per_piece",
+      "price": 18,
+      "requiresSpecialCare": false,
+      "_tier": "iron_only",
+      "_note": "Added from the 2026-09 rate card image — was missing from this seed's Women's Wear iron-only section even though Kurti/Leggings/.../Lehenga above it were already reintroduced."
+    },
+    {
+      "category": "Iron Services — Women's Wear",
+      "itemName": "Nighty",
+      "serviceType": "ironing",
+      "pricingUnit": "per_piece",
+      "price": 20,
+      "requiresSpecialCare": false,
+      "_tier": "iron_only",
+      "_note": "Added from the 2026-09 rate card image — was missing from this seed's Women's Wear iron-only section even though Kurti/Leggings/.../Lehenga above it were already reintroduced."
+    },
+    {
       "category": "Iron Services — Home Linen",
       "itemName": "Hand Towel",
       "serviceType": "ironing",
@@ -1006,10 +1114,10 @@
       "itemName": "Bath Towel",
       "serviceType": "ironing",
       "pricingUnit": "per_piece",
-      "price": 20,
+      "price": 15,
       "requiresSpecialCare": false,
       "_tier": "iron_only",
-      "_note": "Reintroduced from the client's FIRST price chart as the iron-only tier. RESOLVED: client confirmed all 5 sections (Women's Wear, Men's Wear, Kids Wear, Delicate & Premium Wear, Home Linen) are genuinely iron-only, not just the two under the literal banner."
+      "_note": "Price corrected to ₹15 per the 2026-09 rate card image — this seed previously had ₹20, which was wrong."
     },
     {
       "category": "Iron Services — Home Linen",
@@ -1062,6 +1170,16 @@
       "_note": "Reintroduced from the client's FIRST price chart, confirmed as the iron-only tier (no wash component)."
     },
     {
+      "category": "Iron Services — Home Linen",
+      "itemName": "Cushion Cover",
+      "serviceType": "ironing",
+      "pricingUnit": "per_piece",
+      "price": 12,
+      "requiresSpecialCare": false,
+      "_tier": "iron_only",
+      "_note": "Added from the 2026-09 rate card image — was missing from this seed's Home Linen iron-only section."
+    },
+    {
       "category": "Iron Services — Men's Wear",
       "itemName": "T-Shirt",
       "serviceType": "ironing",
@@ -1106,10 +1224,10 @@
       "itemName": "Cotton Pants",
       "serviceType": "ironing",
       "pricingUnit": "per_piece",
-      "price": 18,
+      "price": 16,
       "requiresSpecialCare": false,
       "_tier": "iron_only",
-      "_note": "Reintroduced from the client's FIRST price chart, confirmed as the iron-only tier (no wash component)."
+      "_note": "Price corrected to ₹16 per the 2026-09 rate card image — this seed previously had ₹18, which was wrong."
     },
     {
       "category": "Iron Services — Men's Wear",
@@ -1180,6 +1298,16 @@
       "requiresSpecialCare": false,
       "_tier": "iron_only",
       "_note": "Reintroduced from the client's FIRST price chart, confirmed as the iron-only tier (no wash component)."
+    },
+    {
+      "category": "Iron Services — Men's Wear",
+      "itemName": "Hoodie Jacket",
+      "serviceType": "ironing",
+      "pricingUnit": "per_piece",
+      "price": 20,
+      "requiresSpecialCare": false,
+      "_tier": "iron_only",
+      "_note": "Added from the 2026-09 rate card image — only new item vs. the existing Iron Services catalogue; every other Men's/Kids/Delicate & Premium Wear line on that card already matched an existing row."
     },
     {
       "category": "Iron Services — Kids Wear",
@@ -1783,6 +1911,1050 @@
       "_tier": "wash_only",
       "_note": "Generated at 1.5x the Ironing price (₹100 -> ₹150, rounded up). Per CLAUDE.md: this is a ONE-TIME calculation, not a live formula — editable independently afterward like any other catalogue entry. Confirm this interpretation with client.",
       "isActive": false
+    },
+    {
+      "category": "Dry Cleaning — Men's Wear",
+      "itemName": "Belt",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 79,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Men's Wear",
+      "itemName": "Blazer / Coat / Jacket - Long",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 379,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Men's Wear",
+      "itemName": "Blazer / Coat / Jacket - Short",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 319,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Men's Wear",
+      "itemName": "Overcoat",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 439,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Men's Wear",
+      "itemName": "Boots Leather",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 749,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Men's Wear",
+      "itemName": "Cap (Casual / Woolen)",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 129,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Men's Wear",
+      "itemName": "Dhoti / Lungi (Cotton)",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 129,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Men's Wear",
+      "itemName": "Dhoti / Lungi (Silk)",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 189,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Men's Wear",
+      "itemName": "Gloves (Leather)",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 69,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Men's Wear",
+      "itemName": "Gloves (Woolen)",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 89,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Men's Wear",
+      "itemName": "Handkerchief",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 39,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Men's Wear",
+      "itemName": "Hats",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 139,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Men's Wear",
+      "itemName": "Jacket Leather / Rexine",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 749,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Men's Wear",
+      "itemName": "Kurta (Cotton)",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 169,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Men's Wear",
+      "itemName": "Kurta (Silk)",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 219,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Men's Wear",
+      "itemName": "Kurta (Heavy Work)",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 319,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Men's Wear",
+      "itemName": "Pyjama",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 159,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Men's Wear",
+      "itemName": "Safari Suit",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 319,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Men's Wear",
+      "itemName": "Shawl - Pashmina",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 629,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Men's Wear",
+      "itemName": "Shirt",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 139,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Men's Wear",
+      "itemName": "T-Shirt",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 139,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Men's Wear",
+      "itemName": "Formal and Casual Trousers / Jeans",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 159,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Men's Wear",
+      "itemName": "Shoes Leather / Suede / Nubuck",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 629,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Men's Wear",
+      "itemName": "Shoes Sports",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 439,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Men's Wear",
+      "itemName": "Shorts",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 89,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Men's Wear",
+      "itemName": "Suit 2 Pc",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 439,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Men's Wear",
+      "itemName": "Suit 3 Pc (Shirt, Coat, Pant)",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 569,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Men's Wear",
+      "itemName": "Sweater / Cardigan / Pullover / Hoodie",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 259,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Men's Wear",
+      "itemName": "Tie",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 89,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Men's Wear",
+      "itemName": "Track Suit",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 229,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Men's Wear",
+      "itemName": "Waist Coat",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 189,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Men's Wear",
+      "itemName": "Wedding Sherwani Set Light Work",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 909,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Men's Wear",
+      "itemName": "Wedding Sherwani Set Designer",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 1009,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Men's Wear",
+      "itemName": "Wedding Sherwani Set Medium Work",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 759,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Men's Wear",
+      "itemName": "Wedding Suit (3 Pcs) (Shirt, Coat, Pant)",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 1139,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Women's Wear",
+      "itemName": "Belt",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 79,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Women's Wear",
+      "itemName": "Blouse / Top / T Shirt",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 129,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Women's Wear",
+      "itemName": "Blouse with Work",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 189,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Women's Wear",
+      "itemName": "Choli + Lehenga + Dupatta",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 1139,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Women's Wear",
+      "itemName": "Choli + Lehenga + Dupatta with Work",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 1639,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Women's Wear",
+      "itemName": "Lehenga Normal Work",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 379,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Women's Wear",
+      "itemName": "Lehenga Medium Work",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 509,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Women's Wear",
+      "itemName": "Lehenga Heavy Work",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 629,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Women's Wear",
+      "itemName": "Blazer / Coat / Jacket - Long",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 379,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Women's Wear",
+      "itemName": "Blazer / Coat / Jacket - Short",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 319,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Women's Wear",
+      "itemName": "Kurta Normal",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 189,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Women's Wear",
+      "itemName": "Kurta (Cotton)",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 169,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Women's Wear",
+      "itemName": "Kurta (Silk)",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 219,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Women's Wear",
+      "itemName": "Kurta (Heavy Work)",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 319,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Women's Wear",
+      "itemName": "Skirt Normal",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 169,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Women's Wear",
+      "itemName": "Skirt Plated / Pencil / Other",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 229,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Women's Wear",
+      "itemName": "Lehenga / Ghagra",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 509,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Women's Wear",
+      "itemName": "Lehenga / Ghagra with Work",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 629,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Women's Wear",
+      "itemName": "Dress (Cotton)",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 259,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Women's Wear",
+      "itemName": "Dress (Heavy)",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 379,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Women's Wear",
+      "itemName": "Dupatta",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 129,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Women's Wear",
+      "itemName": "Dupatta Heavy Work",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 189,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Women's Wear",
+      "itemName": "Innerwear / Undergarments",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 69,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Women's Wear",
+      "itemName": "Ladies Suit 2Pcs",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 439,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Women's Wear",
+      "itemName": "Ladies Suit 3Pcs (Shirt, Coat, Pant)",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 569,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Women's Wear",
+      "itemName": "Night Dress",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 139,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Women's Wear",
+      "itemName": "Petticoat Cotton",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 159,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Women's Wear",
+      "itemName": "Pyjama / Pants / Salwar / Churidar / Palazzo Pants",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 159,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Women's Wear",
+      "itemName": "Kurta + Pyjama + Dupatta (3 Pcs Set)",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 439,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Women's Wear",
+      "itemName": "Kurta + Pyjama + Dupatta (3 Pcs Set) with Work",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 569,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Women's Wear",
+      "itemName": "Saree (Cotton / Synthetic / Light)",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 259,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Women's Wear",
+      "itemName": "Saree (Embroidered / Heavy)",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 439,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Women's Wear",
+      "itemName": "Saree (Silk / Chiffon / Georgette / Heavy)",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 379,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Women's Wear",
+      "itemName": "Shirt",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 139,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Women's Wear",
+      "itemName": "Stole / Scarf",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 89,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Women's Wear",
+      "itemName": "Women's Shoulder Bag",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 569,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Kids Wear",
+      "itemName": "Shirt",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 49,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Kids Wear",
+      "itemName": "Trousers",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 49,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Kids Wear",
+      "itemName": "Blouse / Top / T-Shirt",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 49,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Kids Wear",
+      "itemName": "Choli + Lehanga + Dupatta",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 379,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Kids Wear",
+      "itemName": "Coat / Jacket",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 189,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Kids Wear",
+      "itemName": "Cotton Frock",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 189,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Kids Wear",
+      "itemName": "Dress",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 159,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Kids Wear",
+      "itemName": "Kurta + Pants / Salwar + Churidar + Dupatta",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 319,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Kids Wear",
+      "itemName": "Suit 2 Pc",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 309,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Kids Wear",
+      "itemName": "Suit 3 Pc",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 379,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Household 1",
+      "itemName": "Bed Sheet Double",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 229,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Household 1",
+      "itemName": "Bed Sheet Single",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 159,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Household 1",
+      "itemName": "Duvet Cover Double",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 319,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Household 1",
+      "itemName": "Duvet Cover Single",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 259,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Household 1",
+      "itemName": "Blanket Double",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 569,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Household 1",
+      "itemName": "Blanket Single",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 439,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Household 1",
+      "itemName": "Comforter / Duvet / Quilt (Double)",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 759,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Household 1",
+      "itemName": "Comforter / Duvet / Quilt (Single)",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 569,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Household 1",
+      "itemName": "Curtain - Full with Lining (Per Panel)",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 319,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Household 1",
+      "itemName": "Curtain - Full without Lining (Per Panel)",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 259,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Household 1",
+      "itemName": "Curtain - Half with Lining (Per Panel)",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 259,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Household 1",
+      "itemName": "Curtain - Half without Lining (Per Panel)",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 219,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Household 1",
+      "itemName": "Curtain - Full Sheer (Per Panel)",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 189,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Household 1",
+      "itemName": "Curtain - Half Sheer (Per Panel)",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 129,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Household 1",
+      "itemName": "Cushion Cover (Large)",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 139,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Household 1",
+      "itemName": "Cushion Cover (Medium)",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 119,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Household 1",
+      "itemName": "Laptop Bag",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 379,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Household 1",
+      "itemName": "Laptop Bag Leather",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 759,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Household 2",
+      "itemName": "Leather Hand Bag (Medium)",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 759,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Household 2",
+      "itemName": "Leather Hand Bag (Small)",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 629,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Household 2",
+      "itemName": "Pillow Cover 2 Pc Set",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 89,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Household 2",
+      "itemName": "Razai",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 569,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Household 2",
+      "itemName": "Sofa Cover - (Large)",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 509,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Household 2",
+      "itemName": "Sofa Cover - (Small)",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 379,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Household 2",
+      "itemName": "Trolley Bag",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 629,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Household 2",
+      "itemName": "Bagpack Large",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 439,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Household 2",
+      "itemName": "Bagpack Medium",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 379,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Household 2",
+      "itemName": "Bath Mat (Large)",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 119,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Household 2",
+      "itemName": "Bath Mat (Small)",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 69,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Household 2",
+      "itemName": "Bath Robe (Medium)",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 89,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Household 2",
+      "itemName": "Bath Robe (Big)",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 119,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Household 2",
+      "itemName": "Bath Robe (Small)",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 79,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Household 2",
+      "itemName": "Bath Towel",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 119,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Household 2",
+      "itemName": "Bed Cover Double",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 379,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
+    },
+    {
+      "category": "Dry Cleaning — Household 2",
+      "itemName": "Bed Cover Single",
+      "serviceType": "dry_clean",
+      "pricingUnit": "per_piece",
+      "price": 319,
+      "requiresSpecialCare": false,
+      "_note": "Added from the client's 2026-09 \"Dry Cleaning Rate Card\" image. New tier, parallel to the existing (differently-priced, differently-named) Men's/Women's/Kids Wear (Dry Cleaning) + Household Items + Accessories categories — those don't map name-for-name to this card, so this is additive under fresh \"Dry Cleaning — X\" category names (same convention as \"Iron Services — X\"), not a replacement."
     }
   ],
   "businessInfo": {
