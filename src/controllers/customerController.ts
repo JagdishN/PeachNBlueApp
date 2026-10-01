@@ -103,12 +103,12 @@ export const updateCustomerHandler = async (req: AuthRequest, res: Response): Pr
   res.status(200).json({ customer });
 };
 
-// Admin-only — a real row delete, unlike deactivateUserHandler's soft
-// deactivation (Customer has no isActive column). Safe for a customer with
-// no history (e.g. created by mistake); a customer with any orders/payments/
-// ledger entries etc. hits a foreign-key violation (P2003, none of those
-// relations cascade) — caught here and turned into a clear 409 rather than
-// bubbling up as a raw Prisma error.
+// Admin-only — a real row delete (Customer has no isActive column, unlike
+// User). Safe for a customer with no history (e.g. created by mistake); a
+// customer with any orders/payments/ledger entries etc. hits a foreign-key
+// violation (P2003, none of those relations cascade) — caught here and
+// turned into a clear 409 rather than bubbling up as a raw Prisma error.
+// Same pattern as deleteUserHandler in userController.ts.
 export const deleteCustomerHandler = async (req: AuthRequest, res: Response): Promise<void> => {
   const { id } = req.params;
 

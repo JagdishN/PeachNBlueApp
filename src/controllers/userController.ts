@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { Prisma } from '@prisma/client';
 import { AuthRequest } from '../middleware/auth';
 import prisma from '../prisma/client';
 
@@ -34,8 +35,12 @@ export const listUsersHandler = async (req: AuthRequest, res: Response): Promise
   const { branchId } = req.query;
   const effectiveBranchId = req.auth!.branchId ?? (typeof branchId === 'string' ? branchId : undefined);
 
+  // deleteUserHandler below now hard-deletes where it can — isActive: false
+  // only remains on a row that still has order/payment history and couldn't
+  // be removed. Those shouldn't clutter the Staff & Admin Accounts screen
+  // (client ask), and isActive already blocks their login regardless.
   const users = await prisma.user.findMany({
-    where: effectiveBranchId ? { branchId: effectiveBranchId } : undefined,
+    where: { isActive: true, ...(effectiveBranchId ? { branchId: effectiveBranchId } : {}) },
     select: USER_LIST_SELECT,
     orderBy: [{ branchId: 'asc' }, { fullName: 'asc' }],
   });
@@ -129,19 +134,22 @@ export const updateUserHandler = async (req: AuthRequest, res: Response): Promis
   res.status(200).json({ user });
 };
 
-// Admin-only — "delete" is a soft deactivation (isActive: false), not a row
-// delete. User rows are referenced by order/payment/earnings history
-// (createdOrders, assignedOrders, payments, staffEarnings, deviceTokens,
-// etc.), none of which cascade — a hard delete would fail with a foreign-key
-// violation for any account that has ever touched an order. isActive already
-// exists on the schema for exactly this; requestOtp/verifyOtp now reject a
-// deactivated account (see authController.ts), so this actually revokes
-// login, not just a cosmetic tag.
-export const deactivateUserHandler = async (req: AuthRequest, res: Response): Promise<void> => {
+// Admin-only — a real row delete (client ask: "permanently delete from the
+// DB"), unlike the isActive soft-deactivation this used to do. DeviceToken
+// rows are disposable (just push-notification routing) so they're cleared
+// first; order/payment/earnings history (createdOrders, assignedOrders,
+// payments, staffEarnings, etc.) does NOT cascade on purpose — deleting
+// that would silently orphan real business/audit records. A user with any
+// such history hits a foreign-key violation (P2003), caught here and
+// turned into a clear 409 rather than bubbling up as a raw Prisma error or
+// silently succeeding and losing history. isActive is left untouched on
+// that 409 path — the account stays as it was, still login-blocked only if
+// it already was.
+export const deleteUserHandler = async (req: AuthRequest, res: Response): Promise<void> => {
   const { id } = req.params;
 
   if (req.auth!.userId === id) {
-    res.status(400).json({ error: 'You cannot deactivate your own account.' });
+    res.status(400).json({ error: 'You cannot delete your own account.' });
     return;
   }
 
@@ -151,11 +159,20 @@ export const deactivateUserHandler = async (req: AuthRequest, res: Response): Pr
     return;
   }
 
-  const user = await prisma.user.update({
-    where: { id },
-    data: { isActive: false },
-    select: USER_LIST_SELECT,
-  });
+  try {
+    await prisma.$transaction([
+      prisma.deviceToken.deleteMany({ where: { userId: id } }),
+      prisma.user.delete({ where: { id } }),
+    ]);
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2003') {
+      res.status(409).json({
+        error: 'Cannot delete this account — they have order/payment history that must be preserved. Edit their role/branch instead of deleting.',
+      });
+      return;
+    }
+    throw err;
+  }
 
-  res.status(200).json({ user });
+  res.status(204).send();
 };
