@@ -129,47 +129,63 @@ export const sendWhatsAppTemplate = async ({
     components.button_1 = { subtype: 'url', type: 'text', value: buttonUrlParam };
   }
 
-  const response = await fetch(MSG91_WHATSAPP_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      authkey: MSG91_AUTH_KEY,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      integrated_number: from,
-      content_type: 'template',
-      payload: {
-        // CORRECTED (2026-09-02): a top-level `payload.to` was added
-        // earlier after the WRONG endpoint (no /bulk/ suffix — see
-        // MSG91_WHATSAPP_ENDPOINT above) 400'd without it. The real,
-        // authoritative doc cURL example for the actual working /bulk/
-        // endpoint has no such field — only `to_and_components[].to`
-        // below. Removed to match the real documented contract exactly,
-        // now that it's actually known rather than inferred.
-        messaging_product: 'whatsapp',
-        type: 'template',
-        template: {
-          name: templateName,
-          language: { code: language ?? 'en', policy: 'deterministic' },
-          // VERIFIED against a real live payload (2026-09-02, "Live send
-          // verification — namespace fix"): omitting this is why every send
-          // before this fix returned MSG91 status: "success" but never
-          // actually delivered — a working dashboard-composed send included
-          // it, an identical-looking API call without it silently failed.
-          // The WABA's namespace GUID, same value for every template under
-          // it — get it from MSG91's dashboard if it ever needs updating
-          // (e.g. after another WABA rebuild).
-          namespace: MSG91_WABA_NAMESPACE,
-          to_and_components: [
-            {
-              to: [to],
-              components,
-            },
-          ],
-        },
+  // Real bug: this fetch had no timeout at all, so a hung/slow MSG91 API
+  // response would hang sendOtpViaChannels's await forever — its try/catch
+  // only catches a rejection, never a promise that just never settles —
+  // which in turn left requestOtp's res.json() never called, leaving the
+  // mobile client's loading spinner stuck indefinitely ("getting the
+  // WhatsApp message but the app never stops spinning"). Aborting after 15s
+  // guarantees this call always settles one way or another.
+  const abortController = new AbortController();
+  const timeoutId = setTimeout(() => abortController.abort(), 15_000);
+
+  let response: Response;
+  try {
+    response = await fetch(MSG91_WHATSAPP_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        authkey: MSG91_AUTH_KEY,
+        'Content-Type': 'application/json',
       },
-    }),
-  });
+      signal: abortController.signal,
+      body: JSON.stringify({
+        integrated_number: from,
+        content_type: 'template',
+        payload: {
+          // CORRECTED (2026-09-02): a top-level `payload.to` was added
+          // earlier after the WRONG endpoint (no /bulk/ suffix — see
+          // MSG91_WHATSAPP_ENDPOINT above) 400'd without it. The real,
+          // authoritative doc cURL example for the actual working /bulk/
+          // endpoint has no such field — only `to_and_components[].to`
+          // below. Removed to match the real documented contract exactly,
+          // now that it's actually known rather than inferred.
+          messaging_product: 'whatsapp',
+          type: 'template',
+          template: {
+            name: templateName,
+            language: { code: language ?? 'en', policy: 'deterministic' },
+            // VERIFIED against a real live payload (2026-09-02, "Live send
+            // verification — namespace fix"): omitting this is why every send
+            // before this fix returned MSG91 status: "success" but never
+            // actually delivered — a working dashboard-composed send included
+            // it, an identical-looking API call without it silently failed.
+            // The WABA's namespace GUID, same value for every template under
+            // it — get it from MSG91's dashboard if it ever needs updating
+            // (e.g. after another WABA rebuild).
+            namespace: MSG91_WABA_NAMESPACE,
+            to_and_components: [
+              {
+                to: [to],
+                components,
+              },
+            ],
+          },
+        },
+      }),
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   if (!response.ok) {
     const errorBody = (await response.json().catch(() => undefined)) as { message?: string } | undefined;
