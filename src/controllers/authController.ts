@@ -68,6 +68,11 @@ export const requestOtp = async (req: Request, res: Response): Promise<void> => 
     return;
   }
 
+  if (!user.isActive) {
+    res.status(403).json({ error: 'This account has been deactivated.' });
+    return;
+  }
+
   // Reviewer bypass: skip rate-limiting and OTP generation/save entirely —
   // nothing is ever stored for this number, since verifyOtp below checks the
   // fixed REVIEWER_TEST_OTP directly rather than anything from
@@ -115,6 +120,11 @@ export const verifyOtp = async (req: Request, res: Response): Promise<void> => {
 
   if (!user) {
     res.status(404).json({ error: 'User not found' });
+    return;
+  }
+
+  if (!user.isActive) {
+    res.status(403).json({ error: 'This account has been deactivated.' });
     return;
   }
 
@@ -184,7 +194,7 @@ export const refreshAccessToken = async (req: Request, res: Response): Promise<v
   // staying stale for up to 2 days.
   const user = await prisma.user.findUnique({ where: { id: payload.userId } });
 
-  if (!user) {
+  if (!user || !user.isActive) {
     res.status(401).json({ error: 'Invalid or expired refresh token' });
     return;
   }

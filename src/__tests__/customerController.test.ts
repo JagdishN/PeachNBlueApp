@@ -245,7 +245,12 @@ describe('GET /search — phone lookup, staff AND admin', () => {
       .set('Authorization', `Bearer ${token('staff', 'branch-1')}`);
 
     expect(prismaMock.customer.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { phoneNumber: '9999999999', branchId: 'branch-1' } })
+      expect.objectContaining({
+        where: {
+          OR: [{ phoneNumber: { contains: '9999999999' } }, { locationLabel: { contains: '9999999999', mode: 'insensitive' } }],
+          branchId: 'branch-1',
+        },
+      })
     );
   });
 
@@ -257,7 +262,11 @@ describe('GET /search — phone lookup, staff AND admin', () => {
       .set('Authorization', `Bearer ${token('admin')}`);
 
     expect(prismaMock.customer.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { phoneNumber: '9999999999' } })
+      expect.objectContaining({
+        where: {
+          OR: [{ phoneNumber: { contains: '9999999999' } }, { locationLabel: { contains: '9999999999', mode: 'insensitive' } }],
+        },
+      })
     );
   });
 });

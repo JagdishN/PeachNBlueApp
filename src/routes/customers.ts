@@ -3,6 +3,8 @@ import { authenticate, requireRole } from '../middleware/auth';
 import {
   listCustomersHandler,
   createCustomerHandler,
+  updateCustomerHandler,
+  deleteCustomerHandler,
   searchCustomersHandler,
   updateDiscountHandler,
   updateDiscountEnabledHandler,
@@ -20,6 +22,8 @@ router.use(authenticate);
 router.get('/', requireRole(['admin']), listCustomersHandler);
 router.get('/search', requireRole(['staff', 'admin']), searchCustomersHandler);
 router.post('/', requireRole(['staff', 'admin']), createCustomerHandler);
+router.patch('/:id', requireRole(['admin']), updateCustomerHandler);
+router.delete('/:id', requireRole(['admin']), deleteCustomerHandler);
 router.patch('/:id/discount', requireRole(['admin']), updateDiscountHandler);
 router.patch('/:id/discount-enabled', requireRole(['admin']), updateDiscountEnabledHandler);
 router.get('/:id/discount-audit', requireRole(['admin']), listDiscountAuditHandler);

@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import { Prisma } from '@prisma/client';
 import { AuthRequest } from '../middleware/auth';
 import prisma from '../prisma/client';
 import { reissueAllOpenInvoicesForCustomer, reissueInvoice } from '../services/invoiceReissue.service';
@@ -62,6 +63,74 @@ export const createCustomerHandler = async (req: AuthRequest, res: Response): Pr
       });
 
   res.status(200).json({ customer });
+};
+
+// Admin-only — backs the Customer Management screen's edit form
+// (fullName/phoneNumber/locationLabel; billingMode/discount go through their
+// own dedicated endpoints below, not here). Same phone-uniqueness rule as
+// createCustomerHandler above, excluding the row being edited.
+export const updateCustomerHandler = async (req: AuthRequest, res: Response): Promise<void> => {
+  const { id } = req.params;
+  const { fullName, phoneNumber, locationLabel, branchId } = req.body;
+
+  const existing = await prisma.customer.findUnique({ where: { id } });
+  if (!existing) {
+    res.status(404).json({ error: 'Customer not found' });
+    return;
+  }
+
+  if (phoneNumber && phoneNumber !== existing.phoneNumber) {
+    const duplicate = await prisma.customer.findUnique({ where: { phoneNumber } });
+    if (duplicate) {
+      res.status(409).json({
+        error: 'This phone number is already registered to a different customer. A phone number can only belong to one customer.',
+      });
+      return;
+    }
+  }
+
+  const customer = await prisma.customer.update({
+    where: { id },
+    data: {
+      fullName: fullName ?? existing.fullName,
+      phoneNumber: phoneNumber ?? existing.phoneNumber,
+      locationLabel: locationLabel ?? existing.locationLabel,
+      branchId: branchId ?? existing.branchId,
+    },
+    select: customerSelectForRole(req.auth!.role),
+  });
+
+  res.status(200).json({ customer });
+};
+
+// Admin-only — a real row delete, unlike deactivateUserHandler's soft
+// deactivation (Customer has no isActive column). Safe for a customer with
+// no history (e.g. created by mistake); a customer with any orders/payments/
+// ledger entries etc. hits a foreign-key violation (P2003, none of those
+// relations cascade) — caught here and turned into a clear 409 rather than
+// bubbling up as a raw Prisma error.
+export const deleteCustomerHandler = async (req: AuthRequest, res: Response): Promise<void> => {
+  const { id } = req.params;
+
+  const existing = await prisma.customer.findUnique({ where: { id } });
+  if (!existing) {
+    res.status(404).json({ error: 'Customer not found' });
+    return;
+  }
+
+  try {
+    await prisma.customer.delete({ where: { id } });
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2003') {
+      res.status(409).json({
+        error: 'Cannot delete this customer — they have order/payment history. Edit their details instead of deleting.',
+      });
+      return;
+    }
+    throw err;
+  }
+
+  res.status(204).send();
 };
 
 // Staff + admin — backs the mobile New Order Entry screen's phone-lookup
