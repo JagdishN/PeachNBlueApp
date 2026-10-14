@@ -61,7 +61,7 @@ describe('GET / — admin-only user list (CLAUDE.md "Staff/Admin account managem
 
     await request(app).get('/api/users').set('Authorization', `Bearer ${token('admin')}`);
 
-    expect(prismaMock.user.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: undefined }));
+    expect(prismaMock.user.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { isActive: true } }));
   });
 
   it("a branch-scoped admin's own branchId wins over any query param", async () => {
@@ -71,7 +71,9 @@ describe('GET / — admin-only user list (CLAUDE.md "Staff/Admin account managem
       .get('/api/users?branchId=some-other-branch')
       .set('Authorization', `Bearer ${token('admin', 'branch-1')}`);
 
-    expect(prismaMock.user.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { branchId: 'branch-1' } }));
+    expect(prismaMock.user.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { isActive: true, branchId: 'branch-1' } })
+    );
   });
 });
 

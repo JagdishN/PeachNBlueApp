@@ -54,9 +54,14 @@ export const MSG91_TEMPLATES = {
   // Active again directly by the client (2026-09-03)**, and confirmed via a
   // real human-received delivery (the OTP-flow test and the admin pickup
   // notification test both used this template and arrived). {{1}} customer
-  // name, {{2}} order number, {{3}} estimated amount — turnaround time
-  // (24-48h) is fixed template text, not a variable.
-  pickupConfirmation: { name: 'pickup_confirmation', variableCount: 3, status: 'approved' as const, language: 'en' },
+  // name, {{2}} order number, {{3}} estimated amount.
+  // {{4}} ADDED 2026-10-14 (client resubmitted the template with a 4th body
+  // variable) — the delivery-time estimate, service-aware via
+  // utils/turnaround.ts's getTurnaroundLabel: "24-48 hours" for an
+  // Ironing-only order, "4-5 business working days" if the order has any
+  // Dry Clean/Wash & Fold item. Previously this was fixed template text
+  // that couldn't vary by service type at all.
+  pickupConfirmation: { name: 'pickup_confirmation', variableCount: 4, status: 'approved' as const, language: 'en' },
 
   // RESOLVED (2026-09-03): real template exists, name is `generate_invoice`
   // — client pulled its real definition (/msg91-templates/invoiceReady.json)

@@ -4,13 +4,10 @@ import { createPaymentLink, cancelPaymentLink } from '../lib/razorpayClient';
 import { uploadInvoicePdf } from '../lib/supabaseStorage';
 import { renderInvoicePdf } from './invoicePdfService';
 import { calculatePayableAmount } from '../utils/pricing';
+import { getTurnaroundText } from '../utils/turnaround';
 
 // Matches orderService.ts's generateOrderNumber() style (PB-XXXXXXXX).
 const generateInvoiceNumber = (): string => `PB-INV-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
-
-// Sourced from the same garments-seed-data-v2.json businessInfo.turnaroundTimeHours
-// that orderService.ts's pickup_confirmation message text already uses.
-const TURNAROUND_LABEL = '24–48';
 
 export interface GeneratedInvoice {
   id: string;
@@ -159,7 +156,7 @@ export const generateInvoice = async (orderId: string): Promise<GeneratedInvoice
     additionalChargesTotal,
     amount,
     paymentLinkUrl: paymentLink?.shortUrl ?? null,
-    turnaroundLabel: TURNAROUND_LABEL,
+    turnaroundText: getTurnaroundText(order.orderItems.map((item) => item.garment.serviceType)),
   });
 
   const pdfUrl = await uploadInvoicePdf(`${invoiceNumber}.pdf`, pdfBuffer);

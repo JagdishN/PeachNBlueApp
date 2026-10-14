@@ -11,6 +11,7 @@ import { generateInvoice } from './invoiceService';
 import { reissueInvoice } from './invoiceReissue.service';
 import { calculatePayableAmount } from '../utils/pricing';
 import { extractPaymentLinkSuffix } from '../utils/paymentLink';
+import { getTurnaroundLabel } from '../utils/turnaround';
 
 // delivery_confirmation's header_1 (image) — real gap found and confirmed
 // 2026-09-03 via a live send comparison: MSG91 returns status: "success"
@@ -230,17 +231,23 @@ export const createOrder = async (input: CreateOrderInput) => {
     });
   });
 
+  // {{4}} client ask (2026-10-14): service-aware delivery-time estimate —
+  // "24-48 hours" for an Ironing-only order, "4-5 business working days" if
+  // the order has any Dry Clean/Wash & Fold item. Computed from THIS
+  // order's actual items (garmentById is already built above), not the
+  // customer's history or any other order.
+  const turnaroundLabel = getTurnaroundLabel(
+    input.items.map((item) => garmentById.get(item.garmentId)!.serviceType)
+  );
+
   // Pickup confirmation — WhatsApp only (CLAUDE.md "Messaging migration").
-  // Turnaround time (24–48 hours, businessInfo.turnaroundTimeHours in the
-  // garment seed data) is fixed template text, not a variable here — it's
-  // informational only and not repeated on delivery.
   await sendNotification(
     order.customer,
     'pickup_confirmation',
     {
       name: MSG91_TEMPLATES.pickupConfirmation.name,
       language: MSG91_TEMPLATES.pickupConfirmation.language,
-      bodyVariables: [order.customer.fullName, order.orderNumber, String(estimatedAmount)],
+      bodyVariables: [order.customer.fullName, order.orderNumber, String(estimatedAmount), turnaroundLabel],
     },
     order.id
   );
@@ -262,14 +269,14 @@ export const createOrder = async (input: CreateOrderInput) => {
   if (pickupAdmins.length > 0) {
     // Reuses pickupConfirmation (2026-09-03, client decision) rather than a
     // separate never-approved adminPickupNotification template — same
-    // 3-variable shape, locationLabel filling the slot the customer-facing
+    // 4-variable shape, locationLabel filling the slot the customer-facing
     // send uses for the customer's name.
     await notifyAdminsOfPickup(
       pickupAdmins,
       {
         name: MSG91_TEMPLATES.pickupConfirmation.name,
         language: MSG91_TEMPLATES.pickupConfirmation.language,
-        bodyVariables: [input.locationLabel, order.orderNumber, String(estimatedAmount)],
+        bodyVariables: [input.locationLabel, order.orderNumber, String(estimatedAmount), turnaroundLabel],
       },
       resolveWhatsappFrom(order.customer.branch.whatsappNumber)
     );
@@ -378,7 +385,7 @@ export const getOrder = async (orderId: string, role: UserRole, scope: OrderScop
   // level, not as a post-fetch check — an out-of-scope order comes back as
   // null, indistinguishable from "doesn't exist", rather than leaking that
   // an order with this id exists in someone else's branch.
-  return prisma.order.findFirst({
+  const order = await prisma.order.findFirst({
     where: {
       id: orderId,
       ...(scope.branchId ? { customer: { branchId: scope.branchId } } : {}),
@@ -386,11 +393,25 @@ export const getOrder = async (orderId: string, role: UserRole, scope: OrderScop
     },
     include: {
       customer: { select: customerSelectForRole(role) },
-      orderItems: true,
+      // Client ask: a service-aware delivery-estimate line on the Order
+      // Status screen (Dry Clean/Wash & Fold takes longer than Ironing) —
+      // needs each item's serviceType, which lives on the linked
+      // GarmentCatalogue row, not on OrderItem itself (same join
+      // invoiceService.ts's generateInvoice already does for the PDF).
+      orderItems: { include: { garment: { select: { serviceType: true } } } },
       amountRevisions: true,
       statusHistory: true,
     },
   });
+
+  if (!order) return null;
+
+  // Flattened onto each item (serviceType, not garment: { serviceType }) to
+  // keep the API's OrderItem shape the same flat DTO it already was.
+  return {
+    ...order,
+    orderItems: order.orderItems.map(({ garment, ...item }) => ({ ...item, serviceType: garment.serviceType })),
+  };
 };
 
 export const updateStatus = async (

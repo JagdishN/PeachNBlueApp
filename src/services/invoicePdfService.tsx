@@ -93,7 +93,10 @@ export interface InvoicePdfData {
   additionalChargesTotal: number;
   amount: number;
   paymentLinkUrl: string | null;
-  turnaroundLabel: string; // e.g. "24–48" — matches orderService.ts's pickup_confirmation phrasing
+  // Full sentence, not a figure plugged into a fixed template — service-aware
+  // (see invoiceService.ts's getTurnaroundText), so Dry Cleaning/Wash & Fold
+  // and Ironing-only orders can say genuinely different things.
+  turnaroundText: string;
 }
 
 // "Rs." rather than "₹": @react-pdf/renderer's built-in Helvetica font has
@@ -175,9 +178,7 @@ export const renderInvoicePdf = async (data: InvoicePdfData): Promise<Buffer> =>
           </View>
         </View>
 
-        <Text style={{ marginTop: 16, fontSize: 8 }}>
-          Turnaround time is typically {data.turnaroundLabel} hours from pickup.
-        </Text>
+        <Text style={{ marginTop: 16, fontSize: 8 }}>{data.turnaroundText}</Text>
 
         {/* CORRECTED (2026-09-03), per explicit client decision: dropped the
             Razorpay-generated QR entirely (it duplicated the payment link
