@@ -58,9 +58,13 @@ const styles = StyleSheet.create({
   totalsRow: { flexDirection: 'row', width: 200, justifyContent: 'space-between', marginBottom: 3 },
   grandTotalRow: { flexDirection: 'row', width: 200, justifyContent: 'space-between', marginTop: 4, paddingTop: 4, borderTopWidth: 1, borderTopColor: NAVY },
   grandTotalText: { fontWeight: 700, fontSize: 13 },
-  qrOptionsRow: { flexDirection: 'row', justifyContent: 'center', gap: 40 },
-  qrBlock: { marginTop: 20, alignItems: 'center' },
-  qrImage: { width: 250, height: 250 },
+  // Client decision (2026-10-15): moved from after the totals block to
+  // right under the Invoice/Order header — client circled this exact spot
+  // on a real generated invoice. Sits in a row NEXT TO "Billed to", not
+  // stacked on top of it, specifically so it can never overlap that text
+  // regardless of how long the customer name/location get.
+  headerQrBlock: { alignItems: 'center', marginLeft: 16 },
+  headerQrImage: { width: 90, height: 90 },
   footer: { position: 'absolute', bottom: 24, left: 32, right: 32, textAlign: 'center', fontSize: 7, color: '#999999' },
 });
 
@@ -127,13 +131,26 @@ export const renderInvoicePdf = async (data: InvoicePdfData): Promise<Buffer> =>
           </View>
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.label}>Billed to</Text>
-          <Text style={styles.value}>{data.customerName}</Text>
-          <Text style={styles.label}>Location</Text>
-          <Text style={styles.value}>{data.locationLabel} — {data.branchName}</Text>
-          <Text style={styles.label}>Pickup date</Text>
-          <Text style={styles.value}>{data.pickupDate.toDateString()}</Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <View style={[styles.section, { flex: 1 }]}>
+            <Text style={styles.label}>Billed to</Text>
+            <Text style={styles.value}>{data.customerName}</Text>
+            <Text style={styles.label}>Location</Text>
+            <Text style={styles.value}>{data.locationLabel} — {data.branchName}</Text>
+            <Text style={styles.label}>Pickup date</Text>
+            <Text style={styles.value}>{data.pickupDate.toDateString()}</Text>
+          </View>
+          {/* Client decision (2026-10-15): the static UPI QR now prints on
+              EVERY invoice, not just ones with a live Razorpay link — it's
+              the business's own fixed scan-to-pay code, not order-specific,
+              so a monthly-billing order (no live link) still has something
+              real to show here. */}
+          {upiQrDataUrl && (
+            <View style={styles.headerQrBlock}>
+              <Image src={upiQrDataUrl} style={styles.headerQrImage} />
+              <Text style={{ fontSize: 7, marginTop: 4, textAlign: 'center', width: 90 }}>Scan to pay via UPI</Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.table}>
@@ -179,27 +196,6 @@ export const renderInvoicePdf = async (data: InvoicePdfData): Promise<Buffer> =>
         </View>
 
         <Text style={{ marginTop: 16, fontSize: 8 }}>{data.turnaroundText}</Text>
-
-        {/* CORRECTED (2026-09-03), per explicit client decision: dropped the
-            Razorpay-generated QR entirely (it duplicated the payment link
-            already sent as the WhatsApp message's button, and the client
-            wants only the business's own static UPI QR shown here) — only
-            renders when there's a live payment link (monthly-billing orders
-            have nothing to point at either way, same as before) AND the
-            static UPI QR asset is actually present on disk. */}
-        {data.paymentLinkUrl && upiQrDataUrl && (
-          <View style={styles.section}>
-            <Text style={{ fontSize: 9, marginBottom: 8 }}>
-              Scan the QR code below to pay via UPI, or use the payment link sent on WhatsApp.
-            </Text>
-            <View style={styles.qrOptionsRow}>
-              <View style={styles.qrBlock}>
-                <Image src={upiQrDataUrl} style={styles.qrImage} />
-                <Text style={{ marginTop: 6, fontSize: 8 }}>Scan with any UPI app</Text>
-              </View>
-            </View>
-          </View>
-        )}
 
         {/* CLAUDE.md "Non-negotiables": wording updated from "NIVENXA" to
             "Nivenxa Technologies" everywhere else in the app — this file
