@@ -11,41 +11,35 @@
 // template's own fixed text, not the variable value.
 //
 // `language` matters and is NOT cosmetic — confirmed 2026-09-02 ("Live send
-// verification"): `account_login`'s real approved language turned out to be
-// "en_US", not the bare "en" every template here defaults to. Sending the
-// wrong language code is a plausible reason MSG91 can return
-// status: "success" while Meta silently drops delivery. Every entry below
-// EXCEPT otpLogin still has `language: 'en'` as an UNVERIFIED guess — pull
-// each template's real definition (same way otpLogin's was found) before
-// fully trusting a send against it.
+// verification"), then corrected again 2026-10-29: the wrong language code
+// is a plausible reason MSG91 can return status: "success" while Meta
+// silently drops delivery. Every entry below EXCEPT otpLogin still has
+// `language: 'en'` as an UNVERIFIED guess — pull each template's real
+// definition (same way otpLogin's was found) before fully trusting a send
+// against it.
 export const MSG91_TEMPLATES = {
-  // {{1}} OTP code. Real Meta-approved name, confirmed 2026-09-02 (CLAUDE.md
-  // "Non-negotiables" — Authentication category, the rebuilt WABA's real
-  // OTP milestone; replaces the earlier Utility-category workaround that
-  // caused the permanent ban documented there). Confirmed as "account_login"
-  // directly by the client, not assumed — a note pasted earlier this same
-  // day said "account_verification" instead, which was wrong.
+  // {{1}} OTP code. Real Meta-approved name, template + mandatory BUTTONS
+  // component ("Copy Code" one-tap autofill — {{1}} is the OTP code itself,
+  // same value as body_1, submitted the same way as the Razorpay-link
+  // buttons, component subtype "url").
   //
-  // Both `language` and `requiresOtpButton` below came from pulling this
-  // template's real definition directly from MSG91 (2026-09-02, "Live send
-  // verification"), after every OTP test send failed silently despite
-  // MSG91 returning status: "success":
-  // - language is "en_US", NOT the bare "en" msg91Client.ts used to send
-  //   unconditionally for every template.
-  // - the template has a mandatory BUTTONS component (Meta's OTP "Copy
-  //   Code" one-tap autofill) — its {{1}} is the OTP code itself (same
-  //   value as body_1, not a link), submitted the same way as the
-  //   Razorpay-link buttons (component subtype "url"). Confirmed shape:
-  //   `variables: ["body_1", "button_1"]`,
-  //   `variable_type: { body_1: { type: "text" }, button_1: { subtype: "url", type: "text" } }`.
-  //   otpService.ts must pass the OTP code as BOTH bodyVariables[0] AND
-  //   buttonUrlParam — omitting the button is plausibly why every OTP test
-  //   before this fix failed even once the namespace bug was fixed.
+  // CORRECTED (2026-10-29): this was wrongly recorded as `account_login` /
+  // `en_US` after the WABA rebuild documented in CLAUDE.md "Non-negotiables"
+  // — a transposed-name mixup (account_login vs. the real login_account),
+  // not a propagation delay as first suspected when sends intermittently
+  // failed with "template name (account_login) does not exist in en_US".
+  // Every other approved template survived that WABA migration by being
+  // copied forward from the old WABA (hence working reliably throughout);
+  // this one had to be freshly recreated under the new WABA, and got
+  // transcribed with swapped words and the wrong language. Confirmed
+  // against MSG91's real get-template-curl pull (name: "login_account",
+  // language.code: "en") and verified via two live sends, each received on
+  // the real test phone.
   otpLogin: {
-    name: 'account_login',
+    name: 'login_account',
     variableCount: 1,
     status: 'approved' as const,
-    language: 'en_US',
+    language: 'en',
     requiresOtpButton: true,
   },
 
