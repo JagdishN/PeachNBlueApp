@@ -139,6 +139,21 @@ export const sendWhatsAppTemplate = async ({
   const abortController = new AbortController();
   const timeoutId = setTimeout(() => abortController.abort(), 15_000);
 
+  // TEMPORARY diagnostic (2026-10-29) — remove once the "template does not
+  // exist in en_US" mystery on Render is resolved. Masked: only reveals
+  // authkey length/first-4-chars, never the full secret.
+  console.log('[MSG91 DEBUG]', JSON.stringify({
+    endpoint: MSG91_WHATSAPP_ENDPOINT,
+    templateName,
+    language: language ?? 'en',
+    namespace: MSG91_WABA_NAMESPACE,
+    namespaceLength: MSG91_WABA_NAMESPACE?.length,
+    from,
+    to,
+    authKeyPrefix: MSG91_AUTH_KEY?.slice(0, 4),
+    authKeyLength: MSG91_AUTH_KEY?.length,
+  }));
+
   let response: Response;
   try {
     response = await fetch(MSG91_WHATSAPP_ENDPOINT, {
@@ -189,6 +204,7 @@ export const sendWhatsAppTemplate = async ({
 
   if (!response.ok) {
     const errorBody = (await response.json().catch(() => undefined)) as { message?: string } | undefined;
+    console.log('[MSG91 DEBUG] non-ok response', response.status, JSON.stringify(errorBody));
     const err = new Error(errorBody?.message ?? `MSG91 request failed with status ${response.status}`) as Error & {
       code?: string;
     };
