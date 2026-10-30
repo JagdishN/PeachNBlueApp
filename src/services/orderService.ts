@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import { OrderInternalStatus, UserRole, PaymentMethod } from '../types/enums';
 import prisma from '../prisma/client';
-import { sendNotification, notifyAdminsOfPickup } from './notificationService';
+import { sendNotification, notifyAdmins } from './notificationService';
 import { resolveWhatsappFrom } from '../lib/msg91Client';
 import { MSG91_TEMPLATES } from '../constants/msg91Templates';
 import { recordCharge } from './ledgerService';
@@ -48,6 +48,22 @@ const generateOrderNumber = (): string => {
   const suffix = crypto.randomBytes(4).toString('hex').toUpperCase();
   return `PB-${suffix}`;
 };
+
+// Shared by every admin notification (pickup, delivery, payment — CLAUDE.md
+// order workflow item 4a and the 2026-10-30 delivery/payment-decoupling
+// work): branch-scoped admin(s) for this order's branch, or every unscoped
+// admin if the branch has none of its own; excludes the actor themselves so
+// an admin acting directly doesn't get a redundant notification about their
+// own action.
+const findBranchAdmins = (branchId: string, excludeUserId: string) =>
+  prisma.user.findMany({
+    where: {
+      role: 'admin',
+      id: { not: excludeUserId },
+      OR: [{ branchId: null }, { branchId }],
+    },
+    select: { id: true, phoneNumber: true },
+  });
 
 // Sourced from garments-seed-data-v2.json businessInfo.laundryMinimumKg —
 // the client's rate card states "Minimum 5 Kg applicable for laundry
@@ -252,26 +268,15 @@ export const createOrder = async (input: CreateOrderInput) => {
     order.id
   );
 
-  // Admin WhatsApp pickup notification (CLAUDE.md order workflow, item 4a) —
-  // the branch-scoped admin(s) for this order's branch, or every unscoped
-  // admin if the branch has none of its own; excludes the creator
-  // themselves when an admin logs the pickup directly (same exclusion the
-  // "Amount Revised" push below already uses for the equivalent case).
-  const pickupAdmins = await prisma.user.findMany({
-    where: {
-      role: 'admin',
-      id: { not: input.createdById },
-      OR: [{ branchId: null }, { branchId: input.branchId }],
-    },
-    select: { id: true, phoneNumber: true },
-  });
+  // Admin WhatsApp pickup notification (CLAUDE.md order workflow, item 4a).
+  const pickupAdmins = await findBranchAdmins(input.branchId, input.createdById);
 
   if (pickupAdmins.length > 0) {
     // Reuses pickupConfirmation (2026-09-03, client decision) rather than a
     // separate never-approved adminPickupNotification template — same
     // 4-variable shape, locationLabel filling the slot the customer-facing
     // send uses for the customer's name.
-    await notifyAdminsOfPickup(
+    await notifyAdmins(
       pickupAdmins,
       {
         name: MSG91_TEMPLATES.pickupConfirmation.name,
@@ -489,16 +494,18 @@ export const updateStatus = async (
 
     if (order.billingMode === 'monthly_billing') {
       await recordCharge(order.customer.id, order.id, payableAmount, `Order ${order.orderNumber}`);
-    } else if (order.paymentStatus !== 'paid') {
-      // CLAUDE.md "Approved WhatsApp Templates" / delivery_confirmation:
-      // fires only when payment genuinely hasn't been collected yet at
-      // this point — the mobile app's normal flow bundles recordPayment +
-      // this status update into one staff action, so paymentStatus is
-      // usually already 'paid' by the time updateStatus runs; the approved
-      // template's fixed text ("Amount due: Rs.X") would be factually
-      // wrong to send to a customer who just paid. Confirmed via
-      // AskUserQuestion rather than guessed, given the real risk of
-      // sending an inaccurate customer-facing message.
+    } else {
+      // CLAUDE.md "Approved WhatsApp Templates" / delivery_confirmation.
+      //
+      // CHANGED (2026-10-30, client request): delivery and payment are now
+      // two independently-triggerable staff actions (previously bundled
+      // into one "Mark Delivered & Payment Received" button, which meant
+      // paymentStatus was almost always already 'paid' by the time this ran
+      // — making this template effectively unreachable). This now fires on
+      // every 'delivered' transition for a daily-billing order with a real
+      // link, regardless of whether payment happens to already be recorded
+      // (confirmed via AskUserQuestion — "always send on delivered" over
+      // keeping the old payment-gated check).
       const invoice = await prisma.invoice.findUnique({
         where: { orderId },
         select: { paymentLinkUrl: true },
@@ -523,6 +530,8 @@ export const updateStatus = async (
       // via a live send comparison that omitting it, not just leaving it
       // decorative, is why this template was silently never delivering.
       if (invoice?.paymentLinkUrl) {
+        const buttonUrlParam = extractPaymentLinkSuffix(invoice.paymentLinkUrl);
+
         await sendNotification(
           order.customer,
           'delivery_confirmation',
@@ -530,12 +539,33 @@ export const updateStatus = async (
             name: MSG91_TEMPLATES.deliveryConfirmation.name,
             language: MSG91_TEMPLATES.deliveryConfirmation.language,
             bodyVariables: [order.customer.fullName, order.orderNumber, String(payableAmount)],
-            buttonUrlParam: extractPaymentLinkSuffix(invoice.paymentLinkUrl),
+            buttonUrlParam,
             headerMediaUrl: DELIVERY_CONFIRMATION_HEADER_IMAGE_URL,
             headerType: 'image',
           },
           orderId
         );
+
+        // Admin WhatsApp delivery notification (client request, 2026-10-30,
+        // same "reuse the customer template" pattern CLAUDE.md already
+        // established for the pickup notification — locationLabel fills the
+        // slot the customer-facing send uses for the customer's name).
+        const deliveryAdmins = await findBranchAdmins(order.customer.branchId, changedById);
+
+        if (deliveryAdmins.length > 0) {
+          await notifyAdmins(
+            deliveryAdmins,
+            {
+              name: MSG91_TEMPLATES.deliveryConfirmation.name,
+              language: MSG91_TEMPLATES.deliveryConfirmation.language,
+              bodyVariables: [order.customer.locationLabel, order.orderNumber, String(payableAmount)],
+              buttonUrlParam,
+              headerMediaUrl: DELIVERY_CONFIRMATION_HEADER_IMAGE_URL,
+              headerType: 'image',
+            },
+            resolveWhatsappFrom(order.customer.branch.whatsappNumber)
+          );
+        }
       }
     }
   }
@@ -567,7 +597,13 @@ export const recordPayment = async (orderId: string, paymentMethod: PaymentMetho
     throw err;
   }
 
-  const order = await prisma.order.findUnique({ where: { id: orderId }, include: { customer: true } });
+  // Joins customer.branch (not just customer: true) — needed below to send
+  // both the customer and the new admin payment notification (CLAUDE.md
+  // "Branches": each branch sends from its own registered number).
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: { customer: { include: { branch: true } } },
+  });
 
   if (!order) {
     const err = new Error('Order not found.');
@@ -617,6 +653,43 @@ export const recordPayment = async (orderId: string, paymentMethod: PaymentMetho
       include: { customer: { select: customerSelectForRole(role) }, orderItems: true },
     });
   });
+
+  // Client request (2026-10-30): now that payment is a decoupled action
+  // (not always implied by the delivered transition), a staff-recorded
+  // cash/UPI/card payment previously sent NO confirmation to anyone — only
+  // the Razorpay-webhook path (recordOnlinePayment below) ever sent
+  // payment_receipt, and only to the customer. Both now get notified here
+  // too, mirroring recordOnlinePayment's existing customer send plus the
+  // same admin-reuse pattern as the pickup/delivery notifications.
+  await sendNotification(
+    order.customer,
+    'payment_receipt',
+    {
+      name: MSG91_TEMPLATES.paymentReceipt.name,
+      language: MSG91_TEMPLATES.paymentReceipt.language,
+      bodyVariables: [order.customer.fullName, String(amount), order.orderNumber, PAYMENT_METHOD_LABELS[paymentMethod]],
+    },
+    orderId
+  );
+
+  const paymentAdmins = await findBranchAdmins(order.customer.branchId, recordedById);
+
+  if (paymentAdmins.length > 0) {
+    await notifyAdmins(
+      paymentAdmins,
+      {
+        name: MSG91_TEMPLATES.paymentReceipt.name,
+        language: MSG91_TEMPLATES.paymentReceipt.language,
+        bodyVariables: [
+          order.customer.locationLabel,
+          String(amount),
+          order.orderNumber,
+          PAYMENT_METHOD_LABELS[paymentMethod],
+        ],
+      },
+      resolveWhatsappFrom(order.customer.branch.whatsappNumber)
+    );
+  }
 
   return updatedOrder;
 };

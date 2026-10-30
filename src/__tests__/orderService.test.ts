@@ -7,7 +7,7 @@ jest.mock('../prisma/client', () => ({
 }));
 jest.mock('../services/notificationService', () => ({
   sendNotification: jest.fn().mockResolvedValue(undefined),
-  notifyAdminsOfPickup: jest.fn().mockResolvedValue(undefined),
+  notifyAdmins: jest.fn().mockResolvedValue(undefined),
 }));
 jest.mock('../services/pushService', () => ({
   sendToUser: jest.fn().mockResolvedValue(undefined),
@@ -26,14 +26,14 @@ jest.mock('../services/ledgerService', () => ({
 import prisma from '../prisma/client';
 import { createOrder, listOrders, getOrder, updateStatus, assignStaff, recordPayment, recordOnlinePayment } from '../services/orderService';
 import { generateInvoice } from '../services/invoiceService';
-import { sendNotification, notifyAdminsOfPickup } from '../services/notificationService';
+import { sendNotification, notifyAdmins } from '../services/notificationService';
 import { recordCharge } from '../services/ledgerService';
 import { MSG91_TEMPLATES } from '../constants/msg91Templates';
 
 const prismaMock = prisma as unknown as DeepMockProxy<PrismaClient>;
 const generateInvoiceMock = generateInvoice as jest.Mock;
 const sendNotificationMock = sendNotification as jest.Mock;
-const notifyAdminsOfPickupMock = notifyAdminsOfPickup as jest.Mock;
+const notifyAdminsMock = notifyAdmins as jest.Mock;
 const recordChargeMock = recordCharge as jest.Mock;
 
 const FIXED_PIECE_GARMENT = {
@@ -96,8 +96,8 @@ beforeEach(() => {
   generateInvoiceMock.mockReset();
   sendNotificationMock.mockReset();
   sendNotificationMock.mockResolvedValue(undefined);
-  notifyAdminsOfPickupMock.mockReset();
-  notifyAdminsOfPickupMock.mockResolvedValue(undefined);
+  notifyAdminsMock.mockReset();
+  notifyAdminsMock.mockResolvedValue(undefined);
   recordChargeMock.mockReset();
   recordChargeMock.mockResolvedValue(undefined);
   // Never resolves by default — createOrder must not await this, so tests
@@ -391,7 +391,7 @@ describe('createOrder — admin pickup notification', () => {
     // Regression guard (2026-09-03): the admin pickup notice now reuses
     // pickupConfirmation instead of the separate, never-approved
     // adminPickupNotification template — per explicit client decision.
-    expect(notifyAdminsOfPickupMock).toHaveBeenCalledWith(
+    expect(notifyAdminsMock).toHaveBeenCalledWith(
       [
         { id: 'admin-1', phoneNumber: '9000000001' },
         { id: 'admin-2', phoneNumber: '9000000002' },
@@ -411,7 +411,7 @@ describe('createOrder — admin pickup notification', () => {
 
     await createOrder({ ...baseInput, items: [{ garmentId: 'g-shirt', quantity: 1 }] });
 
-    expect(notifyAdminsOfPickupMock).not.toHaveBeenCalled();
+    expect(notifyAdminsMock).not.toHaveBeenCalled();
   });
 });
 
@@ -704,6 +704,8 @@ describe('updateStatus — delivery_confirmation', () => {
     fullName: 'Test Customer',
     phoneNumber: '9999999999',
     whatsappNumber: null,
+    branchId: 'branch-1',
+    locationLabel: 'A-304',
     branch: { whatsappNumber: '917013725151' },
   };
 
@@ -749,7 +751,12 @@ describe('updateStatus — delivery_confirmation', () => {
     );
   });
 
-  it('does not send delivery_confirmation when payment is already recorded (the normal bundled staff flow)', async () => {
+  // CHANGED (2026-10-30, client request): delivery and payment are now
+  // independently-triggerable staff actions, so this must no longer skip
+  // just because payment happens to already be recorded — the old
+  // "bundled" assumption this test's previous name described no longer
+  // holds (see the updateStatus delivered-branch comment).
+  it('sends delivery_confirmation even when payment is already recorded (delivery and payment are now decoupled actions)', async () => {
     prismaMock.order.update.mockResolvedValue({
       id: 'order-1',
       orderNumber: 'PB-TEST',
@@ -758,11 +765,64 @@ describe('updateStatus — delivery_confirmation', () => {
       paymentStatus: 'paid',
       customer: CUSTOMER,
     } as any);
+    prismaMock.invoice.findUnique.mockResolvedValue({ paymentLinkUrl: 'https://rzp.io/l/AbCd1234' } as any);
 
     await updateStatus('order-1', 'delivered', 'user-1', 'staff');
 
-    expect(prismaMock.invoice.findUnique).not.toHaveBeenCalled();
-    expect(sendNotificationMock).not.toHaveBeenCalled();
+    expect(sendNotificationMock).toHaveBeenCalledWith(
+      CUSTOMER,
+      'delivery_confirmation',
+      expect.objectContaining({ bodyVariables: ['Test Customer', 'PB-TEST', '500'] }),
+      'order-1'
+    );
+  });
+
+  it('also notifies the branch admin(s) on delivery, reusing deliveryConfirmation with the location in place of the customer name', async () => {
+    prismaMock.order.update.mockResolvedValue({
+      id: 'order-1',
+      orderNumber: 'PB-TEST',
+      finalAmount: 500,
+      billingMode: 'daily',
+      paymentStatus: 'pending',
+      customer: CUSTOMER,
+    } as any);
+    prismaMock.invoice.findUnique.mockResolvedValue({ paymentLinkUrl: 'https://rzp.io/l/AbCd1234' } as any);
+    prismaMock.user.findMany.mockResolvedValue([{ id: 'admin-1', phoneNumber: '919885025151' }] as any);
+
+    await updateStatus('order-1', 'delivered', 'user-1', 'staff');
+
+    expect(prismaMock.user.findMany).toHaveBeenCalledWith({
+      where: { role: 'admin', id: { not: 'user-1' }, OR: [{ branchId: null }, { branchId: 'branch-1' }] },
+      select: { id: true, phoneNumber: true },
+    });
+    expect(notifyAdminsMock).toHaveBeenCalledWith(
+      [{ id: 'admin-1', phoneNumber: '919885025151' }],
+      {
+        name: MSG91_TEMPLATES.deliveryConfirmation.name,
+        language: MSG91_TEMPLATES.deliveryConfirmation.language,
+        bodyVariables: ['A-304', 'PB-TEST', '500'],
+        buttonUrlParam: '/AbCd1234',
+        headerMediaUrl: expect.stringContaining('delivery-confirmation-header'),
+        headerType: 'image',
+      },
+      '917013725151'
+    );
+  });
+
+  it('does not notify admins when none exist for the branch', async () => {
+    prismaMock.order.update.mockResolvedValue({
+      id: 'order-1',
+      orderNumber: 'PB-TEST',
+      finalAmount: 500,
+      billingMode: 'daily',
+      paymentStatus: 'pending',
+      customer: CUSTOMER,
+    } as any);
+    prismaMock.invoice.findUnique.mockResolvedValue({ paymentLinkUrl: 'https://rzp.io/l/AbCd1234' } as any);
+
+    await updateStatus('order-1', 'delivered', 'user-1', 'staff');
+
+    expect(notifyAdminsMock).not.toHaveBeenCalled();
   });
 
   it('does not send delivery_confirmation for a monthly-billing order, even if unpaid (no real payment link, settled via the ledger)', async () => {
@@ -980,6 +1040,99 @@ describe('recordPayment', () => {
     expect(prismaMock.payment.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ amount: 450 }) })
     );
+  });
+
+  // Client request (2026-10-30): a staff-recorded payment previously sent
+  // NO confirmation to anyone — only the Razorpay-webhook path
+  // (recordOnlinePayment) ever sent payment_receipt. Now that payment is a
+  // decoupled action (not always implied by marking delivered), both the
+  // customer and the branch admin(s) get notified here too.
+  const PAYMENT_CUSTOMER = {
+    id: 'customer-1',
+    fullName: 'Test Customer',
+    phoneNumber: '9999999999',
+    whatsappNumber: null,
+    branchId: 'branch-1',
+    locationLabel: 'A-304',
+    discountEnabled: false,
+    discountPercent: 0,
+    branch: { whatsappNumber: '917013725151' },
+  };
+
+  it('sends payment_receipt to the customer after recording payment', async () => {
+    prismaMock.order.findUnique.mockResolvedValue({
+      id: 'order-1',
+      orderNumber: 'PB-TEST',
+      customerId: 'customer-1',
+      staffId: 'staff-1',
+      finalAmount: 500,
+      billingMode: 'daily',
+      customer: PAYMENT_CUSTOMER,
+    } as any);
+    prismaMock.payment.create.mockResolvedValue({} as any);
+    prismaMock.order.update.mockResolvedValue({} as any);
+
+    await recordPayment('order-1', 'upi', 'staff-1', 'staff');
+
+    expect(sendNotificationMock).toHaveBeenCalledWith(
+      PAYMENT_CUSTOMER,
+      'payment_receipt',
+      {
+        name: MSG91_TEMPLATES.paymentReceipt.name,
+        language: MSG91_TEMPLATES.paymentReceipt.language,
+        bodyVariables: ['Test Customer', '500', 'PB-TEST', 'UPI'],
+      },
+      'order-1'
+    );
+  });
+
+  it('also notifies the branch admin(s), reusing paymentReceipt with the location in place of the customer name', async () => {
+    prismaMock.order.findUnique.mockResolvedValue({
+      id: 'order-1',
+      orderNumber: 'PB-TEST',
+      customerId: 'customer-1',
+      staffId: 'staff-1',
+      finalAmount: 500,
+      billingMode: 'daily',
+      customer: PAYMENT_CUSTOMER,
+    } as any);
+    prismaMock.payment.create.mockResolvedValue({} as any);
+    prismaMock.order.update.mockResolvedValue({} as any);
+    prismaMock.user.findMany.mockResolvedValue([{ id: 'admin-1', phoneNumber: '919885025151' }] as any);
+
+    await recordPayment('order-1', 'cash', 'staff-1', 'staff');
+
+    expect(prismaMock.user.findMany).toHaveBeenCalledWith({
+      where: { role: 'admin', id: { not: 'staff-1' }, OR: [{ branchId: null }, { branchId: 'branch-1' }] },
+      select: { id: true, phoneNumber: true },
+    });
+    expect(notifyAdminsMock).toHaveBeenCalledWith(
+      [{ id: 'admin-1', phoneNumber: '919885025151' }],
+      {
+        name: MSG91_TEMPLATES.paymentReceipt.name,
+        language: MSG91_TEMPLATES.paymentReceipt.language,
+        bodyVariables: ['A-304', '500', 'PB-TEST', 'Cash'],
+      },
+      '917013725151'
+    );
+  });
+
+  it('does not notify admins when none exist for the branch', async () => {
+    prismaMock.order.findUnique.mockResolvedValue({
+      id: 'order-1',
+      orderNumber: 'PB-TEST',
+      customerId: 'customer-1',
+      staffId: 'staff-1',
+      finalAmount: 500,
+      billingMode: 'daily',
+      customer: PAYMENT_CUSTOMER,
+    } as any);
+    prismaMock.payment.create.mockResolvedValue({} as any);
+    prismaMock.order.update.mockResolvedValue({} as any);
+
+    await recordPayment('order-1', 'cash', 'staff-1', 'staff');
+
+    expect(notifyAdminsMock).not.toHaveBeenCalled();
   });
 });
 

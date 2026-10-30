@@ -11,7 +11,7 @@ jest.mock('../prisma/client', () => ({
 }));
 jest.mock('../services/notificationService', () => ({
   sendNotification: jest.fn().mockResolvedValue(undefined),
-  notifyAdminsOfPickup: jest.fn().mockResolvedValue(undefined),
+  notifyAdmins: jest.fn().mockResolvedValue(undefined),
 }));
 jest.mock('../services/pushService', () => ({
   sendToUser: jest.fn().mockResolvedValue(undefined),

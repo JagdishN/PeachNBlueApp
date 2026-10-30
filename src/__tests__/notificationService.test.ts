@@ -11,7 +11,7 @@ jest.mock('../lib/msg91Client', () => ({
   resolveWhatsappFrom: (branchWhatsappNumber: string | null | undefined) => branchWhatsappNumber ?? '919999999999',
 }));
 
-import { sendNotification, notifyAdminsOfPickup } from '../services/notificationService';
+import { sendNotification, notifyAdmins } from '../services/notificationService';
 
 beforeEach(() => {
   sendWhatsAppTemplateMock.mockReset().mockResolvedValue(undefined);
@@ -72,11 +72,11 @@ describe('sendNotification', () => {
 // CLAUDE.md order workflow item 4a: admin WhatsApp notification on pickup —
 // internal, WhatsApp-only, no communications_log row, one send per admin,
 // a failed send for one admin must not stop the others.
-describe('notifyAdminsOfPickup', () => {
+describe('notifyAdmins', () => {
   const template = { name: 'pb_admin_pickup_notification', bodyVariables: ['A-101', 'PB-ABC1', '450'] };
 
   it('sends a WhatsApp template to every admin from the given fromNumber', async () => {
-    await notifyAdminsOfPickup(
+    await notifyAdmins(
       [
         { id: 'admin-1', phoneNumber: '9000000010' },
         { id: 'admin-2', phoneNumber: '9000000011' },
@@ -100,7 +100,7 @@ describe('notifyAdminsOfPickup', () => {
   });
 
   it('never writes to communications_log (customer-scoped table, not for internal admin notices)', async () => {
-    await notifyAdminsOfPickup([{ id: 'admin-1', phoneNumber: '9000000010' }], template, '919398125151');
+    await notifyAdmins([{ id: 'admin-1', phoneNumber: '9000000010' }], template, '919398125151');
 
     expect(communicationLogCreateMock).not.toHaveBeenCalled();
   });
@@ -109,7 +109,7 @@ describe('notifyAdminsOfPickup', () => {
     sendWhatsAppTemplateMock.mockRejectedValueOnce(new Error('MSG91 error 400'));
 
     await expect(
-      notifyAdminsOfPickup(
+      notifyAdmins(
         [
           { id: 'admin-1', phoneNumber: '9000000010' },
           { id: 'admin-2', phoneNumber: '9000000011' },

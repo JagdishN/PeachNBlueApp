@@ -90,7 +90,14 @@ interface NotifiableAdmin {
 // rows, not a customer, so it doesn't write to communications_log (that
 // table is customer-scoped via a required customerId FK — same reasoning
 // push notifications via pushService.ts already don't log there either).
-export const notifyAdminsOfPickup = async (
+//
+// Generalized (2026-10-30) from the original notifyAdminsOfPickup — the
+// pickup, delivery, and payment admin notifications all reuse the matching
+// customer-facing template (CLAUDE.md "Admin template reuse" — no new
+// Meta-approved template needed), so this now passes through the full
+// TemplateMessage shape (header/button components included), not just
+// bodyVariables.
+export const notifyAdmins = async (
   admins: NotifiableAdmin[],
   template: TemplateMessage,
   fromNumber: string
@@ -103,6 +110,9 @@ export const notifyAdminsOfPickup = async (
         templateName: template.name,
         language: template.language,
         bodyVariables: template.bodyVariables,
+        headerMediaUrl: template.headerMediaUrl,
+        headerType: template.headerType,
+        buttonUrlParam: template.buttonUrlParam,
       })
     )
   );
@@ -110,7 +120,7 @@ export const notifyAdminsOfPickup = async (
   results.forEach((result, i) => {
     if (result.status === 'rejected') {
       console.error(
-        `Failed to send pickup notification via WhatsApp to admin ${admins[i].id}: ${formatMsg91Error(result.reason)}`
+        `Failed to send admin notification via WhatsApp to admin ${admins[i].id}: ${formatMsg91Error(result.reason)}`
       );
     }
   });
