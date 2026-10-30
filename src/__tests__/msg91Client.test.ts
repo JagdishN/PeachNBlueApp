@@ -175,6 +175,35 @@ describe('sendWhatsAppTemplate', () => {
     });
   });
 
+  // Outstanding-dues rework, section 9 — PaymentReminderLog needs a real
+  // provider message id to audit, which nothing before this change ever
+  // captured (every caller discarded the response body entirely).
+  it('returns the real /bulk/ endpoint\'s request_id as messageId on success', async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ request_id: 'req-abc-123', data: 'queued' }) });
+
+    const result = await sendWhatsAppTemplate({
+      toPhoneNumber: '919000000001',
+      fromNumber: '919398125151',
+      templateName: 'pb_otp_login',
+      bodyVariables: ['654321'],
+    });
+
+    expect(result).toEqual({ messageId: 'req-abc-123' });
+  });
+
+  it('returns a null messageId rather than throwing when the success response has no request_id', async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({}) });
+
+    const result = await sendWhatsAppTemplate({
+      toPhoneNumber: '919000000001',
+      fromNumber: '919398125151',
+      templateName: 'pb_otp_login',
+      bodyVariables: ['654321'],
+    });
+
+    expect(result).toEqual({ messageId: null });
+  });
+
   it('throws with the response status/message when MSG91 returns a non-ok response', async () => {
     fetchMock.mockResolvedValue({ ok: false, status: 400, json: async () => ({ message: 'Invalid template' }) });
 

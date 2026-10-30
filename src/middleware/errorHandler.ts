@@ -17,7 +17,17 @@ export const errorHandler = (err: unknown, req: Request, res: Response, next: Ne
   // screen. Full error is still logged above either way.
   const message = status !== undefined ? (err as any)?.message ?? 'Internal server error' : 'Internal server error';
 
+  // Outstanding-dues rework — a few deliberately-thrown errors (e.g.
+  // reminderService.ts's DUPLICATE_REMINDER / PENDING_VERIFICATION) carry
+  // a machine-readable `code` alongside their human-readable message, so
+  // the client can distinguish "offer an override button" from "block,
+  // nothing to override" without parsing message text. Only forwarded
+  // when the error already passed the .status check above — same safety
+  // boundary as the message itself.
+  const code = status !== undefined ? (err as any)?.code : undefined;
+
   res.status(status ?? 500).json({
     error: message,
+    ...(code ? { code } : {}),
   });
 };

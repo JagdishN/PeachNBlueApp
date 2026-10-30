@@ -12,6 +12,9 @@ import ledgerRoutes from './routes/ledger';
 import reportRoutes from './routes/reports';
 import deviceRoutes from './routes/devices';
 import webhookRoutes from './routes/webhooks';
+import paymentRoutes from './routes/payments';
+import payRoutes from './routes/pay';
+import vendorInvoiceRoutes from './routes/vendorInvoices';
 import { errorHandler } from './middleware/errorHandler';
 import { staffFieldFilter } from './middleware/staffFieldFilter';
 import { registerJobs } from './jobs';
@@ -41,6 +44,14 @@ app.use('/api/v1/branches', branchRoutes);
 app.use('/api/v1/ledger', ledgerRoutes);
 app.use('/api/v1/reports', reportRoutes);
 app.use('/api/v1/devices', deviceRoutes);
+app.use('/api/v1/payments', paymentRoutes);
+app.use('/api/v1/vendor-invoices', vendorInvoiceRoutes);
+// Public, unauthenticated — the Peach & Blue-controlled payment URL
+// (payment-safety review section 5) that WhatsApp's "Review & Pay" button
+// will eventually target instead of a raw Razorpay link. Deliberately
+// outside /api/v1 and outside `authenticate` — a customer clicking this
+// from WhatsApp has no JWT and never will.
+app.use('/pay', payRoutes);
 
 app.use(errorHandler);
 

@@ -108,16 +108,39 @@ export const updateStatusHandler = async (req: AuthRequest, res: Response): Prom
 
 // CLAUDE.md "Payment marking — real gap" — records which of the four
 // confirmed payment modes was used and flips paymentStatus to 'paid'.
+// Payment-safety review section 6/12: now supports a partial `amount` (the
+// mobile Record Payment card should send whatever amount staff actually
+// collected, defaulting to the full outstanding balance if omitted) and a
+// client-supplied `idempotencyKey` so a double-tapped button can't create a
+// second real receipt. Response now also carries `paymentSummary`
+// (outstanding balance, etc.) and an `overpayment` flag for the UI.
 export const recordPaymentHandler = async (req: AuthRequest, res: Response): Promise<void> => {
-  const { paymentMethod } = req.body;
+  const { paymentMethod, amount, idempotencyKey } = req.body;
 
   if (!paymentMethod) {
     res.status(400).json({ error: 'paymentMethod is required' });
     return;
   }
+  if (amount !== undefined && (typeof amount !== 'number' || amount <= 0)) {
+    res.status(400).json({ error: 'amount, if provided, must be a positive number' });
+    return;
+  }
 
-  const order = await orderService.recordPayment(req.params.id, paymentMethod, req.auth!.userId, req.auth!.role);
-  res.status(200).json({ order });
+  const result = await orderService.recordPayment(req.params.id, paymentMethod, req.auth!.userId, req.auth!.role, {
+    amount,
+    idempotencyKey,
+  });
+
+  res.status(200).json({
+    order: result.order,
+    paymentSummary: {
+      outstanding: Number(result.paymentSummary.outstandingPaise) / 100,
+      collected: Number(result.paymentSummary.collectedPaise) / 100,
+      allocated: Number(result.paymentSummary.allocatedPaise) / 100,
+      status: result.paymentSummary.status,
+    },
+    overpayment: result.overpayment,
+  });
 };
 
 export const reviseAmountHandler = async (req: AuthRequest, res: Response): Promise<void> => {

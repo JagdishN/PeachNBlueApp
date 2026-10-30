@@ -96,6 +96,15 @@ export interface InvoicePdfData {
   // `amount` with no explanation on the PDF.
   additionalChargesTotal: number;
   amount: number;
+  // Outstanding-dues rework, section 3 — the customer's unpaid balance
+  // from OTHER, separate invoices, shown as a brought-forward receivable.
+  // Deliberately NEVER added into `amount`/`subtotal` above (this order's
+  // own sales value stays exactly what it is — see invoiceService.ts) and
+  // never re-collected through THIS invoice's own Razorpay link; it's
+  // presentation only. 0/undefined when there's nothing to carry forward,
+  // which keeps the existing single-total layout unchanged for the common
+  // case.
+  previousDuesTotal?: number;
   paymentLinkUrl: string | null;
   // Full sentence, not a figure plugged into a fixed template — service-aware
   // (see invoiceService.ts's getTurnaroundText), so Dry Cleaning/Wash & Fold
@@ -189,10 +198,27 @@ export const renderInvoicePdf = async (data: InvoicePdfData): Promise<Buffer> =>
               <Text>{formatInr(data.additionalChargesTotal)}</Text>
             </View>
           )}
-          <View style={styles.grandTotalRow}>
-            <Text style={styles.grandTotalText}>Amount to be paid</Text>
-            <Text style={styles.grandTotalText}>{formatInr(data.amount)}</Text>
-          </View>
+          {data.previousDuesTotal && data.previousDuesTotal > 0 ? (
+            <>
+              <View style={styles.grandTotalRow}>
+                <Text style={styles.grandTotalText}>Current Order Charges</Text>
+                <Text style={styles.grandTotalText}>{formatInr(data.amount)}</Text>
+              </View>
+              <View style={styles.totalsRow}>
+                <Text>Previous Outstanding</Text>
+                <Text>{formatInr(data.previousDuesTotal)}</Text>
+              </View>
+              <View style={styles.grandTotalRow}>
+                <Text style={styles.grandTotalText}>Total Amount Payable</Text>
+                <Text style={styles.grandTotalText}>{formatInr(data.amount + data.previousDuesTotal)}</Text>
+              </View>
+            </>
+          ) : (
+            <View style={styles.grandTotalRow}>
+              <Text style={styles.grandTotalText}>Amount to be paid</Text>
+              <Text style={styles.grandTotalText}>{formatInr(data.amount)}</Text>
+            </View>
+          )}
         </View>
 
         <Text style={{ marginTop: 16, fontSize: 8 }}>{data.turnaroundText}</Text>

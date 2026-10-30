@@ -60,10 +60,21 @@ const handlePaymentLinkPaid = async (body: any): Promise<void> => {
     console.error(
       `[razorpay webhook] Order ${invoice.orderId} is monthly-billing but its Razorpay link ${linkEntity.id} ` +
         'was paid anyway (a legacy link from before real links were disabled for these customers). ' +
-        'Not auto-reconciled — needs manual admin review to avoid double-counting against the ledger.'
+        'A PaymentReconciliationException row was created — needs manual admin review to avoid double-counting against the ledger.'
     );
   } else if (result.status === 'order_not_found') {
     console.error(`[razorpay webhook] Invoice ${invoice.id} references order ${invoice.orderId}, which no longer exists.`);
+  } else if (result.status === 'duplicate_webhook') {
+    // Genuinely benign — Razorpay's own documented at-least-once delivery
+    // behavior for the exact same payment. Payment.razorpayPaymentId's
+    // unique constraint is the real backstop here regardless of this log.
+    console.log(`[razorpay webhook] Duplicate delivery for an already-recorded payment on order ${invoice.orderId} — no-op.`);
+  } else if (result.status === 'overpayment_recorded') {
+    console.error(
+      `[razorpay webhook] Order ${invoice.orderId}: a real Razorpay payment was recorded but the invoice was already ` +
+        'fully settled by another method. A PaymentReconciliationException row was created — needs manual review, ' +
+        'this is a genuine overpayment, not a duplicate.'
+    );
   } else {
     console.log(`[razorpay webhook] payment_link.paid for order ${invoice.orderId}: ${result.status}`);
   }

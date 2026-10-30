@@ -22,6 +22,13 @@ jest.mock('../services/invoiceReissue.service', () => ({
 jest.mock('../services/ledgerService', () => ({
   recordCharge: jest.fn().mockResolvedValue(undefined),
 }));
+// paymentLinkLifecycle.ts has its own dedicated test file — mocked here so
+// recordPayment/recordOnlinePayment's tests exercise only the ledger/
+// notification logic, without reaching the real razorpayClient.ts (which
+// would otherwise try to construct a real Razorpay SDK client).
+jest.mock('../services/paymentLinkLifecycle', () => ({
+  retireOrReplaceLink: jest.fn().mockResolvedValue({ completed: true, newPaymentLinkId: null, newPaymentLinkUrl: null }),
+}));
 
 import prisma from '../prisma/client';
 import { createOrder, listOrders, getOrder, updateStatus, assignStaff, recordPayment, recordOnlinePayment } from '../services/orderService';
@@ -93,6 +100,7 @@ function mockGarments(garments: typeof FIXED_PIECE_GARMENT[]) {
 
 beforeEach(() => {
   mockReset(prismaMock);
+  prismaMock.invoiceAdjustment.findMany.mockResolvedValue([]);
   generateInvoiceMock.mockReset();
   sendNotificationMock.mockReset();
   sendNotificationMock.mockResolvedValue(undefined);
@@ -911,6 +919,15 @@ describe('updateStatus — staff ownership check', () => {
 // CLAUDE.md "Payment marking — real gap": closes the gap where
 // order.paymentStatus never got flipped and no payment method was recorded.
 describe('recordPayment', () => {
+  // Shared default: an invoice with a ₹500 total and nothing paid yet.
+  // paymentLedgerService.getInvoicePaymentSummary runs invoice.findUnique +
+  // payment.findMany internally (both via the plain, non-transactional
+  // `prisma` before the lock, and again inside the mocked $transaction).
+  const mockFreshInvoice = (amount = 500) => {
+    prismaMock.invoice.findUnique.mockResolvedValue({ id: 'invoice-1', orderId: 'order-1', amount } as any);
+    prismaMock.payment.findMany.mockResolvedValue([]);
+  };
+
   it('rejects an invalid paymentMethod before touching the database', async () => {
     await expect(recordPayment('order-1', 'bitcoin' as any, 'staff-1', 'staff')).rejects.toMatchObject({
       status: 400,
@@ -932,6 +949,7 @@ describe('recordPayment', () => {
       staffId: 'staff-1',
       finalAmount: 500,
       billingMode: 'daily',
+      invoice: { id: 'invoice-1' },
       customer: { id: 'customer-1', discountEnabled: false, discountPercent: 0 },
     } as any);
 
@@ -945,6 +963,7 @@ describe('recordPayment', () => {
       staffId: 'staff-1',
       finalAmount: 500,
       billingMode: 'monthly_billing',
+      invoice: { id: 'invoice-1' },
       customer: { id: 'customer-1', discountEnabled: false, discountPercent: 0 },
     } as any);
 
@@ -952,20 +971,36 @@ describe('recordPayment', () => {
     expect(prismaMock.payment.create).not.toHaveBeenCalled();
   });
 
+  it('rejects with 409 when the order has no invoice yet', async () => {
+    prismaMock.order.findUnique.mockResolvedValue({
+      id: 'order-1',
+      staffId: 'staff-1',
+      finalAmount: 500,
+      billingMode: 'daily',
+      invoice: null,
+      customer: { id: 'customer-1', discountEnabled: false, discountPercent: 0 },
+    } as any);
+
+    await expect(recordPayment('order-1', 'cash', 'staff-1', 'staff')).rejects.toMatchObject({ status: 409 });
+    expect(prismaMock.payment.create).not.toHaveBeenCalled();
+  });
+
   // CLAUDE.md "Monthly billing retroactivity — RESOLVED": the order's own
   // snapshot governs, not the customer's current (possibly since-changed)
   // billingMode.
   it('allows recording payment for an order snapshotted as daily, even if the customer is now monthly_billing', async () => {
+    mockFreshInvoice(500);
     prismaMock.order.findUnique.mockResolvedValue({
       id: 'order-1',
       customerId: 'customer-1',
+      orderNumber: 'PB-TEST',
       staffId: 'staff-1',
       finalAmount: 500,
       billingMode: 'daily',
-      customer: { id: 'customer-1', billingMode: 'monthly_billing', discountEnabled: false, discountPercent: 0 },
+      invoice: { id: 'invoice-1', amount: 500 },
+      customer: { id: 'customer-1', billingMode: 'monthly_billing', discountEnabled: false, discountPercent: 0, branch: {} },
     } as any);
-    prismaMock.payment.create.mockResolvedValue({} as any);
-    prismaMock.order.update.mockResolvedValue({ id: 'order-1', paymentStatus: 'paid', paymentMethod: 'cash' } as any);
+    prismaMock.payment.create.mockResolvedValue({ id: 'payment-1', amountPaise: 50000n, allocatedPaise: 50000n } as any);
 
     await expect(recordPayment('order-1', 'cash', 'staff-1', 'staff')).resolves.toBeDefined();
     expect(prismaMock.payment.create).toHaveBeenCalled();
@@ -977,6 +1012,7 @@ describe('recordPayment', () => {
       staffId: 'staff-1',
       finalAmount: 500,
       billingMode: 'monthly_billing',
+      invoice: { id: 'invoice-1' },
       customer: { id: 'customer-1', billingMode: 'daily', discountEnabled: false, discountPercent: 0 },
     } as any);
 
@@ -984,21 +1020,19 @@ describe('recordPayment', () => {
     expect(prismaMock.payment.create).not.toHaveBeenCalled();
   });
 
-  it('creates a Payment row and flips the order to paid with the given method, for a daily customer', async () => {
+  it('creates a Payment row (paymentSource: cash) and flips the order to paid with the given method, for a daily customer', async () => {
+    mockFreshInvoice(500);
     prismaMock.order.findUnique.mockResolvedValue({
       id: 'order-1',
+      orderNumber: 'PB-TEST',
       customerId: 'customer-1',
       staffId: 'staff-1',
       finalAmount: 500,
       billingMode: 'daily',
-      customer: { id: 'customer-1', discountEnabled: false, discountPercent: 0 },
+      invoice: { id: 'invoice-1', amount: 500 },
+      customer: { id: 'customer-1', discountEnabled: false, discountPercent: 0, branch: {} },
     } as any);
-    prismaMock.payment.create.mockResolvedValue({} as any);
-    prismaMock.order.update.mockResolvedValue({
-      id: 'order-1',
-      paymentStatus: 'paid',
-      paymentMethod: 'upi',
-    } as any);
+    prismaMock.payment.create.mockResolvedValue({ id: 'payment-1', amountPaise: 50000n, allocatedPaise: 50000n } as any);
 
     await recordPayment('order-1', 'upi', 'staff-1', 'staff');
 
@@ -1006,40 +1040,78 @@ describe('recordPayment', () => {
       expect.objectContaining({
         data: expect.objectContaining({
           orderId: 'order-1',
+          invoiceId: 'invoice-1',
           customerId: 'customer-1',
           amount: 500,
+          amountPaise: 50000n,
+          allocatedPaise: 50000n,
           paymentType: 'order_payment',
           paymentMethod: 'upi',
+          paymentSource: 'cash',
           status: 'success',
           recordedById: 'staff-1',
         }),
       })
     );
-    expect(prismaMock.order.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: 'order-1' },
-        data: { paymentMethod: 'upi', paymentStatus: 'paid' },
-      })
-    );
   });
 
   it('records the discount-adjusted amount, not the raw finalAmount, when the customer has a discount', async () => {
+    mockFreshInvoice(450);
     prismaMock.order.findUnique.mockResolvedValue({
       id: 'order-1',
+      orderNumber: 'PB-TEST',
       customerId: 'customer-1',
       staffId: 'staff-1',
       finalAmount: 500,
       billingMode: 'daily',
-      customer: { id: 'customer-1', discountEnabled: true, discountPercent: 10 },
+      invoice: { id: 'invoice-1', amount: 450 },
+      customer: { id: 'customer-1', discountEnabled: true, discountPercent: 10, branch: {} },
     } as any);
-    prismaMock.payment.create.mockResolvedValue({} as any);
-    prismaMock.order.update.mockResolvedValue({} as any);
+    prismaMock.payment.create.mockResolvedValue({ id: 'payment-1', amountPaise: 45000n, allocatedPaise: 45000n } as any);
 
     await recordPayment('order-1', 'cash', 'staff-1', 'staff');
 
     expect(prismaMock.payment.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ amount: 450 }) })
     );
+  });
+
+  // Payment-safety review section 6 — a staff-entered partial amount must
+  // be honored, not silently forced to the full outstanding balance.
+  it('supports a partial amount, leaving the correct outstanding balance', async () => {
+    prismaMock.invoice.findUnique.mockResolvedValue({ id: 'invoice-1', orderId: 'order-1', amount: 880 } as any);
+    prismaMock.payment.findMany.mockResolvedValue([]);
+    prismaMock.order.findUnique.mockResolvedValue({
+      id: 'order-1',
+      orderNumber: 'PB-TEST',
+      customerId: 'customer-1',
+      staffId: 'staff-1',
+      finalAmount: 880,
+      billingMode: 'daily',
+      invoice: { id: 'invoice-1', amount: 880 },
+      customer: { id: 'customer-1', discountEnabled: false, discountPercent: 0, branch: {} },
+    } as any);
+    prismaMock.payment.create.mockResolvedValue({ id: 'payment-1', amountPaise: 30000n, allocatedPaise: 30000n } as any);
+
+    await recordPayment('order-1', 'cash', 'staff-1', 'staff', { amount: 300 });
+
+    expect(prismaMock.payment.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ amount: 300, amountPaise: 30000n }) })
+    );
+  });
+
+  // Payment-safety review section 6 — a repeated submission with the same
+  // idempotencyKey must not create a second receipt (double-tap guard).
+  it('is idempotent on a repeated idempotencyKey — does not create a second Payment row', async () => {
+    prismaMock.payment.findUnique.mockResolvedValue({ id: 'existing-payment', invoiceId: 'invoice-1' } as any);
+    prismaMock.invoice.findUnique.mockResolvedValue({ id: 'invoice-1', orderId: 'order-1', amount: 500 } as any);
+    prismaMock.payment.findMany.mockResolvedValue([
+      { paymentSource: 'cash', amountPaise: 50000n, allocatedPaise: 50000n, verificationStatus: 'verified', status: 'success' },
+    ] as any);
+
+    await recordPayment('order-1', 'cash', 'staff-1', 'staff', { idempotencyKey: 'idem-key-1' });
+
+    expect(prismaMock.payment.create).not.toHaveBeenCalled();
   });
 
   // Client request (2026-10-30): a staff-recorded payment previously sent
@@ -1060,6 +1132,7 @@ describe('recordPayment', () => {
   };
 
   it('sends payment_receipt to the customer after recording payment', async () => {
+    mockFreshInvoice(500);
     prismaMock.order.findUnique.mockResolvedValue({
       id: 'order-1',
       orderNumber: 'PB-TEST',
@@ -1067,10 +1140,10 @@ describe('recordPayment', () => {
       staffId: 'staff-1',
       finalAmount: 500,
       billingMode: 'daily',
+      invoice: { id: 'invoice-1', amount: 500 },
       customer: PAYMENT_CUSTOMER,
     } as any);
-    prismaMock.payment.create.mockResolvedValue({} as any);
-    prismaMock.order.update.mockResolvedValue({} as any);
+    prismaMock.payment.create.mockResolvedValue({ id: 'payment-1', amountPaise: 50000n, allocatedPaise: 50000n } as any);
 
     await recordPayment('order-1', 'upi', 'staff-1', 'staff');
 
@@ -1087,6 +1160,7 @@ describe('recordPayment', () => {
   });
 
   it('also notifies the branch admin(s), reusing paymentReceipt with the location in place of the customer name', async () => {
+    mockFreshInvoice(500);
     prismaMock.order.findUnique.mockResolvedValue({
       id: 'order-1',
       orderNumber: 'PB-TEST',
@@ -1094,10 +1168,10 @@ describe('recordPayment', () => {
       staffId: 'staff-1',
       finalAmount: 500,
       billingMode: 'daily',
+      invoice: { id: 'invoice-1', amount: 500 },
       customer: PAYMENT_CUSTOMER,
     } as any);
-    prismaMock.payment.create.mockResolvedValue({} as any);
-    prismaMock.order.update.mockResolvedValue({} as any);
+    prismaMock.payment.create.mockResolvedValue({ id: 'payment-1', amountPaise: 50000n, allocatedPaise: 50000n } as any);
     prismaMock.user.findMany.mockResolvedValue([{ id: 'admin-1', phoneNumber: '919885025151' }] as any);
 
     await recordPayment('order-1', 'cash', 'staff-1', 'staff');
@@ -1118,6 +1192,7 @@ describe('recordPayment', () => {
   });
 
   it('does not notify admins when none exist for the branch', async () => {
+    mockFreshInvoice(500);
     prismaMock.order.findUnique.mockResolvedValue({
       id: 'order-1',
       orderNumber: 'PB-TEST',
@@ -1125,10 +1200,10 @@ describe('recordPayment', () => {
       staffId: 'staff-1',
       finalAmount: 500,
       billingMode: 'daily',
+      invoice: { id: 'invoice-1', amount: 500 },
       customer: PAYMENT_CUSTOMER,
     } as any);
-    prismaMock.payment.create.mockResolvedValue({} as any);
-    prismaMock.order.update.mockResolvedValue({} as any);
+    prismaMock.payment.create.mockResolvedValue({ id: 'payment-1', amountPaise: 50000n, allocatedPaise: 50000n } as any);
 
     await recordPayment('order-1', 'cash', 'staff-1', 'staff');
 
@@ -1141,7 +1216,13 @@ describe('recordPayment', () => {
 // requester, so no role/staff-ownership args) rather than recordPayment
 // reused with a synthetic actor.
 describe('recordOnlinePayment', () => {
+  const mockFreshInvoice = (amount = 499) => {
+    prismaMock.invoice.findUnique.mockResolvedValue({ id: 'invoice-1', orderId: 'order-1', amount } as any);
+    prismaMock.payment.findMany.mockResolvedValue([]);
+  };
+
   it('returns order_not_found without touching Payment/Order tables when the order does not exist', async () => {
+    prismaMock.payment.findUnique.mockResolvedValue(null);
     prismaMock.order.findUnique.mockResolvedValue(null);
 
     const result = await recordOnlinePayment('missing-order', 'upi', 499, 'pay_1', 'upi');
@@ -1150,20 +1231,60 @@ describe('recordOnlinePayment', () => {
     expect(prismaMock.payment.create).not.toHaveBeenCalled();
   });
 
-  it('is idempotent — a redelivered webhook for an already-paid order is a no-op', async () => {
-    prismaMock.order.findUnique.mockResolvedValue({ id: 'order-1', paymentStatus: 'paid', billingMode: 'daily' } as any);
+  // Payment-safety review section 8 — the REAL dedup key is the Razorpay
+  // payment id, not order.paymentStatus. This replaces the old, broken
+  // idempotency check that treated ANY already-paid order as a safe no-op
+  // (see the next describe block for why that was a real, confirmed gap).
+  it('is idempotent — a redelivered webhook for the SAME razorpayPaymentId is a no-op', async () => {
+    prismaMock.payment.findUnique.mockResolvedValue({ id: 'existing-payment', razorpayPaymentId: 'pay_1' } as any);
 
     const result = await recordOnlinePayment('order-1', 'upi', 499, 'pay_1', 'upi');
 
-    expect(result).toEqual({ status: 'already_paid' });
+    expect(result).toEqual({ status: 'duplicate_webhook' });
     expect(prismaMock.payment.create).not.toHaveBeenCalled();
+    expect(prismaMock.order.findUnique).not.toHaveBeenCalled();
   });
 
-  it('flags a monthly-billing order as an anomaly rather than auto-reconciling it (avoids double-counting against the ledger)', async () => {
+  // THE confirmed, most serious gap this rework closes: a genuinely
+  // DIFFERENT Razorpay payment landing on an order already marked paid
+  // must be recorded and flagged, never silently discarded the way the old
+  // "order.paymentStatus === 'paid' -> no-op" check used to.
+  it('records a genuinely different payment as an overpayment, even when the order is already paid', async () => {
+    prismaMock.payment.findUnique.mockResolvedValue(null); // no existing row for THIS razorpayPaymentId
+    prismaMock.invoice.findUnique.mockResolvedValue({ id: 'invoice-1', orderId: 'order-1', amount: 499 } as any);
+    prismaMock.payment.findMany.mockResolvedValue([
+      { paymentSource: 'cash', amountPaise: 49900n, allocatedPaise: 49900n, verificationStatus: 'verified', status: 'success' },
+    ] as any); // already fully paid via cash
     prismaMock.order.findUnique.mockResolvedValue({
       id: 'order-1',
+      orderNumber: 'PB-TEST1234',
+      customerId: 'customer-1',
+      paymentStatus: 'paid',
+      billingMode: 'daily',
+      invoice: { id: 'invoice-1', amount: 499 },
+      customer: { id: 'customer-1', fullName: 'Test Customer', phoneNumber: '9999999999', whatsappNumber: null },
+    } as any);
+    prismaMock.payment.create.mockResolvedValue({ id: 'payment-2', amountPaise: 49900n, allocatedPaise: 0n } as any);
+
+    const result = await recordOnlinePayment('order-1', 'upi', 499, 'pay_2', 'upi');
+
+    expect(result).toEqual({ status: 'overpayment_recorded' });
+    expect(prismaMock.payment.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ razorpayPaymentId: 'pay_2', paymentSource: 'razorpay' }) })
+    );
+    expect(prismaMock.paymentReconciliationException.create).toHaveBeenCalled();
+    // The customer genuinely did pay — still gets their receipt.
+    expect(sendNotificationMock).toHaveBeenCalled();
+  });
+
+  it('flags a monthly-billing order as a persisted reconciliation exception rather than auto-reconciling it (avoids double-counting against the ledger)', async () => {
+    prismaMock.payment.findUnique.mockResolvedValue(null);
+    prismaMock.order.findUnique.mockResolvedValue({
+      id: 'order-1',
+      customerId: 'customer-1',
       paymentStatus: 'pending',
       billingMode: 'monthly_billing',
+      invoice: { id: 'invoice-1' },
     } as any);
 
     const result = await recordOnlinePayment('order-1', 'upi', 499, 'pay_1', 'upi');
@@ -1171,19 +1292,26 @@ describe('recordOnlinePayment', () => {
     expect(result).toEqual({ status: 'monthly_billing_anomaly' });
     expect(prismaMock.payment.create).not.toHaveBeenCalled();
     expect(prismaMock.order.update).not.toHaveBeenCalled();
+    expect(prismaMock.paymentReconciliationException.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ invoiceId: 'invoice-1', exceptionType: 'monthly_billing_anomaly' }),
+      })
+    );
   });
 
-  it('records a Payment with recordedById null and the raw Razorpay method in notes, then flips the order to paid', async () => {
+  it('records a Payment (paymentSource: razorpay) with the raw Razorpay method in notes, then flips the order to paid', async () => {
+    prismaMock.payment.findUnique.mockResolvedValue(null);
+    mockFreshInvoice(499);
     prismaMock.order.findUnique.mockResolvedValue({
       id: 'order-1',
       orderNumber: 'PB-TEST1234',
       customerId: 'customer-1',
       paymentStatus: 'pending',
       billingMode: 'daily',
+      invoice: { id: 'invoice-1', amount: 499 },
       customer: { id: 'customer-1', phoneNumber: '9999999999', whatsappNumber: null },
     } as any);
-    prismaMock.payment.create.mockResolvedValue({} as any);
-    prismaMock.order.update.mockResolvedValue({} as any);
+    prismaMock.payment.create.mockResolvedValue({ id: 'payment-1', amountPaise: 49900n, allocatedPaise: 49900n } as any);
     prismaMock.invoice.updateMany.mockResolvedValue({ count: 1 } as any);
 
     const result = await recordOnlinePayment('order-1', 'upi', 499, 'pay_1', 'upi');
@@ -1193,19 +1321,18 @@ describe('recordOnlinePayment', () => {
       expect.objectContaining({
         data: expect.objectContaining({
           orderId: 'order-1',
+          invoiceId: 'invoice-1',
           customerId: 'customer-1',
           amount: 499,
           paymentType: 'order_payment',
           paymentMethod: 'upi',
+          paymentSource: 'razorpay',
           status: 'success',
           razorpayPaymentId: 'pay_1',
           recordedById: null,
           notes: 'Razorpay method: upi',
         }),
       })
-    );
-    expect(prismaMock.order.update).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: 'order-1' }, data: { paymentMethod: 'upi', paymentStatus: 'paid' } })
     );
     expect(prismaMock.invoice.updateMany).toHaveBeenCalledWith({
       where: { orderId: 'order-1' },
@@ -1218,16 +1345,18 @@ describe('recordOnlinePayment', () => {
   // recordPayment path's absence of a notification was "expected" (staff is
   // standing right there); an online payment has no equivalent human touch.
   it('sends a payment_receipt WhatsApp notification with the order number, amount, and method label', async () => {
+    prismaMock.payment.findUnique.mockResolvedValue(null);
+    mockFreshInvoice(499);
     prismaMock.order.findUnique.mockResolvedValue({
       id: 'order-1',
       orderNumber: 'PB-TEST1234',
       customerId: 'customer-1',
       paymentStatus: 'pending',
       billingMode: 'daily',
+      invoice: { id: 'invoice-1', amount: 499 },
       customer: { id: 'customer-1', fullName: 'Test Customer', phoneNumber: '9999999999', whatsappNumber: null },
     } as any);
-    prismaMock.payment.create.mockResolvedValue({} as any);
-    prismaMock.order.update.mockResolvedValue({} as any);
+    prismaMock.payment.create.mockResolvedValue({ id: 'payment-1', amountPaise: 49900n, allocatedPaise: 49900n } as any);
     prismaMock.invoice.updateMany.mockResolvedValue({ count: 1 } as any);
 
     await recordOnlinePayment('order-1', 'net_banking', 499, 'pay_1', 'netbanking');
@@ -1245,8 +1374,8 @@ describe('recordOnlinePayment', () => {
     );
   });
 
-  it('does not send a notification when the payment is not actually recorded (already_paid / monthly_billing_anomaly / order_not_found)', async () => {
-    prismaMock.order.findUnique.mockResolvedValue({ id: 'order-1', paymentStatus: 'paid', billingMode: 'daily' } as any);
+  it('does not send a notification when the payment is not actually recorded (duplicate_webhook / monthly_billing_anomaly / order_not_found)', async () => {
+    prismaMock.payment.findUnique.mockResolvedValue({ id: 'existing-payment' } as any);
 
     await recordOnlinePayment('order-1', 'upi', 499, 'pay_1', 'upi');
 

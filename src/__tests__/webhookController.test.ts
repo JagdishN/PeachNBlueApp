@@ -152,6 +152,35 @@ describe('POST /razorpay — payment_link.paid', () => {
 
     expect(res.status).toBe(200);
   });
+
+  // Payment-safety review section 8 — these two are now distinguished by
+  // recordOnlinePayment, not conflated the way the old order.paymentStatus
+  // check used to. The webhook controller just needs to ack 200 for both
+  // and log appropriately; the actual safety behavior is in orderService's
+  // own test suite.
+  it('still returns 200 when recordOnlinePayment reports a duplicate_webhook (benign redelivery)', async () => {
+    prismaMock.invoice.findFirst.mockResolvedValue({ id: 'inv-1', orderId: 'order-1' } as any);
+    recordOnlinePaymentMock.mockResolvedValue({ status: 'duplicate_webhook' });
+
+    const res = await request(app)
+      .post('/api/v1/webhooks/razorpay')
+      .set('x-razorpay-signature', 'sig123')
+      .send(paymentLinkPaidPayload);
+
+    expect(res.status).toBe(200);
+  });
+
+  it('still returns 200 when recordOnlinePayment reports overpayment_recorded (a genuine second payment, not a duplicate)', async () => {
+    prismaMock.invoice.findFirst.mockResolvedValue({ id: 'inv-1', orderId: 'order-1' } as any);
+    recordOnlinePaymentMock.mockResolvedValue({ status: 'overpayment_recorded' });
+
+    const res = await request(app)
+      .post('/api/v1/webhooks/razorpay')
+      .set('x-razorpay-signature', 'sig123')
+      .send(paymentLinkPaidPayload);
+
+    expect(res.status).toBe(200);
+  });
 });
 
 describe('POST /razorpay — payment.failed', () => {

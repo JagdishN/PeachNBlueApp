@@ -29,6 +29,7 @@ model Branch {
   users            User[]             @relation("BranchUsers")
   customers        Customer[]
   garmentCatalogue GarmentCatalogue[]
+  vendorInvoices   VendorInvoice[]
 
   @@index([phoneNumber])
   @@map("branches")
@@ -49,12 +50,26 @@ model User {
   createdOrders Order[] @relation("CreatedOrders")
   assignedOrders Order[] @relation("StaffOrders")
   payments     Payment[]
+  verifiedPayments Payment[] @relation("VerifiedPayments")
   staffEarnings StaffEarning[]
   statusChanges OrderStatusHistory[]
   amountRevisions OrderAmountRevision[]
   deviceTokens DeviceToken[]
   additionalChargesCreated AdditionalCharge[]
   discountAuditsChanged CustomerDiscountAudit[]
+  triggeredTransitions PaymentLinkTransition[] @relation("TriggeredTransitions")
+  resolvedExceptions PaymentReconciliationException[] @relation("ResolvedExceptions")
+  bankTransactionsImported BankTransaction[]
+  allocationCorrections    PaymentAllocationCorrection[]
+  paymentRequestsCreated   PaymentRequest[]
+  remindersSent            PaymentReminderLog[]
+  invoiceAdjustmentsCreated InvoiceAdjustment[] @relation("AdjustmentCreatedBy")
+  invoiceAdjustmentsReversed InvoiceAdjustment[] @relation("AdjustmentReversedBy")
+  vendorInvoicesCreated    VendorInvoice[] @relation("VendorInvoiceCreatedBy")
+  vendorInvoicesUpdated    VendorInvoice[] @relation("VendorInvoiceUpdatedBy")
+  vendorInvoicesPaid       VendorInvoice[] @relation("VendorInvoicePaidBy")
+  vendorInvoicesVoided     VendorInvoice[] @relation("VendorInvoiceVoidedBy")
+  vendorInvoiceAuditActions VendorInvoiceAudit[]
 
   @@index([branchId], map: "idx_users_branch")
   @@map("users")
@@ -124,6 +139,9 @@ model Customer {
   communicationsLog CommunicationLog[]
   additionalCharges AdditionalCharge[]
   discountAudits    CustomerDiscountAudit[]
+  reconciliationExceptions PaymentReconciliationException[]
+  paymentRequests   PaymentRequest[]
+  reminderLog       PaymentReminderLog[]
 
   @@index([branchId, locationLabel], map: "idx_customers_branch")
   @@map("customers")
@@ -319,15 +337,66 @@ model Payment {
   id              String   @id @default(uuid()) @db.Uuid
   order           Order?   @relation(fields: [orderId], references: [id])
   orderId         String?  @map("order_id") @db.Uuid
+  // NEW (2026-10-30, payment-safety rework) — the canonical invoice this
+  // payment is allocated against. Previously only reachable indirectly via
+  // orderId -> Invoice (1:1 with Order); made explicit because the ledger
+  // ("every payment must reference a canonical invoice ID") needs to be able
+  // to sum/allocate by invoice directly, including for a payment whose order
+  // reference might someday be ambiguous.
+  invoice         Invoice? @relation(fields: [invoiceId], references: [id])
+  invoiceId       String?  @map("invoice_id") @db.Uuid
   customer        Customer @relation(fields: [customerId], references: [id])
   customerId      String   @map("customer_id") @db.Uuid
   amount          Decimal  @db.Decimal(10, 2)
+  // NEW — same amount, in integer paise, computed once at write time via
+  // src/utils/money.ts::toPaise. All ledger/allocation arithmetic
+  // (paymentLedgerService.ts) uses this column, never the Decimal `amount`
+  // or a floating-point Number() cast of it, per the payment-safety review's
+  // explicit "use integer paise, never floating point for money" rule.
+  amountPaise     BigInt   @default(0) @map("amount_paise")
+  // How much of amountPaise actually counts toward this invoice's
+  // outstanding balance — normally equal to amountPaise, but less when a
+  // payment pushed the invoice past fully paid (the excess becomes an
+  // unallocated overpayment, tracked via PaymentReconciliationException
+  // below, never silently discarded or capped away).
+  allocatedPaise  BigInt   @default(0) @map("allocated_paise")
   // Values: order_payment | monthly_settlement | partial_settlement
   paymentType     String   @map("payment_type") @db.VarChar(20)
-  // Values: cash | upi | net_banking | credit_card
+  // Values: cash | upi | net_banking | credit_card — customer-facing display
+  // label, unchanged meaning from before this rework.
   paymentMethod   String   @map("payment_method") @db.VarChar(20)
-  razorpayPaymentId String? @map("razorpay_payment_id") @db.VarChar(100)
+  // NEW — which collection channel/workflow this went through: razorpay |
+  // cash | bank_upi. Distinct from paymentMethod above (which is cosmetic/
+  // customer-facing — a Razorpay payment can still be "upi" or
+  // "credit_card" there): this is what paymentLinkLifecycle.ts and the
+  // bank-UPI verification workflow actually branch on.
+  paymentSource   String   @default("cash") @map("payment_source") @db.VarChar(20)
+  // Unique (where not null) — a Postgres unique index treats every NULL as
+  // distinct, so this only actually constrains real Razorpay payment IDs.
+  // This is the durable webhook-dedup key (spec: "enforce unique Razorpay
+  // Payment IDs" — Razorpay's webhook payload has no separate stable
+  // delivery/event ID, confirmed against their docs, so the payment entity's
+  // own id is the correct dedup key).
+  razorpayPaymentId String? @unique @map("razorpay_payment_id") @db.VarChar(100)
   razorpayOrderId  String? @map("razorpay_order_id") @db.VarChar(100)
+  // bank_upi only (Static Bank UPI Workflow, Stage A) — the UTR/reference
+  // number staff typed in when reporting a direct-to-bank UPI payment.
+  utrReference      String?  @map("utr_reference") @db.VarChar(50)
+  // Set true (never hard-blocked — spec: "do not assume UTR alone is
+  // globally unique... if the same UTR is entered again, flag it for
+  // review") when a bank_upi report reuses a UTR already present on another
+  // verified payment for this bank account.
+  isDuplicateUtrSuspected Boolean @default(false) @map("is_duplicate_utr_suspected")
+  // Values: pending | verified | rejected. cash and razorpay payments are
+  // auto-verified at creation (staff physically received the cash; Razorpay
+  // already settled it); bank_upi starts pending until an authorized staff
+  // member verifies it against the real bank account/statement (Stage B).
+  // Only a verified payment's allocatedPaise counts toward an invoice's
+  // outstanding balance.
+  verificationStatus String  @default("verified") @map("verification_status") @db.VarChar(20)
+  verifiedBy        User?    @relation("VerifiedPayments", fields: [verifiedById], references: [id])
+  verifiedById      String?  @map("verified_by") @db.Uuid
+  verifiedAt        DateTime? @map("verified_at") @db.Timestamptz(6)
   // Values: pending | success | failed | refunded
   status          String   @default("pending") @db.VarChar(20)
   // Nullable: a staff/admin-recorded payment (orderService.ts::recordPayment)
@@ -337,12 +406,315 @@ model Payment {
   // audit trail for a human action.
   recordedBy      User?    @relation(fields: [recordedById], references: [id])
   recordedById    String?  @map("recorded_by") @db.Uuid
+  // Client-supplied, unique (where not null) — prevents a double-tapped
+  // "Record Payment" button (or a retried request) from creating a second
+  // real cash/bank_upi receipt. Not used for razorpay payments, which are
+  // already deduped via razorpayPaymentId.
+  idempotencyKey  String?  @unique @map("idempotency_key") @db.VarChar(100)
   notes           String?
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  matchedBankTransaction BankTransaction?
+  // NEW (outstanding-dues rework) — set instead of invoiceId when this
+  // payment came in through a combined PaymentRequest (multiple invoices
+  // at once) rather than directly against one invoice. Mutually exclusive
+  // with invoiceId in practice (application-enforced, not a DB CHECK —
+  // Prisma doesn't manage those, see "Database sync status").
+  paymentRequest   PaymentRequest? @relation(fields: [paymentRequestId], references: [id])
+  paymentRequestId String?         @map("payment_request_id") @db.Uuid
+  // NEW — the per-invoice breakdown of this payment. For a normal single-
+  // invoice payment this mirrors invoiceId/allocatedPaise above (kept for
+  // backward compatibility with the code built before this rework); for a
+  // PaymentRequest-sourced payment spanning several invoices, this is the
+  // ONLY place the breakdown lives (invoiceId stays null, allocatedPaise
+  // holds the grand total across all of them).
+  allocations      PaymentAllocation[]
+  allocationCorrections PaymentAllocationCorrection[]
 
   @@index([customerId], map: "idx_payments_customer")
   @@index([orderId], map: "idx_payments_order")
+  @@index([invoiceId], map: "idx_payments_invoice")
+  @@index([paymentRequestId], map: "idx_payments_payment_request")
   @@map("payments")
+}
+
+// Outstanding-dues rework — one row per Payment-to-Invoice link, so a
+// single receipt (one Payment row) can settle several invoices without
+// being duplicated ("a payment receipt must never be duplicated merely
+// because it covers multiple invoices"). Written for EVERY verified
+// allocation, including the single-invoice case, so reports/statements
+// have one canonical place to read "which payment settled which invoice"
+// from, rather than needing to special-case Payment.invoiceId vs this
+// table depending on how the payment arrived.
+model PaymentAllocation {
+  id             String   @id @default(uuid()) @db.Uuid
+  payment        Payment  @relation(fields: [paymentId], references: [id])
+  paymentId      String   @map("payment_id") @db.Uuid
+  invoice        Invoice  @relation(fields: [invoiceId], references: [id])
+  invoiceId      String   @map("invoice_id") @db.Uuid
+  allocatedPaise BigInt   @map("allocated_paise")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([paymentId], map: "idx_allocation_payment")
+  @@index([invoiceId], map: "idx_allocation_invoice")
+  @@map("payment_allocations")
+}
+
+// Admin-only correction of a PaymentAllocation — moves amount from one
+// invoice's allocation to another WITHOUT touching the original Payment
+// receipt (spec: "do not hard-delete financial transactions... use
+// reversal/adjustment records"). Mandatory reason, full actor/timestamp
+// trail.
+model PaymentAllocationCorrection {
+  id              String   @id @default(uuid()) @db.Uuid
+  payment         Payment  @relation(fields: [paymentId], references: [id])
+  paymentId       String   @map("payment_id") @db.Uuid
+  fromInvoice     Invoice  @relation("CorrectionFrom", fields: [fromInvoiceId], references: [id])
+  fromInvoiceId   String   @map("from_invoice_id") @db.Uuid
+  toInvoice       Invoice  @relation("CorrectionTo", fields: [toInvoiceId], references: [id])
+  toInvoiceId     String   @map("to_invoice_id") @db.Uuid
+  amountPaise     BigInt   @map("amount_paise")
+  reason          String
+  correctedBy     User     @relation(fields: [correctedById], references: [id])
+  correctedById   String   @map("corrected_by") @db.Uuid
+  correctedAt     DateTime @default(now()) @map("corrected_at") @db.Timestamptz(6)
+
+  @@index([paymentId], map: "idx_correction_payment")
+  @@map("payment_allocation_corrections")
+}
+
+// Outstanding-dues rework, section 6 — a combined collection request
+// spanning several of a customer's invoices at once (NOT a new sale, NOT
+// itself an Invoice — "do not create a new sales invoice for old dues").
+// Reuses the exact same Razorpay-link lifecycle (PaymentLinkHistory/
+// PaymentLinkTransition, both made polymorphic below) and controlled-URL
+// token mechanism (payTokenService.ts) that an individual Invoice already
+// uses — an invoice's own link stays fully independent of this.
+model PaymentRequest {
+  id                    String   @id @default(uuid()) @db.Uuid
+  customer              Customer @relation(fields: [customerId], references: [id])
+  customerId            String   @map("customer_id") @db.Uuid
+  requiredPaise         BigInt   @map("required_paise")
+  razorpayPaymentLinkId String?  @map("razorpay_payment_link_id") @db.VarChar(100)
+  paymentLinkUrl        String?  @map("payment_link_url")
+  paymentLinkStatus     String?  @default("created") @map("payment_link_status") @db.VarChar(20)
+  paymentToken          String?  @unique @map("payment_token") @db.VarChar(64)
+  // Values: open | fulfilled | cancelled
+  status                String   @default("open") @db.VarChar(20)
+  createdBy             User     @relation(fields: [createdById], references: [id])
+  createdById           String   @map("created_by") @db.Uuid
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  invoiceLinks          PaymentRequestInvoice[]
+  payments              Payment[]
+  linkHistory           PaymentLinkHistory[]
+  linkTransitions       PaymentLinkTransition[]
+  reconciliationExceptions PaymentReconciliationException[]
+
+  @@index([customerId], map: "idx_payment_request_customer")
+  @@map("payment_requests")
+}
+
+// Which invoices a given PaymentRequest covers, and what each owed at the
+// moment the request was created (not a live re-read — a reminder/request
+// already sent must keep showing the amount it actually asked for, even
+// if a later unrelated payment changes that invoice's balance before this
+// request is paid or cancelled).
+model PaymentRequestInvoice {
+  id                         String         @id @default(uuid()) @db.Uuid
+  paymentRequest             PaymentRequest @relation(fields: [paymentRequestId], references: [id])
+  paymentRequestId           String         @map("payment_request_id") @db.Uuid
+  invoice                    Invoice        @relation(fields: [invoiceId], references: [id])
+  invoiceId                  String         @map("invoice_id") @db.Uuid
+  outstandingAtCreationPaise BigInt         @map("outstanding_at_creation_paise")
+
+  @@unique([paymentRequestId, invoiceId])
+  @@map("payment_request_invoices")
+}
+
+// Immutable snapshot of "previous outstanding" shown on a NEW invoice at
+// generation time (spec section 3) — deliberately never rewritten when
+// those prior balances later change, so an already-issued/sent invoice's
+// displayed numbers stay historically accurate. The NEW invoice's own
+// `amount` (sales value) is completely unaffected by this — these rows
+// are purely a presentation/audit record, never summed into `amount` or
+// into any Razorpay link request for that invoice.
+model InvoicePreviousDuesLine {
+  id                         String   @id @default(uuid()) @db.Uuid
+  invoice                    Invoice  @relation("NewInvoiceDuesLines", fields: [invoiceId], references: [id])
+  invoiceId                  String   @map("invoice_id") @db.Uuid
+  priorInvoice               Invoice  @relation("PriorInvoiceDuesLines", fields: [priorInvoiceId], references: [id])
+  priorInvoiceId             String   @map("prior_invoice_id") @db.Uuid
+  outstandingAtSnapshotPaise BigInt   @map("outstanding_at_snapshot_paise")
+  createdAt                  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([invoiceId], map: "idx_prev_dues_invoice")
+  @@map("invoice_previous_dues_lines")
+}
+
+// Admin-only payment-reminder audit trail (spec section 9) — deliberately
+// NOT reusing CommunicationLog (customer/order-scoped, no admin/invoice/
+// provider-message-id fields, and not rich enough for this). Historical
+// amounts here are frozen at send time and never rewritten when the
+// balance later changes, same principle as InvoicePreviousDuesLine.
+model PaymentReminderLog {
+  id                      String   @id @default(uuid()) @db.Uuid
+  customer                Customer @relation(fields: [customerId], references: [id])
+  customerId              String   @map("customer_id") @db.Uuid
+  sentBy                  User     @relation(fields: [sentById], references: [id])
+  sentById                String   @map("sent_by") @db.Uuid
+  invoiceIds              String[] @map("invoice_ids") @db.Uuid
+  outstandingAtSendPaise  BigInt   @map("outstanding_at_send_paise")
+  recipientPhoneNumbers   String[] @map("recipient_phone_numbers")
+  templateName            String   @map("template_name") @db.VarChar(100)
+  // One per recipient (fan-out — up to 3 numbers per customer); null entry
+  // where a send failed for that specific number.
+  providerMessageIds      String[] @map("provider_message_ids")
+  // Values: sent | partial | failed
+  deliveryStatus          String   @default("sent") @map("delivery_status") @db.VarChar(20)
+  failureReason           String?  @map("failure_reason")
+  sentAt                  DateTime @default(now()) @map("sent_at") @db.Timestamptz(6)
+
+  @@index([customerId, sentAt], map: "idx_reminder_customer")
+  @@map("payment_reminder_log")
+}
+
+// Historical record of every Razorpay Payment Link ever created for an
+// invoice (payment-safety review section 4.1: "maintain historical
+// references to previous payment links"). Invoice.razorpayPaymentLinkId only
+// ever points at the CURRENT active link — this table is the audit trail of
+// every one that came before it and why it was retired, so a reissue or a
+// cash/UPI-triggered link replacement never loses that history the way a
+// plain overwrite would.
+model PaymentLinkHistory {
+  id                String    @id @default(uuid()) @db.Uuid
+  // Polymorphic (outstanding-dues rework): exactly one of invoice /
+  // paymentRequest is set, application-enforced — a PaymentRequest's own
+  // link lifecycle reuses this same history table rather than a
+  // duplicate parallel one.
+  invoice           Invoice?  @relation(fields: [invoiceId], references: [id])
+  invoiceId         String?   @map("invoice_id") @db.Uuid
+  paymentRequest    PaymentRequest? @relation(fields: [paymentRequestId], references: [id])
+  paymentRequestId  String?   @map("payment_request_id") @db.Uuid
+  razorpayPaymentLinkId String @map("razorpay_payment_link_id") @db.VarChar(100)
+  paymentLinkUrl    String    @map("payment_link_url")
+  amountPaise       BigInt    @map("amount_paise")
+  // Values: created | paid | cancelled | expired | superseded |
+  // cancel_uncertain (provider response was ambiguous/timed out — see
+  // PaymentLinkTransition and PaymentReconciliationException)
+  finalStatus       String    @map("final_status") @db.VarChar(20)
+  // Values: reissue | cash_full | cash_partial | bank_upi_full |
+  // bank_upi_partial | discount_change | amount_revision
+  retiredReason     String?   @map("retired_reason") @db.VarChar(30)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  retiredAt         DateTime? @map("retired_at") @db.Timestamptz(6)
+
+  @@index([invoiceId], map: "idx_link_history_invoice")
+  @@index([paymentRequestId], map: "idx_link_history_payment_request")
+  @@map("payment_link_history")
+}
+
+// Durable state for a payment-link lifecycle transition (payment-safety
+// review section 4.3: "begin a durable payment transition... never hold a
+// database transaction open while waiting for a Razorpay network API
+// call... use a durable retry/recovery process for incomplete
+// transitions"). A row here is written BEFORE any Razorpay network call
+// starts and updated as each step completes, so a process crash mid-
+// transition leaves a recoverable trail (a stuck non-terminal row) instead
+// of silent, undetectable inconsistency between the DB and Razorpay.
+model PaymentLinkTransition {
+  id              String    @id @default(uuid()) @db.Uuid
+  // Polymorphic, same reasoning as PaymentLinkHistory above.
+  invoice         Invoice?  @relation(fields: [invoiceId], references: [id])
+  invoiceId       String?   @map("invoice_id") @db.Uuid
+  paymentRequest  PaymentRequest? @relation(fields: [paymentRequestId], references: [id])
+  paymentRequestId String?  @map("payment_request_id") @db.Uuid
+  // Values: pending | cancelling_old_link | creating_new_link | completed |
+  // failed_needs_review
+  status          String    @default("pending") @map("status") @db.VarChar(30)
+  // Values: cash_full | cash_partial | bank_upi_full | bank_upi_partial |
+  // reissue
+  reason          String    @db.VarChar(30)
+  oldPaymentLinkId String?  @map("old_payment_link_id") @db.VarChar(100)
+  newPaymentLinkId String?  @map("new_payment_link_id") @db.VarChar(100)
+  triggeredBy     User?     @relation("TriggeredTransitions", fields: [triggeredById], references: [id])
+  triggeredById   String?   @map("triggered_by") @db.Uuid
+  errorDetail     String?   @map("error_detail")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([invoiceId], map: "idx_link_transition_invoice")
+  @@index([paymentRequestId], map: "idx_link_transition_payment_request")
+  @@index([status], map: "idx_link_transition_status")
+  @@map("payment_link_transitions")
+}
+
+// Overpayment / duplicate-collection / uncertain-cancellation exceptions
+// (payment-safety review section 9) — created whenever verified+allocated
+// collections exceed an invoice's required amount, or a link-cancellation's
+// provider result was uncertain. Never auto-resolved or silently absorbed
+// into a bigger number — "do not create negative invoice balances to
+// conceal overpayments."
+model PaymentReconciliationException {
+  id                  String    @id @default(uuid()) @db.Uuid
+  // Nullable (outstanding-dues rework): a general customer-level payment
+  // with no single target invoice can leave an excess that isn't tied to
+  // any one invoice — customerId (always required) is then the only
+  // anchor. paymentRequestId is set when the excess came from a combined
+  // PaymentRequest specifically.
+  invoice             Invoice?  @relation(fields: [invoiceId], references: [id])
+  invoiceId           String?   @map("invoice_id") @db.Uuid
+  paymentRequest      PaymentRequest? @relation(fields: [paymentRequestId], references: [id])
+  paymentRequestId    String?   @map("payment_request_id") @db.Uuid
+  customer            Customer  @relation(fields: [customerId], references: [id])
+  customerId          String    @map("customer_id") @db.Uuid
+  // Values: overpayment | duplicate_utr | cancellation_uncertain |
+  // monthly_billing_anomaly
+  exceptionType       String    @map("exception_type") @db.VarChar(30)
+  collectedPaise      BigInt    @map("collected_paise")
+  allocatedPaise      BigInt    @map("allocated_paise")
+  excessPaise         BigInt    @default(0) @map("excess_paise")
+  relatedPaymentIds   String[]  @map("related_payment_ids") @db.Uuid
+  // Values: open | resolved_refunded | resolved_credited | resolved_other
+  status              String    @default("open") @db.VarChar(30)
+  resolutionNotes     String?   @map("resolution_notes")
+  resolvedBy          User?     @relation("ResolvedExceptions", fields: [resolvedById], references: [id])
+  resolvedById        String?   @map("resolved_by") @db.Uuid
+  resolvedAt          DateTime? @map("resolved_at") @db.Timestamptz(6)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([invoiceId], map: "idx_reconciliation_invoice")
+  @@index([paymentRequestId], map: "idx_reconciliation_payment_request")
+  @@index([status], map: "idx_reconciliation_status")
+  @@map("payment_reconciliation_exceptions")
+}
+
+// Imported bank-statement rows for the static-QR UPI workflow's
+// reconciliation (payment-safety review section 7, "Bank Reconciliation") —
+// an admin-uploaded CSV, matched against staff-reported bank_upi Payment
+// rows strictly by exact UTR match. Amount-only matches are deliberately
+// never auto-verified ("do not automatically verify a payment solely
+// because its amount matches an invoice") — those stay `ambiguous` and need
+// a human to resolve them.
+model BankTransaction {
+  id               String    @id @default(uuid()) @db.Uuid
+  bankAccountRef   String    @map("bank_account_ref") @db.VarChar(100)
+  utrReference     String    @map("utr_reference") @db.VarChar(50)
+  amountPaise      BigInt    @map("amount_paise")
+  transactionDate  DateTime  @map("transaction_date") @db.Date
+  // Values: credit | debit
+  direction        String    @db.VarChar(10)
+  rawDescription   String?   @map("raw_description")
+  matchedPayment   Payment?  @relation(fields: [matchedPaymentId], references: [id])
+  matchedPaymentId String?   @unique @map("matched_payment_id") @db.Uuid
+  // Values: unmatched | matched | ambiguous | ignored
+  matchStatus      String    @default("unmatched") @map("match_status") @db.VarChar(20)
+  importBatchId    String    @map("import_batch_id") @db.Uuid
+  importedBy       User      @relation(fields: [importedById], references: [id])
+  importedById     String    @map("imported_by") @db.Uuid
+  importedAt       DateTime  @default(now()) @map("imported_at") @db.Timestamptz(6)
+
+  @@index([utrReference], map: "idx_bank_tx_utr")
+  @@index([matchStatus], map: "idx_bank_tx_match_status")
+  @@map("bank_transactions")
 }
 
 model LedgerEntry {
@@ -398,13 +770,175 @@ model Invoice {
   // Payable amount this invoice version reflects (order.finalAmount minus any
   // customer discount) — lets reissue diff against what was last invoiced.
   amount      Decimal? @db.Decimal(10, 2)
+  // NEW (2026-10-30) — invoice-level settlement state derived from verified+
+  // allocated Payment rows (paymentLedgerService.ts::recalculateInvoiceStatus),
+  // never hand-set. Distinct from paymentLinkStatus above (which describes
+  // the RAZORPAY LINK's own lifecycle, not what's actually been collected)
+  // and from Order.paymentStatus (kept for backward-compat UI reads — now
+  // driven FROM this value rather than set ad hoc by recordPayment/
+  // recordOnlinePayment). Values: unpaid | partially_paid | paid.
+  invoicePaymentStatus String @default("unpaid") @map("invoice_payment_status") @db.VarChar(20)
+  // Opaque, non-enumerable token for the Peach & Blue-controlled payment URL
+  // (GET /pay/:token, paymentLinkLifecycle.ts) — generated fresh whenever a
+  // new active payment link is created, so an old token tied to a since-
+  // superseded link stops resolving to anything live (checked by comparing
+  // against THIS, the current row's token, not a historical list).
+  paymentToken String? @unique @map("payment_token") @db.VarChar(64)
+  // NEW (outstanding-dues rework, 2026-10-30) — due date = invoice date +
+  // a fixed 4-day grace period (client decision), set once at generation
+  // and never recalculated afterward (so a later reissue of the SAME
+  // order doesn't push the due date forward — see invoiceService.ts).
+  // Nullable only because pre-existing invoices (created before this
+  // column existed) have no value until they're next regenerated.
+  dueDate     DateTime? @map("due_date") @db.Date
   // Incremented on every reissue; suffixes invoiceNumber (e.g. "-R2") so
   // reissued invoices are distinguishable without a separate history table —
   // audit trail of every version sent lives in communications_log instead.
   version     Int      @default(1)
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  payments     Payment[]
+  allocations  PaymentAllocation[]
+  allocationCorrectionsFrom PaymentAllocationCorrection[] @relation("CorrectionFrom")
+  allocationCorrectionsTo   PaymentAllocationCorrection[] @relation("CorrectionTo")
+  paymentRequestLinks PaymentRequestInvoice[]
+  // Previous-dues snapshot relations (InvoicePreviousDuesLine) — this
+  // invoice as the NEW invoice a prior balance was shown on, and this
+  // invoice as a PRIOR invoice whose balance was shown on some later one.
+  duesShownOnThisInvoice   InvoicePreviousDuesLine[] @relation("NewInvoiceDuesLines")
+  duesThisInvoiceContributedElsewhere InvoicePreviousDuesLine[] @relation("PriorInvoiceDuesLines")
+  linkHistory  PaymentLinkHistory[]
+  linkTransitions PaymentLinkTransition[]
+  reconciliationExceptions PaymentReconciliationException[]
+  adjustments  InvoiceAdjustment[]
 
   @@map("invoices")
+}
+
+// Admin Payment Override, section 4 — a non-payment reduction of an
+// invoice's outstanding balance ("waiver"), distinct from a Payment: no
+// money actually changed hands for this amount. Deliberately its own model
+// rather than a fake Payment row (spec: "do not create a fake Payment
+// record for a waiver") — paymentLedgerService.ts::getInvoicePaymentSummary
+// subtracts the sum of every active (reversedAt IS NULL) row here from
+// outstandingPaise, which is the ONE place this needs to be wired in: every
+// downstream consumer (reminders, previous-dues snapshots, aging report,
+// customer statement) reads outstanding through that same function, so none
+// of them need their own exclusion logic. requiredPaise (Invoice.amount)
+// and allocatedPaise (real Payment rows) are never touched by this model —
+// "preserve the original invoice amount and actual payment receipts."
+//
+// Reversal (spec section 6) mutates reversedAt/reversedBy/reversalReason on
+// THIS SAME row rather than deleting it or requiring a second table — "do
+// not delete... restore the outstanding balance without deleting the
+// original adjustment." The original creation fields (amountPaise, reason,
+// createdBy, createdAt) are never overwritten, so the full history (closure
+// AND reversal) stays on one readable row.
+model InvoiceAdjustment {
+  id          String   @id @default(uuid()) @db.Uuid
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id])
+  invoiceId   String   @map("invoice_id") @db.Uuid
+  // Values: waiver (the only type this pass creates; left as a string, not
+  // a hard enum, for the same "admin can extend this later" reasoning
+  // GarmentCatalogue.serviceType already uses).
+  adjustmentType String @default("waiver") @map("adjustment_type") @db.VarChar(20)
+  amountPaise BigInt   @map("amount_paise")
+  // Values: goodwill | discount_adjustment | billing_correction | other
+  // Spec explicitly disallows "Payment received externally" as a waiver
+  // reason — enforced in invoiceAdjustmentService.ts, not here.
+  reasonCategory String @map("reason_category") @db.VarChar(30)
+  reason      String
+  createdBy   User     @relation("AdjustmentCreatedBy", fields: [createdById], references: [id])
+  createdById String   @map("created_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  // Protects a repeated confirmation tap from creating a second waiver —
+  // same idiom as Payment.idempotencyKey (outstandingService.ts's
+  // recordCustomerPayment checks this before opening a transaction).
+  idempotencyKey String? @unique @map("idempotency_key") @db.VarChar(100)
+  // Which paymentLinkLifecycle.ts::retireOrReplaceLink transition this
+  // closure triggered, if the invoice had an active Razorpay link at the
+  // time — "related payment/link transition reference where applicable."
+  // Not a Prisma relation (PaymentLinkTransition has no back-reference to
+  // this table, and doesn't need one) — just an informational pointer, set
+  // after the transition completes.
+  linkTransitionId String? @map("link_transition_id") @db.Uuid
+  reversedAt    DateTime? @map("reversed_at") @db.Timestamptz(6)
+  reversedBy    User?     @relation("AdjustmentReversedBy", fields: [reversedById], references: [id])
+  reversedById  String?   @map("reversed_by") @db.Uuid
+  reversalReason String?  @map("reversal_reason")
+
+  @@index([invoiceId], map: "idx_invoice_adjustment_invoice")
+  @@map("invoice_adjustments")
+}
+
+// Third-party vendor invoice management, section 12 — internal expense
+// tracking/audit ONLY. Spec section 7: "not a vendor payment gateway... do
+// not integrate Razorpay/UPI/bank verification/reminders/customer payment
+// allocation logic." Deliberately has none of those fields and no relation
+// to Invoice/Payment/Order/Customer — fully separate from the customer
+// receivables ledger this whole file otherwise concerns itself with.
+model VendorInvoice {
+  id          String    @id @default(uuid()) @db.Uuid
+  vendorName  String    @map("vendor_name") @db.VarChar(150)
+  description String?
+  // Values: wash_fold | wash_fold_iron | dry_cleaning — a stable internal
+  // enum distinct from GarmentCatalogue.serviceType's values (that one
+  // describes a GARMENT's service tier; this describes a VENDOR's service
+  // category — spec gives these as 3 fixed, differently-worded options).
+  serviceType String    @map("service_type") @db.VarChar(30)
+  amountPaise BigInt    @map("amount_paise")
+  // Values: unpaid | paid — a manual Admin declaration, never touched by
+  // any payment workflow (spec section 11: "indicates what Admin has
+  // declared, not independent bank verification").
+  paymentStatus String  @default("unpaid") @map("payment_status") @db.VarChar(20)
+  // Nullable (spec: "Branch, where applicable") — same nullable-for-global
+  // pattern GarmentCatalogue.branchId already uses, rather than forcing
+  // every vendor invoice to pick one branch.
+  branch      Branch?   @relation(fields: [branchId], references: [id])
+  branchId    String?   @map("branch_id") @db.Uuid
+  createdBy   User      @relation("VendorInvoiceCreatedBy", fields: [createdById], references: [id])
+  createdById String    @map("created_by") @db.Uuid
+  updatedBy   User?     @relation("VendorInvoiceUpdatedBy", fields: [updatedById], references: [id])
+  updatedById String?   @map("updated_by") @db.Uuid
+  paidAt      DateTime? @map("paid_at") @db.Timestamptz(6)
+  paidBy      User?     @relation("VendorInvoicePaidBy", fields: [paidById], references: [id])
+  paidById    String?   @map("paid_by") @db.Uuid
+  // Soft-delete only (spec section 14: "do not hard-delete") — excluded
+  // from active summaries/lists by default, retained for audit.
+  voidedAt    DateTime? @map("voided_at") @db.Timestamptz(6)
+  voidedBy    User?     @relation("VendorInvoiceVoidedBy", fields: [voidedById], references: [id])
+  voidedById  String?   @map("voided_by") @db.Uuid
+  voidReason  String?   @map("void_reason")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  auditLog    VendorInvoiceAudit[]
+
+  @@index([branchId], map: "idx_vendor_invoice_branch")
+  @@index([paymentStatus], map: "idx_vendor_invoice_status")
+  @@map("vendor_invoices")
+}
+
+// Field-change / payment-status-transition history for VendorInvoice
+// (spec section 14) — same old/new-value-as-strings shape as
+// CustomerDiscountAudit, generalized with an `action` discriminator since
+// this table also needs to record creation and voiding, not just field
+// edits.
+model VendorInvoiceAudit {
+  id              String   @id @default(uuid()) @db.Uuid
+  vendorInvoice   VendorInvoice @relation(fields: [vendorInvoiceId], references: [id])
+  vendorInvoiceId String   @map("vendor_invoice_id") @db.Uuid
+  // Values: created | updated | payment_marked_paid | payment_marked_unpaid | voided
+  action          String   @db.VarChar(30)
+  // Set only for `updated` (which field changed) — null for the other
+  // action types, which are self-describing.
+  field           String?  @db.VarChar(30)
+  oldValue        String?  @map("old_value")
+  newValue        String?  @map("new_value")
+  actedBy         User     @relation(fields: [actedById], references: [id])
+  actedById       String   @map("acted_by") @db.Uuid
+  actedAt         DateTime @default(now()) @map("acted_at") @db.Timestamptz(6)
+
+  @@index([vendorInvoiceId], map: "idx_vendor_invoice_audit_invoice")
+  @@map("vendor_invoice_audit")
 }
 
 model CommunicationLog {

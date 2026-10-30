@@ -99,6 +99,16 @@ export const formatMsg91Error = (err: unknown): string => {
 // regardless of which DB column the number came from.
 const normalizePhoneNumber = (phone: string): string => phone.replace(/[^0-9]/g, '');
 
+export interface SendResult {
+  // MSG91's `request_id` from the /bulk/ endpoint's real success response
+  // shape — null if the response didn't include one (shouldn't happen on
+  // a genuine 2xx, but never worth throwing over). Outstanding-dues
+  // rework, section 9: needed so PaymentReminderLog can actually record a
+  // provider message id, which nothing in this codebase captured before
+  // this — every prior caller discarded the response body entirely.
+  messageId: string | null;
+}
+
 export const sendWhatsAppTemplate = async ({
   toPhoneNumber,
   fromNumber,
@@ -108,7 +118,7 @@ export const sendWhatsAppTemplate = async ({
   headerMediaUrl,
   headerType,
   buttonUrlParam,
-}: Msg91TemplateMessage): Promise<void> => {
+}: Msg91TemplateMessage): Promise<SendResult> => {
   const to = normalizePhoneNumber(toPhoneNumber);
   const from = normalizePhoneNumber(fromNumber);
 
@@ -195,6 +205,9 @@ export const sendWhatsAppTemplate = async ({
     err.code = String(response.status);
     throw err;
   }
+
+  const successBody = (await response.json().catch(() => undefined)) as { request_id?: string } | undefined;
+  return { messageId: successBody?.request_id ?? null };
 };
 
 // Single place the branch-number-vs-shared-fallback decision is made

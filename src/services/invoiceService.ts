@@ -5,6 +5,8 @@ import { uploadInvoicePdf } from '../lib/supabaseStorage';
 import { renderInvoicePdf } from './invoicePdfService';
 import { calculatePayableAmount } from '../utils/pricing';
 import { getTurnaroundText } from '../utils/turnaround';
+import { ensurePaymentToken } from './payTokenService';
+import { getCustomerOutstandingSummary } from './outstandingService';
 
 // Matches orderService.ts's generateOrderNumber() style (PB-XXXXXXXX).
 const generateInvoiceNumber = (): string => `PB-INV-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
@@ -15,6 +17,9 @@ export interface GeneratedInvoice {
   pdfUrl: string | null;
   paymentLinkUrl: string | null;
   amount: number;
+  // Outstanding-dues rework — 0 for a reissue (never re-snapshotted) or
+  // when the customer has no other outstanding invoices.
+  previousDuesTotal: number;
   wasReissue: boolean;
 }
 
@@ -101,6 +106,50 @@ export const generateInvoice = async (orderId: string): Promise<GeneratedInvoice
 
   const amount = discountedSubtotal + additionalChargesTotal;
 
+  // Outstanding-dues rework, section 3 — "previous dues" are OTHER
+  // invoices' outstanding balances, shown as a brought-forward receivable
+  // on a genuinely NEW invoice only (this order's first version — a
+  // reissue of the SAME invoice isn't a new sale, it's revising this one,
+  // so it doesn't re-snapshot). Never added into `amount`/`subtotal`
+  // above — the taxable sales value of THIS invoice is completely
+  // unaffected ("the new invoice's sales value must remain [current order
+  // amount]... not added as a new sale").
+  const previousInvoice = order.invoice;
+  let previousDuesRows: { invoiceId: string; outstandingPaise: bigint }[] = [];
+  let previousDuesTotal = 0;
+  if (!previousInvoice) {
+    const outstandingSummary = await getCustomerOutstandingSummary(order.customerId);
+    const owedElsewhere = outstandingSummary.invoices.filter((row) => row.outstanding > 0);
+    previousDuesTotal = owedElsewhere.reduce((sum, row) => sum + row.outstanding, 0);
+    previousDuesRows = owedElsewhere.map((row) => ({
+      invoiceId: row.invoiceId,
+      outstandingPaise: BigInt(Math.round(row.outstanding * 100)),
+    }));
+  }
+
+  // Payment-safety review section 10: "An invoice revision must not erase
+  // payment history or accidentally create an active link for an incorrect
+  // balance." The pre-existing behavior always created a fresh Razorpay
+  // link for the FULL new `amount`, even if some of it had already been
+  // collected (e.g. a staff cash payment landed before a later discount/
+  // amount-revision triggered this reissue) — a customer could then be
+  // asked to pay the whole amount again via the link. Netting out already-
+  // verified payments here fixes that without restructuring this already
+  // live-verified flow through the newer, more invasive
+  // paymentLinkLifecycle.ts (deliberately NOT done — see CLAUDE.md/the
+  // payment-safety delivery report for why that was scoped out of this
+  // pass). The invoice/PDF's displayed `amount` stays the full total
+  // (unchanged) — only the LINK's requested amount is reduced.
+  let linkAmount = amount;
+  if (previousInvoice) {
+    const alreadyAllocated = await prisma.payment.aggregate({
+      where: { invoiceId: previousInvoice.id, verificationStatus: 'verified', status: { not: 'refunded' } },
+      _sum: { allocatedPaise: true },
+    });
+    const allocatedSoFar = Number(alreadyAllocated?._sum?.allocatedPaise ?? 0n) / 100;
+    linkAmount = Math.max(0, Math.round((amount - allocatedSoFar) * 100) / 100);
+  }
+
   // Monthly-billing customers settle via the ledger, not a per-order payment
   // (CLAUDE.md "Payment marking" / orderService.ts's recordPayment already
   // rejects a manual payment attempt for them) — a real, payable Razorpay
@@ -113,17 +162,21 @@ export const generateInvoice = async (orderId: string): Promise<GeneratedInvoice
   // paymentLinkUrl by omitting the QR/link — just with no live payable link.
   const isMonthlyBilling = order.billingMode === 'monthly_billing';
 
-  const paymentLink = isMonthlyBilling
-    ? null
-    : await createPaymentLink({
-        amount,
-        orderNumber: order.orderNumber,
-        orderId: order.id,
-        customerName: order.customer.fullName,
-        customerPhone: order.customer.phoneNumber,
-      });
+  // No live link needed when a prior partial/full payment already covers
+  // the (possibly revised) amount in full — same reasoning as the
+  // monthly-billing case just above: don't ask the customer to pay again
+  // for money already collected.
+  const paymentLink =
+    isMonthlyBilling || linkAmount <= 0
+      ? null
+      : await createPaymentLink({
+          amount: linkAmount,
+          orderNumber: order.orderNumber,
+          orderId: order.id,
+          customerName: order.customer.fullName,
+          customerPhone: order.customer.phoneNumber,
+        });
 
-  const previousInvoice = order.invoice;
   if (previousInvoice?.razorpayPaymentLinkId) {
     // Best-effort — CLAUDE.md: the part that actually prevents a
     // double-payment/stale-amount risk. cancelPaymentLink swallows its own
@@ -155,19 +208,42 @@ export const generateInvoice = async (orderId: string): Promise<GeneratedInvoice
     discountPercent,
     additionalChargesTotal,
     amount,
+    previousDuesTotal,
     paymentLinkUrl: paymentLink?.shortUrl ?? null,
     turnaroundText: getTurnaroundText(order.orderItems.map((item) => item.garment.serviceType)),
   });
 
   const pdfUrl = await uploadInvoicePdf(`${invoiceNumber}.pdf`, pdfBuffer);
 
+  // 'paid' (not null) when there's no live link specifically because a
+  // prior payment already covers the revised amount in full — distinct
+  // from the monthly-billing case, which never had a link at all.
+  const paymentLinkStatus = paymentLink ? 'created' : !isMonthlyBilling && previousInvoice ? 'paid' : null;
+
+  // Outstanding-dues rework (2026-10-30, client decision) — due date =
+  // invoice date + a fixed 4-day grace period, set ONCE at this order's
+  // first invoice and preserved across every later reissue (a discount
+  // change or amount revision shouldn't push a customer's due date
+  // forward just because the admin touched the amount). previousInvoice
+  // here is version N-1 of the SAME order's invoice, not a different
+  // order — its dueDate, if already set, is the one that sticks.
+  const DUE_DATE_GRACE_DAYS = 4;
+  const dueDate =
+    previousInvoice?.dueDate ??
+    (() => {
+      const d = new Date();
+      d.setDate(d.getDate() + DUE_DATE_GRACE_DAYS);
+      return d;
+    })();
+
   const invoiceData = {
     invoiceNumber,
     pdfUrl,
     razorpayPaymentLinkId: paymentLink?.id ?? null,
     paymentLinkUrl: paymentLink?.shortUrl ?? null,
-    paymentLinkStatus: paymentLink ? 'created' : null,
+    paymentLinkStatus,
     amount,
+    dueDate,
     version,
   };
 
@@ -177,12 +253,36 @@ export const generateInvoice = async (orderId: string): Promise<GeneratedInvoice
     update: invoiceData,
   });
 
+  // Payment-safety review section 5 — assigns a controlled-URL token once
+  // (stable across reissues, see payTokenService.ts). Not yet surfaced in
+  // any WhatsApp message's button (see that file's own caveat on why) —
+  // generated here regardless so GET /pay/:token has something real to
+  // resolve against as soon as it IS wired in, rather than that being a
+  // second deploy later.
+  await ensurePaymentToken(invoice.id);
+
+  // Outstanding-dues rework, section 3 — the immutable snapshot, written
+  // once (only on this order's genuinely fresh first invoice, per the
+  // !previousInvoice gate above). Never rewritten on a later reissue of
+  // THIS invoice, and never touched when those OTHER invoices' balances
+  // subsequently change.
+  if (previousDuesRows.length > 0) {
+    await prisma.invoicePreviousDuesLine.createMany({
+      data: previousDuesRows.map((row) => ({
+        invoiceId: invoice.id,
+        priorInvoiceId: row.invoiceId,
+        outstandingAtSnapshotPaise: row.outstandingPaise,
+      })),
+    });
+  }
+
   return {
     id: invoice.id,
     invoiceNumber: invoice.invoiceNumber,
     pdfUrl: invoice.pdfUrl,
     paymentLinkUrl: invoice.paymentLinkUrl,
     amount,
+    previousDuesTotal,
     wasReissue: previousInvoice != null,
   };
 };

@@ -19,12 +19,14 @@ jest.mock('../services/invoicePdfService', () => ({
 import prisma from '../prisma/client';
 import { createPaymentLink, cancelPaymentLink } from '../lib/razorpayClient';
 import { uploadInvoicePdf } from '../lib/supabaseStorage';
+import { renderInvoicePdf } from '../services/invoicePdfService';
 import { generateInvoice } from '../services/invoiceService';
 
 const prismaMock = prisma as unknown as DeepMockProxy<PrismaClient>;
 const createPaymentLinkMock = createPaymentLink as jest.Mock;
 const cancelPaymentLinkMock = cancelPaymentLink as jest.Mock;
 const uploadInvoicePdfMock = uploadInvoicePdf as jest.Mock;
+const renderInvoicePdfMock = renderInvoicePdf as jest.Mock;
 
 const BASE_ORDER = {
   id: 'order-1',
@@ -56,17 +58,31 @@ const BASE_ORDER = {
 
 beforeEach(() => {
   mockReset(prismaMock);
+  prismaMock.invoiceAdjustment.findMany.mockResolvedValue([]);
   createPaymentLinkMock.mockReset();
   cancelPaymentLinkMock.mockReset();
   uploadInvoicePdfMock.mockReset();
+  renderInvoicePdfMock.mockReset();
 
   createPaymentLinkMock.mockResolvedValue({ id: 'plink_1', shortUrl: 'https://rzp.io/l/plink_1' });
   uploadInvoicePdfMock.mockResolvedValue('https://storage.example/invoices/PB-INV-TEST.pdf');
+  renderInvoicePdfMock.mockResolvedValue(Buffer.from('pdf-bytes'));
   prismaMock.invoice.upsert.mockImplementation(((args: any) =>
     Promise.resolve({ id: 'invoice-1', ...args.create, ...args.update })) as any);
   // Default: no bag-replacement charges tied to this order (CLAUDE.md
   // "Bag-replacement ₹350 charge" wiring) — overridden per-test below.
   prismaMock.additionalCharge.findMany.mockResolvedValue([]);
+  // Default: nothing already paid against a prior invoice (payment-safety
+  // review section 10's "don't recreate a link for an already-paid
+  // balance" fix) — overridden per-test below.
+  prismaMock.payment.aggregate.mockResolvedValue({ _sum: { allocatedPaise: 0n } } as any);
+  // payTokenService.ts::ensurePaymentToken short-circuits when a token
+  // already exists — not under test here, just needs to not throw.
+  prismaMock.invoice.findUnique.mockResolvedValue({ id: 'invoice-1', paymentToken: 'existing-token' } as any);
+  // Outstanding-dues rework: default to "no other outstanding invoices"
+  // for the previous-dues snapshot lookup (getCustomerOutstandingSummary)
+  // — overridden per-test below where previous dues are actually tested.
+  prismaMock.invoice.findMany.mockResolvedValue([]);
 });
 
 describe('generateInvoice — fresh invoice (no prior Invoice row)', () => {
@@ -122,6 +138,89 @@ describe('generateInvoice — fresh invoice (no prior Invoice row)', () => {
     const upsertArgs = prismaMock.invoice.upsert.mock.calls[0][0] as any;
     expect(upsertArgs.create.version).toBe(1);
     expect(upsertArgs.create.invoiceNumber).not.toMatch(/-R\d+$/);
+  });
+
+  // Outstanding-dues rework, client decision (2026-10-30): due date =
+  // invoice date + 4 days, set once.
+  it('sets dueDate to 4 days from now on a fresh invoice', async () => {
+    prismaMock.order.findUnique.mockResolvedValue(BASE_ORDER as any);
+    const before = new Date();
+
+    await generateInvoice('order-1');
+
+    const upsertArgs = prismaMock.invoice.upsert.mock.calls[0][0] as any;
+    const expected = new Date(before);
+    expected.setDate(expected.getDate() + 4);
+    expect(Math.abs(upsertArgs.create.dueDate.getTime() - expected.getTime())).toBeLessThan(5000);
+  });
+});
+
+// Outstanding-dues rework, section 3 — "Current Order Charges: ₹150,
+// Previous Outstanding: ₹150, Total Amount Payable: ₹300" and "the new
+// invoice's sales value must remain ₹150."
+describe('generateInvoice — previous dues snapshot (fresh invoice only)', () => {
+  it('reports previousDuesTotal from other outstanding invoices, without changing this invoice\'s own amount', async () => {
+    prismaMock.order.findUnique.mockResolvedValue(BASE_ORDER as any);
+    prismaMock.invoice.findMany.mockResolvedValue([
+      { id: 'inv-old-1', orderId: 'order-old-1', amount: 100, dueDate: new Date('2026-07-05'), createdAt: new Date('2026-07-01'), order: { orderNumber: 'PB-OLD1' } },
+    ] as any);
+    // That old invoice's own getInvoicePaymentSummary lookup: ₹50 paid of ₹100 -> ₹50 outstanding.
+    prismaMock.invoice.findUnique
+      .mockResolvedValueOnce({ id: 'inv-old-1', amount: 100 } as any) // inside getCustomerOutstandingSummary's loop
+      .mockResolvedValue({ id: 'invoice-1', paymentToken: 'existing-token' } as any); // ensurePaymentToken, later
+    prismaMock.payment.findMany.mockResolvedValue([
+      { paymentSource: 'cash', amountPaise: 5000n, allocatedPaise: 5000n },
+    ] as any);
+
+    const result = await generateInvoice('order-1');
+
+    expect(result.amount).toBe(1000); // this order's own sale value, unchanged
+    expect(result.previousDuesTotal).toBe(50);
+    expect(prismaMock.invoicePreviousDuesLine.createMany).toHaveBeenCalledWith({
+      data: [{ invoiceId: 'invoice-1', priorInvoiceId: 'inv-old-1', outstandingAtSnapshotPaise: 5000n }],
+    });
+  });
+
+  it('passes previousDuesTotal through to the PDF renderer', async () => {
+    prismaMock.order.findUnique.mockResolvedValue(BASE_ORDER as any);
+    prismaMock.invoice.findMany.mockResolvedValue([
+      { id: 'inv-old-1', orderId: 'order-old-1', amount: 100, dueDate: new Date('2026-07-05'), createdAt: new Date('2026-07-01'), order: { orderNumber: 'PB-OLD1' } },
+    ] as any);
+    prismaMock.invoice.findUnique
+      .mockResolvedValueOnce({ id: 'inv-old-1', amount: 100 } as any)
+      .mockResolvedValue({ id: 'invoice-1', paymentToken: 'existing-token' } as any);
+    prismaMock.payment.findMany.mockResolvedValue([]); // nothing paid -> full ₹100 outstanding
+
+    await generateInvoice('order-1');
+
+    expect(renderInvoicePdfMock).toHaveBeenCalledWith(expect.objectContaining({ amount: 1000, previousDuesTotal: 100 }));
+  });
+
+  it('does not re-snapshot (or query for) previous dues on a reissue of the same order', async () => {
+    const PREVIOUS_INVOICE = { id: 'invoice-1', invoiceNumber: 'PB-INV-AAAA1111', razorpayPaymentLinkId: 'plink_old', version: 1 };
+    prismaMock.order.findUnique.mockResolvedValue({ ...BASE_ORDER, invoice: PREVIOUS_INVOICE } as any);
+
+    const result = await generateInvoice('order-1');
+
+    expect(result.previousDuesTotal).toBe(0);
+    expect(prismaMock.invoice.findMany).not.toHaveBeenCalled(); // getCustomerOutstandingSummary never called
+    expect(prismaMock.invoicePreviousDuesLine.createMany).not.toHaveBeenCalled();
+  });
+
+  it('skips invoices with zero outstanding when building the snapshot', async () => {
+    prismaMock.order.findUnique.mockResolvedValue(BASE_ORDER as any);
+    prismaMock.invoice.findMany.mockResolvedValue([
+      { id: 'inv-paid', orderId: 'order-paid', amount: 100, dueDate: new Date(), createdAt: new Date(), order: { orderNumber: 'PB-PAID' } },
+    ] as any);
+    prismaMock.invoice.findUnique
+      .mockResolvedValueOnce({ id: 'inv-paid', amount: 100 } as any)
+      .mockResolvedValue({ id: 'invoice-1', paymentToken: 'existing-token' } as any);
+    prismaMock.payment.findMany.mockResolvedValue([{ paymentSource: 'cash', amountPaise: 10000n, allocatedPaise: 10000n }] as any); // fully paid
+
+    const result = await generateInvoice('order-1');
+
+    expect(result.previousDuesTotal).toBe(0);
+    expect(prismaMock.invoicePreviousDuesLine.createMany).not.toHaveBeenCalled();
   });
 });
 
@@ -208,6 +307,47 @@ describe('generateInvoice — reissue (prior Invoice row exists)', () => {
     expect(result.wasReissue).toBe(true);
   });
 
+  // Payment-safety review section 10: "An invoice revision must not...
+  // accidentally create an active link for an incorrect balance." The
+  // PDF's displayed amount stays the full total; only the link's requested
+  // amount should net out what's already been verified+allocated.
+  it('nets out already-allocated payments from the NEW link amount, but not from the displayed invoice amount', async () => {
+    prismaMock.order.findUnique.mockResolvedValue({ ...BASE_ORDER, invoice: PREVIOUS_INVOICE } as any);
+    prismaMock.payment.aggregate.mockResolvedValue({ _sum: { allocatedPaise: 40000n } } as any); // ₹400 already paid
+
+    const result = await generateInvoice('order-1');
+
+    expect(result.amount).toBe(1000); // full invoice total, unchanged
+    expect(createPaymentLinkMock).toHaveBeenCalledWith(expect.objectContaining({ amount: 600 })); // 1000 - 400
+  });
+
+  // Outstanding-dues rework: a reissue (discount change, amount revision)
+  // must NOT push the due date forward — it stays whatever the order's
+  // FIRST invoice set it to.
+  it('preserves the due date from the prior invoice version on reissue, rather than recalculating it', async () => {
+    const existingDueDate = new Date('2026-07-01');
+    prismaMock.order.findUnique.mockResolvedValue({
+      ...BASE_ORDER,
+      invoice: { ...PREVIOUS_INVOICE, dueDate: existingDueDate },
+    } as any);
+
+    await generateInvoice('order-1');
+
+    const upsertArgs = prismaMock.invoice.upsert.mock.calls[0][0] as any;
+    expect(upsertArgs.update.dueDate).toEqual(existingDueDate);
+  });
+
+  it('creates no new link at all when prior payments already cover the full (possibly revised) amount', async () => {
+    prismaMock.order.findUnique.mockResolvedValue({ ...BASE_ORDER, invoice: PREVIOUS_INVOICE } as any);
+    prismaMock.payment.aggregate.mockResolvedValue({ _sum: { allocatedPaise: 100000n } } as any); // ₹1000 already paid
+
+    const result = await generateInvoice('order-1');
+
+    expect(createPaymentLinkMock).not.toHaveBeenCalled();
+    expect(result.paymentLinkUrl).toBeNull();
+    const upsertArgs = prismaMock.invoice.upsert.mock.calls[0][0] as any;
+    expect(upsertArgs.update.paymentLinkStatus).toBe('paid');
+  });
 });
 
 // CLAUDE.md "Razorpay webhook — implemented" / the AskUserQuestion decision:

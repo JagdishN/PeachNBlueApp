@@ -14,6 +14,9 @@ import {
   listBagReplacementsHandler,
   listDiscountAuditHandler,
 } from '../controllers/customerController';
+import { getCustomerOutstandingHandler, recordCustomerPaymentHandler } from '../controllers/outstandingController';
+import { sendPaymentReminderHandler, listReminderHistoryHandler } from '../controllers/reminderController';
+import { getCustomerStatementHandler } from '../controllers/reportingController';
 
 const router = Router();
 
@@ -31,5 +34,14 @@ router.patch('/:id/billing-mode', requireRole(['admin']), updateBillingModeHandl
 router.patch('/:id/bag-issued', requireRole(['staff', 'admin']), markBagIssuedHandler);
 router.post('/:id/bag-replacement', requireRole(['staff', 'admin']), reportBagReplacementHandler);
 router.get('/:id/bag-replacements', requireRole(['admin']), listBagReplacementsHandler);
+// Outstanding-dues rework (section 2/4/10) — view and record-payment are
+// staff + admin; the admin-only "Send Reminder" action lands on its own
+// route later (section 7's explicit staff exclusion), not here.
+router.get('/:id/outstanding', requireRole(['staff', 'admin']), getCustomerOutstandingHandler);
+router.post('/:id/payments', requireRole(['staff', 'admin']), recordCustomerPaymentHandler);
+// Admin-only, deliberately NOT staff — section 7's explicit restriction.
+router.post('/:id/send-reminder', requireRole(['admin']), sendPaymentReminderHandler);
+router.get('/:id/reminder-history', requireRole(['admin']), listReminderHistoryHandler);
+router.get('/:id/statement', requireRole(['admin']), getCustomerStatementHandler);
 
 export default router;

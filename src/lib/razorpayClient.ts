@@ -32,10 +32,9 @@ interface PaymentLink {
 
 // CLAUDE.md: the invoice payment link should support Card and Net/Online
 // Banking. Razorpay's Payment Links API (unlike Orders/Checkout) has no
-// documented parameter that hard-restricts accepted methods — this has not
-// been verified against a live sandbox (no RAZORPAY_KEY_ID/SECRET configured
-// yet). Flagged for a real-credentials check; the description/notes below at
-// least communicate intent to whoever reconciles the link in the dashboard.
+// documented parameter that hard-restricts accepted methods — confirmed
+// against Razorpay's real webhook/payment-link docs (payment-safety review,
+// 2026-10-30): there genuinely is no such restriction parameter.
 export const createPaymentLink = async (input: CreatePaymentLinkInput): Promise<PaymentLink> => {
   const link = await getClient().paymentLink.create({
     amount: Math.round(input.amount * 100),
@@ -50,23 +49,68 @@ export const createPaymentLink = async (input: CreatePaymentLinkInput): Promise<
     // Razorpay's own notification so the customer isn't messaged twice.
     notify: { sms: false, email: false },
     reminder_enable: false,
+    // Payment-safety review Priority 1 / section 4.2: "Explicitly configure
+    // Razorpay Payment Links to disallow native partial payments... use the
+    // exact parameter name... do not rely on an undocumented default."
+    // Confirmed against Razorpay's real API reference (2026-10-30): the
+    // parameter is `accept_partial` (boolean, NOT `partial_payment` as an
+    // earlier version of this file assumed) — its documented default when
+    // omitted is already `false`, so this was never actually accepting
+    // partial payments, but setting it explicitly removes the dependency on
+    // that default never changing. Partial settlement is handled entirely
+    // by this app's own ledger (paymentLedgerService.ts) — a customer who
+    // wants to pay only part of the amount does so via staff-recorded
+    // cash/bank UPI for the rest, not via Razorpay's own partial-payment UI.
+    accept_partial: false,
     notes: { orderId: input.orderId, orderNumber: input.orderNumber },
   });
 
   return { id: link.id, shortUrl: link.short_url };
 };
 
-// Best-effort — CLAUDE.md: "Cancel/expire the old payment link if the
-// Razorpay API supports it — this is the part that actually prevents a
-// double-payment or stale-amount-payment risk, not just cosmetic reissuing."
-// A cancel failure must not block the rest of the reissue flow (a new,
-// correct link still gets sent either way), so this swallows and logs
-// rather than throwing.
-export const cancelPaymentLink = async (paymentLinkId: string): Promise<void> => {
+export interface CancelResult {
+  success: boolean;
+  /** True when the provider's response was ambiguous/timed out rather than
+   * a clean success or a clean "already settled" failure — the caller must
+   * NOT treat this the same as success (payment-safety review 4.4: "prevent
+   * the application from falsely reporting that the link was safely
+   * disabled"). */
+  uncertain: boolean;
+  error?: string;
+}
+
+// Previously best-effort/void (swallowed every failure) — invoiceService.ts's
+// existing reissue call site still wants that exact behavior (a cancel
+// failure there must never block a new, correct link from going out), so it
+// keeps using this function and simply ignores the returned result.
+// paymentLinkLifecycle.ts (new, 2026-10-30) is the one caller that actually
+// needs to know whether cancellation succeeded, to decide whether to open a
+// cancellation_uncertain reconciliation exception — see payment-safety
+// review 4.3: "do not assume cancelling a link reverses an already
+// initiated payment" / "handle... network timeouts, and uncertain provider
+// responses."
+export const cancelPaymentLink = async (paymentLinkId: string): Promise<CancelResult> => {
   try {
-    await getClient().paymentLink.cancel(paymentLinkId);
+    const result = await getClient().paymentLink.cancel(paymentLinkId);
+    // Razorpay returns the link's new status in the response — "cancelled"
+    // confirms the provider actually applied it; anything else (including a
+    // 200 with an unexpected status) is treated as uncertain rather than
+    // trusted blindly.
+    if (result?.status === 'cancelled') {
+      return { success: true, uncertain: false };
+    }
+    console.warn(`Razorpay payment link ${paymentLinkId} cancel returned unexpected status: ${result?.status}`);
+    return { success: false, uncertain: true, error: `Unexpected status: ${result?.status}` };
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    // A network timeout or 5xx is genuinely uncertain (the cancel may or may
+    // not have been applied server-side); a clean 4xx like "already
+    // cancelled/paid" is a real failure, not an uncertain one — but without
+    // reliably distinguishing Razorpay's error shapes here, treat every
+    // thrown error as uncertain (the safer default per 4.3) rather than
+    // guessing it was a clean failure.
     console.error(`Failed to cancel Razorpay payment link ${paymentLinkId}:`, err);
+    return { success: false, uncertain: true, error: message };
   }
 };
 

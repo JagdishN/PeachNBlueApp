@@ -24,7 +24,7 @@ beforeEach(() => {
 });
 
 describe('createPaymentLink', () => {
-  it('converts the amount to paise and returns id + shortUrl', async () => {
+  it('converts the amount to paise, disables native partial payments, and returns id + shortUrl', async () => {
     createMock.mockResolvedValue({ id: 'plink_123', short_url: 'https://rzp.io/l/plink_123' });
 
     const result = await createPaymentLink({
@@ -35,25 +35,44 @@ describe('createPaymentLink', () => {
       customerPhone: '9999999999',
     });
 
-    expect(createMock).toHaveBeenCalledWith(expect.objectContaining({ amount: 24950, currency: 'INR' }));
+    // Payment-safety review Priority 1: must explicitly disable native
+    // partial payments, using Razorpay's real parameter name (accept_partial,
+    // confirmed against their API reference), not an undocumented default.
+    expect(createMock).toHaveBeenCalledWith(
+      expect.objectContaining({ amount: 24950, currency: 'INR', accept_partial: false })
+    );
     expect(result).toEqual({ id: 'plink_123', shortUrl: 'https://rzp.io/l/plink_123' });
   });
 });
 
-describe('cancelPaymentLink (best-effort)', () => {
-  it('does not throw when the Razorpay API call rejects', async () => {
+describe('cancelPaymentLink', () => {
+  it('does not throw when the Razorpay API call rejects, and reports the failure as uncertain', async () => {
     cancelMock.mockRejectedValue(new Error('razorpay unavailable'));
 
-    await expect(cancelPaymentLink('plink_old')).resolves.toBeUndefined();
+    const result = await cancelPaymentLink('plink_old');
+
+    expect(result).toEqual({ success: false, uncertain: true, error: 'razorpay unavailable' });
     expect(cancelMock).toHaveBeenCalledWith('plink_old');
   });
 
-  it('calls cancel with the given id on success', async () => {
-    cancelMock.mockResolvedValue({});
+  it('reports success when Razorpay confirms the cancelled status', async () => {
+    cancelMock.mockResolvedValue({ status: 'cancelled' });
 
-    await cancelPaymentLink('plink_old');
+    const result = await cancelPaymentLink('plink_old');
 
-    expect(cancelMock).toHaveBeenCalledWith('plink_old');
+    expect(result).toEqual({ success: true, uncertain: false });
+  });
+
+  // Payment-safety review 4.3: "do not assume cancelling a link reverses an
+  // already initiated payment" / "handle... uncertain provider responses" —
+  // an unexpected (non-"cancelled") status must NOT be treated as success.
+  it('reports uncertain when Razorpay returns an unexpected status instead of "cancelled"', async () => {
+    cancelMock.mockResolvedValue({ status: 'paid' });
+
+    const result = await cancelPaymentLink('plink_old');
+
+    expect(result.success).toBe(false);
+    expect(result.uncertain).toBe(true);
   });
 });
 

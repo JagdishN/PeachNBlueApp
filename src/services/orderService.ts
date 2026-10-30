@@ -12,6 +12,8 @@ import { reissueInvoice } from './invoiceReissue.service';
 import { calculatePayableAmount } from '../utils/pricing';
 import { extractPaymentLinkSuffix } from '../utils/paymentLink';
 import { getTurnaroundLabel } from '../utils/turnaround';
+import { getInvoicePaymentSummary, recordVerifiedPayment, paiseToDisplayAmount, InvoicePaymentSummary } from './paymentLedgerService';
+import { retireOrReplaceLink, LinkTransitionReason } from './paymentLinkLifecycle';
 
 // delivery_confirmation's header_1 (image) — real gap found and confirmed
 // 2026-09-03 via a live send comparison: MSG91 returns status: "success"
@@ -590,19 +592,68 @@ const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
 // half of "mark Delivered + Payment Received" (CLAUDE.md order workflow
 // step 7) — a staff member shouldn't be able to record a payment against an
 // order that isn't theirs any more than they can change its status.
-export const recordPayment = async (orderId: string, paymentMethod: PaymentMethod, recordedById: string, role: UserRole) => {
+//
+// REWORKED (2026-10-30, payment-safety review) — this is now the "Cash
+// Collection Workflow" (section 6) specifically: cash/upi/net_banking/
+// credit_card entries staff directly observed and is confident actually
+// happened (paymentSource: 'cash' for all four — none of these go through
+// the separate two-stage bank-UPI reconciliation workflow, see
+// bankUpiService.ts, which exists specifically for the static-QR-to-bank-
+// account case where staff ISN'T directly observing the money land).
+// Supports partial collections (options.amount, defaulting to the full
+// outstanding balance when omitted — preserves the old "one tap, fully
+// paid" UX for the common case) and a client-supplied idempotencyKey so a
+// double-tapped button can't create a second real receipt.
+export interface RecordPaymentOptions {
+  amount?: number;
+  idempotencyKey?: string;
+}
+
+export interface RecordPaymentResult {
+  order: unknown;
+  paymentSummary: InvoicePaymentSummary;
+  overpayment: boolean;
+}
+
+export const recordPayment = async (
+  orderId: string,
+  paymentMethod: PaymentMethod,
+  recordedById: string,
+  role: UserRole,
+  options: RecordPaymentOptions = {}
+): Promise<RecordPaymentResult> => {
   if (!PAYMENT_METHODS.includes(paymentMethod)) {
     const err = new Error(`Invalid paymentMethod: ${paymentMethod}`);
     (err as any).status = 400;
     throw err;
   }
 
+  // Idempotency check (spec 6: "Require an idempotency key for repeated
+  // staff submissions... do not allow double-tapping the Record Payment
+  // button to create duplicate cash receipts"). Checked up front, before
+  // any lock/allocation work, since a matching key means this exact
+  // submission already happened — returning the current state is correct,
+  // not a no-op error, so a retried request still gets a 200 with the real
+  // outcome rather than failing confusingly.
+  if (options.idempotencyKey) {
+    const existingPayment = await prisma.payment.findUnique({ where: { idempotencyKey: options.idempotencyKey } });
+    if (existingPayment) {
+      const existingOrder = await prisma.order.findUnique({
+        where: { id: orderId },
+        include: { customer: { select: customerSelectForRole(role) }, orderItems: true },
+      });
+      const summary = await getInvoicePaymentSummary(prisma, existingPayment.invoiceId ?? '');
+      return { order: existingOrder, paymentSummary: summary, overpayment: false };
+    }
+  }
+
   // Joins customer.branch (not just customer: true) — needed below to send
   // both the customer and the new admin payment notification (CLAUDE.md
-  // "Branches": each branch sends from its own registered number).
+  // "Branches": each branch sends from its own registered number). Also
+  // joins invoice — the canonical thing this payment allocates against.
   const order = await prisma.order.findUnique({
     where: { id: orderId },
-    include: { customer: { include: { branch: true } } },
+    include: { customer: { include: { branch: true } }, invoice: true },
   });
 
   if (!order) {
@@ -629,29 +680,57 @@ export const recordPayment = async (orderId: string, paymentMethod: PaymentMetho
     throw err;
   }
 
-  // Same discount-adjusted amount the invoice and ledger charge already use
-  // (src/utils/pricing.ts) — the recorded Payment must match what the
-  // customer was actually asked to pay, not the pre-discount finalAmount.
-  const amount = calculatePayableAmount(Number(order.finalAmount), order.customer);
+  if (!order.invoice) {
+    const err = new Error('This order has no invoice yet — cannot record a payment against it.');
+    (err as any).status = 409;
+    throw err;
+  }
 
-  const updatedOrder = await prisma.$transaction(async (tx) => {
-    await tx.payment.create({
-      data: {
-        orderId,
-        customerId: order.customerId,
-        amount,
-        paymentType: 'order_payment',
-        paymentMethod,
-        status: 'success',
-        recordedById,
-      },
-    });
+  // Non-locking read, used only to default `amount` when the caller didn't
+  // specify one (the common "pay in full" case). The authoritative
+  // allocation decision happens inside recordVerifiedPayment below, under
+  // the invoice row lock, against a freshly re-read outstanding balance —
+  // so even if this read is stale by the time the transaction runs, nothing
+  // unsafe follows from it.
+  const summaryBefore = await getInvoicePaymentSummary(prisma, order.invoice.id);
+  const amount = options.amount !== undefined ? options.amount : paiseToDisplayAmount(summaryBefore.outstandingPaise);
 
-    return tx.order.update({
-      where: { id: orderId },
-      data: { paymentMethod, paymentStatus: 'paid' },
-      include: { customer: { select: customerSelectForRole(role) }, orderItems: true },
-    });
+  if (!(amount > 0)) {
+    const err = new Error('amount must be greater than zero.');
+    (err as any).status = 400;
+    throw err;
+  }
+
+  // Deliberately NOT capped to the outstanding balance — spec 6: "Do not
+  // silently cap or discard money actually received above the outstanding
+  // amount. Record excess collection as an exception." An amount greater
+  // than what's owed is accepted here and flows into the overpayment path
+  // inside recordVerifiedPayment/paymentLedgerService.
+  const { summary, excessPaise } = await prisma.$transaction(async (tx) =>
+    recordVerifiedPayment(tx, {
+      invoiceId: order.invoice!.id,
+      orderId,
+      customerId: order.customerId,
+      grossAmount: amount,
+      paymentType: 'order_payment',
+      paymentMethod,
+      paymentSource: 'cash',
+      recordedById,
+      idempotencyKey: options.idempotencyKey ?? null,
+    })
+  );
+
+  // Payment-link lifecycle: cancel the now-stale Razorpay link and, if a
+  // balance remains, replace it with a link for exactly that remaining
+  // amount — deliberately AFTER the payment above is already durably
+  // committed (paymentLinkLifecycle.ts documents why this ordering is
+  // safer: a crash/failure here never loses the money that was recorded).
+  const reason: LinkTransitionReason = summary.outstandingPaise > 0n ? 'cash_partial' : 'cash_full';
+  await retireOrReplaceLink(order.invoice.id, reason, recordedById);
+
+  const updatedOrder = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: { customer: { select: customerSelectForRole(role) }, orderItems: true },
   });
 
   // Client request (2026-10-30): now that payment is a decoupled action
@@ -660,7 +739,9 @@ export const recordPayment = async (orderId: string, paymentMethod: PaymentMetho
   // the Razorpay-webhook path (recordOnlinePayment below) ever sent
   // payment_receipt, and only to the customer. Both now get notified here
   // too, mirroring recordOnlinePayment's existing customer send plus the
-  // same admin-reuse pattern as the pickup/delivery notifications.
+  // same admin-reuse pattern as the pickup/delivery notifications. Amount
+  // in the notification reflects what was ACTUALLY collected THIS TIME
+  // (which may be partial), not necessarily the full payable total.
   await sendNotification(
     order.customer,
     'payment_receipt',
@@ -691,12 +772,13 @@ export const recordPayment = async (orderId: string, paymentMethod: PaymentMetho
     );
   }
 
-  return updatedOrder;
+  return { order: updatedOrder, paymentSummary: summary, overpayment: excessPaise > 0n };
 };
 
 export type OnlinePaymentResult =
   | { status: 'paid' }
-  | { status: 'already_paid' }
+  | { status: 'overpayment_recorded' }
+  | { status: 'duplicate_webhook' }
   | { status: 'monthly_billing_anomaly' }
   | { status: 'order_not_found' };
 
@@ -707,6 +789,17 @@ export type OnlinePaymentResult =
 // doesn't apply to an automated callback. No auth/role args: signature
 // verification already happened in the webhook controller before this is
 // ever called — that's this function's entire trust boundary.
+//
+// REWORKED (2026-10-30, payment-safety review section 8) — closes the most
+// serious confirmed gap in the whole review. The OLD idempotency check was
+// `order.paymentStatus === 'paid'` — true for BOTH a harmless redelivery of
+// the exact same webhook AND a genuinely different, real second payment
+// landing on an invoice that's already settled. It treated both as a no-op,
+// silently discarding the second case entirely: no Payment row, no alert,
+// real money unaccounted for. The dedup key is now the actual Razorpay
+// payment id (unique on Payment.razorpayPaymentId) — "a webhook for a
+// second real Razorpay payment must not be silently treated as
+// already_paid."
 export const recordOnlinePayment = async (
   orderId: string,
   paymentMethod: PaymentMethod,
@@ -714,71 +807,86 @@ export const recordOnlinePayment = async (
   razorpayPaymentId: string,
   rawRazorpayMethod: string
 ): Promise<OnlinePaymentResult> => {
+  // True duplicate webhook delivery for THIS SAME payment — the correct,
+  // durable dedup key (no stable webhook event/delivery id exists in
+  // Razorpay's payload, confirmed against their docs; the payment entity's
+  // own id is what we fully control and already store uniquely).
+  const existingForThisPayment = await prisma.payment.findUnique({ where: { razorpayPaymentId } });
+  if (existingForThisPayment) {
+    return { status: 'duplicate_webhook' };
+  }
+
   const order = await prisma.order.findUnique({
     where: { id: orderId },
-    include: { customer: { include: { branch: { select: { whatsappNumber: true } } } } },
+    include: { customer: { include: { branch: { select: { whatsappNumber: true } } } }, invoice: true },
   });
 
   if (!order) {
     return { status: 'order_not_found' };
   }
 
-  // Webhooks can be delivered more than once for the same event (Razorpay's
-  // own documented behavior) — idempotent no-op rather than a duplicate
-  // Payment row on a redelivery.
-  if (order.paymentStatus === 'paid') {
-    return { status: 'already_paid' };
-  }
-
   // Should no longer be reachable going forward (invoiceService.ts stopped
   // creating real payment links for monthly-billing orders — see CLAUDE.md
   // "Razorpay webhook"), but a legacy link created before that fix could
-  // still be paid. Deliberately NOT reconciled automatically here (would
-  // risk double-counting against the existing delivery-time ledger charge
-  // in updateStatus) — surfaced as a distinct result so the controller can
-  // log it loudly for manual admin reconciliation instead.
+  // still be paid. Deliberately NOT allocated against the per-order ledger
+  // (would risk double-counting against the existing delivery-time ledger
+  // charge in updateStatus) — persisted as a reconciliation exception (not
+  // just a console log, so it survives beyond server logs) for manual
+  // admin review, same as every other exception type.
   if (order.billingMode === 'monthly_billing') {
+    if (order.invoice) {
+      await prisma.paymentReconciliationException.create({
+        data: {
+          invoiceId: order.invoice.id,
+          customerId: order.customerId,
+          exceptionType: 'monthly_billing_anomaly',
+          collectedPaise: BigInt(Math.round(amountPaid * 100)),
+          allocatedPaise: 0n,
+          excessPaise: BigInt(Math.round(amountPaid * 100)),
+          relatedPaymentIds: [],
+          status: 'open',
+          resolutionNotes: `Razorpay payment ${razorpayPaymentId} (₹${amountPaid}) landed on a monthly-billing order's legacy payment link. Not auto-reconciled against the ledger — verify manually.`,
+        },
+      });
+    }
     return { status: 'monthly_billing_anomaly' };
   }
 
-  await prisma.$transaction(async (tx) => {
-    await tx.payment.create({
-      data: {
-        orderId,
-        customerId: order.customerId,
-        amount: amountPaid,
-        paymentType: 'order_payment',
-        paymentMethod,
-        status: 'success',
-        razorpayPaymentId,
-        recordedById: null,
-        // Preserves the exact Razorpay method (e.g. "wallet", "emi") even
-        // when it had to be approximated into the constrained paymentMethod
-        // column above — see webhookController.ts's RAZORPAY_METHOD_MAP.
-        notes: `Razorpay method: ${rawRazorpayMethod}`,
-      },
-    });
+  if (!order.invoice) {
+    // No invoice row at all means there was never a real Razorpay link to
+    // begin with for this order — not a state a genuine webhook should be
+    // able to reach, but nothing to allocate against if it somehow does.
+    return { status: 'order_not_found' };
+  }
 
-    await tx.order.update({
-      where: { id: orderId },
-      data: { paymentMethod, paymentStatus: 'paid' },
-    });
+  const { summary, excessPaise } = await prisma.$transaction(async (tx) =>
+    recordVerifiedPayment(tx, {
+      invoiceId: order.invoice!.id,
+      orderId,
+      customerId: order.customerId,
+      grossAmount: amountPaid,
+      paymentType: 'order_payment',
+      paymentMethod,
+      paymentSource: 'razorpay',
+      razorpayPaymentId,
+      // Preserves the exact Razorpay method (e.g. "wallet", "emi") even
+      // when it had to be approximated into the constrained paymentMethod
+      // column above — see webhookController.ts's RAZORPAY_METHOD_MAP.
+      notes: `Razorpay method: ${rawRazorpayMethod}`,
+    })
+  );
 
-    await tx.invoice.updateMany({
-      where: { orderId },
-      data: { paymentLinkStatus: 'paid' },
-    });
+  await prisma.invoice.updateMany({
+    where: { orderId },
+    data: { paymentLinkStatus: 'paid' },
   });
 
   // CLAUDE.md: WhatsApp + SMS always fire together for every customer
   // notification, never one as a fallback for the other — same as every
-  // other sendNotification call site in this file. 'payment_receipt' was
-  // already a valid CommunicationMessageType/live DB constraint value, just
-  // never actually used by any code path until now. Safe to await directly
-  // like every other call site here: sendNotification internally uses
-  // Promise.allSettled for the actual WhatsApp/SMS sends, so a channel
-  // failure is logged (communicationLog status: 'failed') rather than
-  // thrown — it can't undo the payment that was already committed above.
+  // other sendNotification call site in this file. The customer genuinely
+  // did pay, including in the overpayment case — the receipt still goes
+  // out; the exception created above/below is a back-office reconciliation
+  // concern, not a reason to withhold confirmation from someone who paid.
   await sendNotification(
     order.customer,
     'payment_receipt',
@@ -796,6 +904,15 @@ export const recordOnlinePayment = async (
     },
     orderId
   );
+
+  if (excessPaise > 0n) {
+    console.error(
+      `[recordOnlinePayment] Overpayment detected for order ${orderId} / invoice ${order.invoice.id}: ` +
+        `razorpay payment ${razorpayPaymentId} pushed collections past the required amount. ` +
+        'A PaymentReconciliationException row was created — needs manual review.'
+    );
+    return { status: 'overpayment_recorded' };
+  }
 
   return { status: 'paid' };
 };
