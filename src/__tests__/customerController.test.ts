@@ -150,7 +150,14 @@ describe('POST / — customer create/lookup, staff AND admin (CLAUDE.md "Custome
 
     expect(prismaMock.customer.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: { fullName: 'Priya Menon', phoneNumber: '9999999999', branchId: 'branch-1', locationLabel: 'A-101' },
+        data: {
+          fullName: 'Priya Menon',
+          phoneNumber: '9999999999',
+          branchId: 'branch-1',
+          locationLabel: 'A-101',
+          alternativePhoneNumber: null,
+          secondaryPhoneNumber: null,
+        },
       })
     );
   });
@@ -216,7 +223,116 @@ describe('POST / — customer create/lookup, staff AND admin (CLAUDE.md "Custome
     expect(res.status).toBe(200);
     expect(prismaMock.customer.create).not.toHaveBeenCalled();
     expect(prismaMock.customer.update).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { phoneNumber: '9999999999' }, data: { fullName: 'Priya Menon' } })
+      expect.objectContaining({
+        where: { phoneNumber: '9999999999' },
+        data: { fullName: 'Priya Menon', alternativePhoneNumber: null, secondaryPhoneNumber: null },
+      })
+    );
+  });
+});
+
+// Previously untested (updateCustomerHandler had zero coverage before this).
+// Added alongside the alternativePhoneNumber/secondaryPhoneNumber fields
+// (renamed from whatsappNumber + new, 2026-10-30 client request) since the
+// undefined-vs-null-vs-empty-string handling for those two fields is real
+// logic worth locking in, not just the pre-existing fields.
+describe('PATCH /:id — admin-only general edit', () => {
+  it('rejects a staff caller', async () => {
+    const res = await request(app)
+      .patch('/api/v1/customers/customer-1')
+      .set('Authorization', `Bearer ${token('staff', 'branch-1')}`)
+      .send({ fullName: 'New Name' });
+
+    expect(res.status).toBe(403);
+    expect(prismaMock.customer.update).not.toHaveBeenCalled();
+  });
+
+  it('404s when the customer does not exist', async () => {
+    prismaMock.customer.findUnique.mockResolvedValue(null);
+
+    const res = await request(app)
+      .patch('/api/v1/customers/missing')
+      .set('Authorization', `Bearer ${token('admin')}`)
+      .send({ fullName: 'New Name' });
+
+    expect(res.status).toBe(404);
+  });
+
+  it('leaves alternativePhoneNumber/secondaryPhoneNumber untouched when omitted from the body', async () => {
+    prismaMock.customer.findUnique.mockResolvedValue({
+      id: 'customer-1',
+      fullName: 'Old Name',
+      phoneNumber: '9999999999',
+      locationLabel: 'A-101',
+      branchId: 'branch-1',
+      alternativePhoneNumber: '9000000002',
+      secondaryPhoneNumber: '9000000003',
+    } as any);
+    prismaMock.customer.update.mockResolvedValue({ id: 'customer-1' } as any);
+
+    await request(app)
+      .patch('/api/v1/customers/customer-1')
+      .set('Authorization', `Bearer ${token('admin')}`)
+      .send({ fullName: 'New Name' });
+
+    expect(prismaMock.customer.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          alternativePhoneNumber: undefined,
+          secondaryPhoneNumber: undefined,
+        }),
+      })
+    );
+  });
+
+  it('clears alternativePhoneNumber to null when sent as an empty string', async () => {
+    prismaMock.customer.findUnique.mockResolvedValue({
+      id: 'customer-1',
+      fullName: 'Old Name',
+      phoneNumber: '9999999999',
+      locationLabel: 'A-101',
+      branchId: 'branch-1',
+      alternativePhoneNumber: '9000000002',
+      secondaryPhoneNumber: null,
+    } as any);
+    prismaMock.customer.update.mockResolvedValue({ id: 'customer-1' } as any);
+
+    await request(app)
+      .patch('/api/v1/customers/customer-1')
+      .set('Authorization', `Bearer ${token('admin')}`)
+      .send({ alternativePhoneNumber: '' });
+
+    expect(prismaMock.customer.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ alternativePhoneNumber: null }),
+      })
+    );
+  });
+
+  it('sets alternativePhoneNumber/secondaryPhoneNumber to the given values', async () => {
+    prismaMock.customer.findUnique.mockResolvedValue({
+      id: 'customer-1',
+      fullName: 'Old Name',
+      phoneNumber: '9999999999',
+      locationLabel: 'A-101',
+      branchId: 'branch-1',
+      alternativePhoneNumber: null,
+      secondaryPhoneNumber: null,
+    } as any);
+    prismaMock.customer.update.mockResolvedValue({ id: 'customer-1' } as any);
+
+    await request(app)
+      .patch('/api/v1/customers/customer-1')
+      .set('Authorization', `Bearer ${token('admin')}`)
+      .send({ alternativePhoneNumber: '9000000002', secondaryPhoneNumber: '9000000003' });
+
+    expect(prismaMock.customer.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          alternativePhoneNumber: '9000000002',
+          secondaryPhoneNumber: '9000000003',
+        }),
+      })
     );
   });
 });

@@ -87,7 +87,14 @@ model Customer {
   // the same number at multiple flats; the client reversed that. See
   // CLAUDE.md "Customer phone number uniqueness — RESOLVED".
   phoneNumber    String    @unique @map("phone_number") @db.VarChar(15)
-  whatsappNumber String?   @map("whatsapp_number") @db.VarChar(15)
+  // Renamed from whatsappNumber (2026-10-30, client request) — now one of
+  // up to three numbers every customer-facing WhatsApp send fans out to
+  // (primary phoneNumber above, required; this and secondaryPhoneNumber
+  // below, both optional), not a single override of which number to use.
+  // See src/services/notificationService.ts's sendNotification.
+  alternativePhoneNumber String? @map("alternative_phone_number") @db.VarChar(15)
+  // New (2026-10-30) — the third, optional fan-out recipient.
+  secondaryPhoneNumber   String? @map("secondary_phone_number") @db.VarChar(15)
   branch         Branch    @relation(fields: [branchId], references: [id])
   branchId       String    @map("branch_id") @db.Uuid
   locationLabel  String    @map("location_label") @db.VarChar(100)

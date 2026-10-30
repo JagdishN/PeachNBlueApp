@@ -4,8 +4,14 @@ import { sendWhatsAppTemplate, formatMsg91Error, resolveWhatsappFrom } from '../
 
 interface NotifiableCustomer {
   id: string;
+  // Required — the primary number, always sent to. alternativePhoneNumber
+  // and secondaryPhoneNumber below are optional additional recipients, not
+  // overrides (renamed/added 2026-10-30, client request: every WhatsApp
+  // notification should reach every number a customer has on file, not just
+  // whichever single one used to win).
   phoneNumber: string;
-  whatsappNumber: string | null;
+  alternativePhoneNumber: string | null;
+  secondaryPhoneNumber: string | null;
   // The customer's own branch's WhatsApp number — this is the SENDING
   // number (CLAUDE.md: each branch sends from its own registered number),
   // not a second recipient number. Required, not optional: every real
@@ -38,37 +44,58 @@ interface TemplateMessage {
 
 // Sends a customer notification over WhatsApp — the only channel now
 // (CLAUDE.md "Messaging migration — MSG91, WhatsApp-only": SMS is no
-// longer sent anywhere). Each attempt writes one communications_log row —
-// 'sms' remains a valid value in the DB's channel CHECK constraint for
-// historical rows but is never written by this codebase anymore (see
-// CLAUDE.md for why the constraint itself was left as-is rather than
-// altered).
+// longer sent anywhere). One communications_log row per call (not one per
+// recipient) — 'sms' remains a valid value in the DB's channel CHECK
+// constraint for historical rows but is never written by this codebase
+// anymore (see CLAUDE.md for why the constraint itself was left as-is
+// rather than altered).
+//
+// Fans out to every number the customer has on file (2026-10-30, client
+// request) — phoneNumber (required) plus alternativePhoneNumber and
+// secondaryPhoneNumber (both optional), deduped, rather than the old
+// single-target logic (whatsappNumber as an override, falling back to
+// phoneNumber). Each recipient is sent independently (a failure on one
+// number doesn't block the others) — the logged status is 'sent' if at
+// least one recipient received it, 'failed' only if every one did.
 export const sendNotification = async (
   customer: NotifiableCustomer,
   messageType: CommunicationMessageType,
   template: TemplateMessage,
   orderId?: string
 ): Promise<void> => {
-  const whatsappTarget = customer.whatsappNumber ?? customer.phoneNumber;
   const fromNumber = resolveWhatsappFrom(customer.branch.whatsappNumber);
+  const targets = Array.from(
+    new Set(
+      [customer.phoneNumber, customer.alternativePhoneNumber, customer.secondaryPhoneNumber].filter(
+        (n): n is string => Boolean(n)
+      )
+    )
+  );
 
-  let status: 'sent' | 'failed' = 'sent';
+  const results = await Promise.allSettled(
+    targets.map((toPhoneNumber) =>
+      sendWhatsAppTemplate({
+        toPhoneNumber,
+        fromNumber,
+        templateName: template.name,
+        language: template.language,
+        bodyVariables: template.bodyVariables,
+        headerMediaUrl: template.headerMediaUrl,
+        headerType: template.headerType,
+        buttonUrlParam: template.buttonUrlParam,
+      })
+    )
+  );
 
-  try {
-    await sendWhatsAppTemplate({
-      toPhoneNumber: whatsappTarget,
-      fromNumber,
-      templateName: template.name,
-      language: template.language,
-      bodyVariables: template.bodyVariables,
-      headerMediaUrl: template.headerMediaUrl,
-      headerType: template.headerType,
-      buttonUrlParam: template.buttonUrlParam,
-    });
-  } catch (err) {
-    status = 'failed';
-    console.error(`Failed to send ${messageType} via WhatsApp to customer ${customer.id}: ${formatMsg91Error(err)}`);
-  }
+  results.forEach((result, i) => {
+    if (result.status === 'rejected') {
+      console.error(
+        `Failed to send ${messageType} via WhatsApp to customer ${customer.id} (${targets[i]}): ${formatMsg91Error(result.reason)}`
+      );
+    }
+  });
+
+  const status: 'sent' | 'failed' = results.some((r) => r.status === 'fulfilled') ? 'sent' : 'failed';
 
   await prisma.communicationLog.create({
     data: {

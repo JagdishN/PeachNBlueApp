@@ -25,6 +25,10 @@ const BAG_REPLACEMENT_FEE = 350;
 // safety net) since a staff-role caller reaches this endpoint directly.
 export const createCustomerHandler = async (req: AuthRequest, res: Response): Promise<void> => {
   const { fullName, phoneNumber, locationLabel } = req.body;
+  // Optional — normalize an empty-string submission to null rather than
+  // storing '' for an "unset" phone number field.
+  const alternativePhoneNumber: string | null = req.body.alternativePhoneNumber || null;
+  const secondaryPhoneNumber: string | null = req.body.secondaryPhoneNumber || null;
 
   if (!fullName || !phoneNumber || !locationLabel) {
     res.status(400).json({ error: 'fullName, phoneNumber, and locationLabel are required' });
@@ -54,11 +58,11 @@ export const createCustomerHandler = async (req: AuthRequest, res: Response): Pr
   const customer = existing
     ? await prisma.customer.update({
         where: { phoneNumber },
-        data: { fullName },
+        data: { fullName, alternativePhoneNumber, secondaryPhoneNumber },
         select: customerSelectForRole(req.auth!.role),
       })
     : await prisma.customer.create({
-        data: { fullName, phoneNumber, branchId, locationLabel },
+        data: { fullName, phoneNumber, branchId, locationLabel, alternativePhoneNumber, secondaryPhoneNumber },
         select: customerSelectForRole(req.auth!.role),
       });
 
@@ -72,6 +76,14 @@ export const createCustomerHandler = async (req: AuthRequest, res: Response): Pr
 export const updateCustomerHandler = async (req: AuthRequest, res: Response): Promise<void> => {
   const { id } = req.params;
   const { fullName, phoneNumber, locationLabel, branchId } = req.body;
+  // Optional fields — distinguish "not sent" (keep existing) from "sent as
+  // an empty string" (clear to null), the way a cleared text field in the
+  // edit UI would submit it. undefined here means genuinely absent from the
+  // request body.
+  const alternativePhoneNumber: string | null | undefined =
+    req.body.alternativePhoneNumber !== undefined ? req.body.alternativePhoneNumber || null : undefined;
+  const secondaryPhoneNumber: string | null | undefined =
+    req.body.secondaryPhoneNumber !== undefined ? req.body.secondaryPhoneNumber || null : undefined;
 
   const existing = await prisma.customer.findUnique({ where: { id } });
   if (!existing) {
@@ -96,6 +108,12 @@ export const updateCustomerHandler = async (req: AuthRequest, res: Response): Pr
       phoneNumber: phoneNumber ?? existing.phoneNumber,
       locationLabel: locationLabel ?? existing.locationLabel,
       branchId: branchId ?? existing.branchId,
+      // undefined (field absent from the request body) is left as-is below
+      // rather than coalesced to existing.X — Prisma omits an undefined
+      // field from the update entirely, which already means "don't touch
+      // it"; a sent null explicitly clears it instead.
+      alternativePhoneNumber,
+      secondaryPhoneNumber,
     },
     select: customerSelectForRole(req.auth!.role),
   });

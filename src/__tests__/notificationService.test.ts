@@ -25,7 +25,8 @@ describe('sendNotification', () => {
   const customer = {
     id: 'customer-1',
     phoneNumber: '9000000001',
-    whatsappNumber: null,
+    alternativePhoneNumber: null,
+    secondaryPhoneNumber: null,
     branch: { whatsappNumber: '919398125151' },
   };
   const template = { name: 'pb_pickup_confirmation', bodyVariables: ['PB-ABC1', '450'] };
@@ -65,6 +66,46 @@ describe('sendNotification', () => {
 
     expect(communicationLogCreateMock).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ status: 'failed' }) })
+    );
+  });
+
+  // Client request (2026-10-30): every customer WhatsApp message now fans
+  // out to all available numbers — primary (required), plus alternative
+  // and secondary (both optional) — not just one.
+  it('sends to all three numbers when alternative and secondary are both set', async () => {
+    await sendNotification(
+      { ...customer, alternativePhoneNumber: '9000000002', secondaryPhoneNumber: '9000000003' },
+      'pickup_confirmation',
+      template
+    );
+
+    expect(sendWhatsAppTemplateMock).toHaveBeenCalledTimes(3);
+    expect(sendWhatsAppTemplateMock).toHaveBeenCalledWith(expect.objectContaining({ toPhoneNumber: '9000000001' }));
+    expect(sendWhatsAppTemplateMock).toHaveBeenCalledWith(expect.objectContaining({ toPhoneNumber: '9000000002' }));
+    expect(sendWhatsAppTemplateMock).toHaveBeenCalledWith(expect.objectContaining({ toPhoneNumber: '9000000003' }));
+  });
+
+  it('dedupes when a secondary/alternative number happens to match the primary', async () => {
+    await sendNotification(
+      { ...customer, alternativePhoneNumber: '9000000001', secondaryPhoneNumber: null },
+      'pickup_confirmation',
+      template
+    );
+
+    expect(sendWhatsAppTemplateMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('logs "sent" when at least one of several numbers succeeds, even if another fails', async () => {
+    sendWhatsAppTemplateMock.mockRejectedValueOnce(new Error('MSG91 error 400')).mockResolvedValueOnce(undefined);
+
+    await sendNotification(
+      { ...customer, alternativePhoneNumber: '9000000002', secondaryPhoneNumber: null },
+      'pickup_confirmation',
+      template
+    );
+
+    expect(communicationLogCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'sent' }) })
     );
   });
 });
