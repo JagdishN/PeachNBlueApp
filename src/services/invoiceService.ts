@@ -7,6 +7,8 @@ import { calculatePayableAmount } from '../utils/pricing';
 import { getTurnaroundText } from '../utils/turnaround';
 import { ensurePaymentToken } from './payTokenService';
 import { getCustomerOutstandingSummary } from './outstandingService';
+import { toPaise, fromPaise } from '../utils/money';
+import { getCustomerCreditBalance, applyCreditToInvoice, lockCustomerCreditForUpdate } from './customerCreditService';
 
 // Matches orderService.ts's generateOrderNumber() style (PB-XXXXXXXX).
 const generateInvoiceNumber = (): string => `PB-INV-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
@@ -20,6 +22,12 @@ export interface GeneratedInvoice {
   // Outstanding-dues rework — 0 for a reissue (never re-snapshotted) or
   // when the customer has no other outstanding invoices.
   previousDuesTotal: number;
+  // Payment collection / customer advances rework — 0 for a reissue (same
+  // gating as previousDuesTotal) or when the customer has no available
+  // credit. The REAL, authoritative amount actually applied (may differ
+  // slightly from a race with a concurrent spend of the same balance,
+  // resolved correctly under lockCustomerCreditForUpdate either way).
+  creditApplied: number;
   wasReissue: boolean;
 }
 
@@ -127,6 +135,24 @@ export const generateInvoice = async (orderId: string): Promise<GeneratedInvoice
     }));
   }
 
+  // Payment collection / customer advances rework (2026-10-31), Phase 4 —
+  // auto-consume any available customer credit against THIS invoice's own
+  // charges, same gating as previousDues above (only a genuinely NEW
+  // invoice — a reissue of the SAME invoice must not re-consume credit a
+  // second time) and scoped to daily billing only (monthly-billing
+  // customers settle via the ledger, never a per-invoice payable amount,
+  // same existing exclusion this whole epic already applies). This is a
+  // PREVIEW read only — used to size the Razorpay link request below; the
+  // real, lock-protected application (and the immutable transaction row
+  // that becomes the permanent record of it) happens AFTER the invoice
+  // row exists with a real id, further down.
+  let creditPreviewPaise = 0n;
+  if (!previousInvoice && order.billingMode !== 'monthly_billing') {
+    const balance = await getCustomerCreditBalance(prisma, order.customerId);
+    const invoiceChargesPaise = toPaise(amount);
+    creditPreviewPaise = balance.availablePaise < invoiceChargesPaise ? balance.availablePaise : invoiceChargesPaise;
+  }
+
   // Payment-safety review section 10: "An invoice revision must not erase
   // payment history or accidentally create an active link for an incorrect
   // balance." The pre-existing behavior always created a fresh Razorpay
@@ -148,6 +174,14 @@ export const generateInvoice = async (orderId: string): Promise<GeneratedInvoice
     });
     const allocatedSoFar = Number(alreadyAllocated?._sum?.allocatedPaise ?? 0n) / 100;
     linkAmount = Math.max(0, Math.round((amount - allocatedSoFar) * 100) / 100);
+  } else if (creditPreviewPaise > 0n) {
+    // Phase 4: "the new invoice's original sales/tax amount must remain
+    // [amount]... advance application reduces the amount to collect, not
+    // the taxable sales value" — `amount` itself (used for the PDF/
+    // invoicesData.amount below) is untouched; only the LINK's requested
+    // amount is reduced, same principle the previousInvoice branch above
+    // already applies for already-collected payments.
+    linkAmount = Math.max(0, Math.round((amount - fromPaise(creditPreviewPaise)) * 100) / 100);
   }
 
   // Monthly-billing customers settle via the ledger, not a per-order payment
@@ -183,7 +217,32 @@ export const generateInvoice = async (orderId: string): Promise<GeneratedInvoice
     // failures, so this never blocks the new link from going out. Runs
     // unconditionally (even for a now-monthly-billing order) to clean up a
     // legacy real link from before the fix above existed.
-    await cancelPaymentLink(previousInvoice.razorpayPaymentLinkId);
+    const cancelResult = await cancelPaymentLink(previousInvoice.razorpayPaymentLinkId);
+
+    // Confirmed defect, fixed 2026-10-31 (webhook historical-link
+    // resolution audit) — this reissue path cancels the old link directly
+    // via razorpayClient.ts rather than paymentLinkLifecycle.ts's
+    // retireOrReplaceLink, and used to never write a PaymentLinkHistory
+    // row at all. That meant a late Razorpay webhook for a link retired by
+    // a reissue had NO historical mapping to fall back to — it would land
+    // in the unmatched-payments queue instead of resolving to the real
+    // invoice, defeating the whole point of the historical-link fallback
+    // for this specific retirement cause. Writing this row here closes
+    // that gap without restructuring this function's own link-creation
+    // logic (monthly-billing skip, discount-adjusted amount, etc.), which
+    // genuinely differs from retireOrReplaceLink's and isn't being
+    // consolidated into it in this pass.
+    await prisma.paymentLinkHistory.create({
+      data: {
+        invoiceId: previousInvoice.id,
+        razorpayPaymentLinkId: previousInvoice.razorpayPaymentLinkId,
+        paymentLinkUrl: previousInvoice.paymentLinkUrl ?? '',
+        amountPaise: toPaise(previousInvoice.amount ?? 0),
+        finalStatus: cancelResult.success ? 'cancelled' : 'cancel_uncertain',
+        retiredReason: 'reissue',
+        retiredAt: new Date(),
+      },
+    });
   }
 
   const version = (previousInvoice?.version ?? 0) + 1;
@@ -276,6 +335,30 @@ export const generateInvoice = async (orderId: string): Promise<GeneratedInvoice
     });
   }
 
+  // Payment collection / customer advances rework, Phase 4 — the REAL,
+  // lock-protected application, now that the invoice has a real id. Run
+  // under its own small transaction (lockCustomerCreditForUpdate +
+  // applyCreditToInvoice) so the balance check-and-spend is atomic even
+  // though this function's surrounding steps (PDF upload, invoice upsert)
+  // aren't — same reasoning paymentLedgerService.ts's lockInvoiceForUpdate
+  // only needs to cover the allocation step itself, not every surrounding
+  // read. createdById is null — no human actor for this automatic step
+  // (same "null means the system" convention as Payment.recordedById).
+  let creditApplied = 0;
+  if (creditPreviewPaise > 0n) {
+    const appliedPaise = await prisma.$transaction(async (tx) => {
+      await lockCustomerCreditForUpdate(tx, order.customerId);
+      return applyCreditToInvoice(tx, {
+        customerId: order.customerId,
+        invoiceId: invoice.id,
+        maxApplicationPaise: toPaise(amount),
+        createdById: null,
+        reason: 'Auto-applied at invoice generation.',
+      });
+    });
+    creditApplied = fromPaise(appliedPaise);
+  }
+
   return {
     id: invoice.id,
     invoiceNumber: invoice.invoiceNumber,
@@ -283,6 +366,7 @@ export const generateInvoice = async (orderId: string): Promise<GeneratedInvoice
     paymentLinkUrl: invoice.paymentLinkUrl,
     amount,
     previousDuesTotal,
+    creditApplied,
     wasReissue: previousInvoice != null,
   };
 };

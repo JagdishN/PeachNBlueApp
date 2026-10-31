@@ -11,11 +11,21 @@ jest.mock('../lib/msg91Client', () => ({
   resolveWhatsappFrom: (branchWhatsappNumber: string | null | undefined) => branchWhatsappNumber ?? '919999999999',
 }));
 
+// Payment collection / customer advances rework, Phase 6 — a failed
+// per-recipient send now also queues a durable retry (notificationOutboxService.ts).
+// Mocked here the same minimal way as msg91Client above, rather than
+// mockDeep<PrismaClient>, to match this file's existing style.
+const enqueueFailedSendMock = jest.fn().mockResolvedValue(undefined);
+jest.mock('../services/notificationOutboxService', () => ({
+  enqueueFailedSend: (...args: unknown[]) => enqueueFailedSendMock(...args),
+}));
+
 import { sendNotification, notifyAdmins } from '../services/notificationService';
 
 beforeEach(() => {
   sendWhatsAppTemplateMock.mockReset().mockResolvedValue(undefined);
   communicationLogCreateMock.mockReset().mockResolvedValue(undefined);
+  enqueueFailedSendMock.mockReset().mockResolvedValue(undefined);
 });
 
 // CLAUDE.md "Branches": each branch sends WhatsApp from its own registered
@@ -67,6 +77,38 @@ describe('sendNotification', () => {
     expect(communicationLogCreateMock).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ status: 'failed' }) })
     );
+  });
+
+  // Payment collection / customer advances rework, Phase 6 — "do not roll
+  // back a successfully recorded payment if WhatsApp delivery fails... use
+  // a durable notification outbox." A failed send is no longer just logged
+  // — it's also queued for retry.
+  it('queues a retry when the send fails', async () => {
+    sendWhatsAppTemplateMock.mockRejectedValue(new Error('MSG91 error 400: Invalid template'));
+
+    await sendNotification(customer, 'pickup_confirmation', template);
+
+    expect(enqueueFailedSendMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        customerId: 'customer-1',
+        recipientPhoneNumber: '9000000001',
+        fromNumber: '919398125151',
+        templateName: 'pb_pickup_confirmation',
+        bodyVariables: ['PB-ABC1', '450'],
+      })
+    );
+  });
+
+  it('does not queue a retry when the send succeeds', async () => {
+    await sendNotification(customer, 'pickup_confirmation', template);
+    expect(enqueueFailedSendMock).not.toHaveBeenCalled();
+  });
+
+  it('does not throw even if queuing the retry itself fails', async () => {
+    sendWhatsAppTemplateMock.mockRejectedValue(new Error('MSG91 error 400'));
+    enqueueFailedSendMock.mockRejectedValue(new Error('DB connection reset'));
+
+    await expect(sendNotification(customer, 'pickup_confirmation', template)).resolves.toBeUndefined();
   });
 
   // Client request (2026-10-30): every customer WhatsApp message now fans
@@ -161,5 +203,26 @@ describe('notifyAdmins', () => {
     ).resolves.toBeUndefined();
 
     expect(sendWhatsAppTemplateMock).toHaveBeenCalledTimes(2);
+  });
+
+  // Payment collection / customer advances rework, Phase 6 — same durable-
+  // retry treatment as sendNotification, customerId null (an admin User
+  // row, not a Customer).
+  it('queues a retry for the admin whose send failed, with customerId null', async () => {
+    sendWhatsAppTemplateMock.mockRejectedValueOnce(new Error('MSG91 error 400')).mockResolvedValueOnce(undefined);
+
+    await notifyAdmins(
+      [
+        { id: 'admin-1', phoneNumber: '9000000010' },
+        { id: 'admin-2', phoneNumber: '9000000011' },
+      ],
+      template,
+      '919398125151'
+    );
+
+    expect(enqueueFailedSendMock).toHaveBeenCalledTimes(1);
+    expect(enqueueFailedSendMock).toHaveBeenCalledWith(
+      expect.objectContaining({ customerId: null, recipientPhoneNumber: '9000000010', fromNumber: '919398125151' })
+    );
   });
 });

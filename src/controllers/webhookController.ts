@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import prisma from '../prisma/client';
 import { verifyWebhookSignature } from '../lib/razorpayClient';
 import { recordOnlinePayment } from '../services/orderService';
+import { recordUnmatchedPayment } from '../services/unmatchedPaymentService';
 import { PaymentMethod } from '../types/enums';
 
 // payments.payment_method / orders.payment_method both carry a live Postgres
@@ -33,6 +34,35 @@ const mapRazorpayMethod = (method: string | undefined): PaymentMethod => {
 // docs don't confirm notes set on a Payment Link are reliably echoed onto
 // the resulting Payment entity, but payload.payment_link.entity.id is
 // guaranteed present on this event and is an id we fully control end to end.
+//
+// CONFIRMED DEFECT, FIXED (2026-10-31): the active-link lookup alone used to
+// be the ONLY resolution path. retireOrReplaceLink (paymentLinkLifecycle.ts)
+// clears Invoice.razorpayPaymentLinkId whenever a link is retired — an admin
+// waiver, a reissue, or a cash/bank_upi settlement that replaced the link —
+// so a LATE webhook for that now-retired link id used to find no invoice at
+// all and was silently logged-and-dropped. PaymentLinkHistory already
+// retains the original link->invoice mapping for exactly this case (every
+// retirement writes a row there before the link is cleared), so the
+// fallback below resolves the same invoice the active lookup would have
+// found before retirement — a genuinely verified receipt is never silently
+// discarded just because its link is no longer the CURRENT one.
+const resolveInvoiceForLink = async (linkId: string) => {
+  const active = await prisma.invoice.findFirst({ where: { razorpayPaymentLinkId: linkId } });
+  if (active) {
+    return active;
+  }
+
+  const historical = await prisma.paymentLinkHistory.findFirst({
+    where: { razorpayPaymentLinkId: linkId, invoiceId: { not: null } },
+    orderBy: { retiredAt: 'desc' },
+  });
+  if (!historical?.invoiceId) {
+    return null;
+  }
+
+  return prisma.invoice.findUnique({ where: { id: historical.invoiceId } });
+};
+
 const handlePaymentLinkPaid = async (body: any): Promise<void> => {
   const linkEntity = body?.payload?.payment_link?.entity;
   const paymentEntity = body?.payload?.payment?.entity;
@@ -42,12 +72,44 @@ const handlePaymentLinkPaid = async (body: any): Promise<void> => {
     return;
   }
 
-  const invoice = await prisma.invoice.findFirst({ where: { razorpayPaymentLinkId: linkEntity.id } });
+  // Validate the actual provider-side settlement status rather than trusting
+  // the event name alone — Razorpay's docs don't guarantee
+  // payment.entity.status is always "captured" on this event, only that it
+  // usually is by the time payment_link.paid fires. Anything else (e.g. a
+  // payment still "authorized" but not yet captured) isn't a confirmed
+  // receipt yet; ignore it now and let a later event for the same payment
+  // (or the eventual payment_link.paid redelivery once it IS captured)
+  // record it for real.
+  if (paymentEntity.status && paymentEntity.status !== 'captured') {
+    console.warn(
+      `[razorpay webhook] payment_link.paid with payment.status="${paymentEntity.status}" (expected "captured") — ` +
+        `ignoring link=${linkEntity.id} payment=${paymentEntity.id}.`
+    );
+    return;
+  }
+
+  const invoice = await resolveInvoiceForLink(linkEntity.id);
 
   if (!invoice) {
-    // Not necessarily an error — e.g. a payment link cancelled/superseded by
-    // a reissue could still receive a delayed webhook for the old link.
-    console.warn(`[razorpay webhook] No invoice found for payment link ${linkEntity.id} — ignoring.`);
+    // Genuinely unresolvable via either the active link or
+    // PaymentLinkHistory — should not happen in normal operation (Peach &
+    // Blue controls every link it ever creates and always records one of
+    // those two mappings). Never silently discarded: persisted to a durable
+    // queue for manual investigation, idempotent on razorpayPaymentId so a
+    // redelivered webhook for the same unresolved payment doesn't duplicate.
+    // Amount is taken directly from Razorpay's own paise integer
+    // (paymentEntity.amount) rather than round-tripping through rupees, to
+    // avoid any floating-point drift on a receipt nothing has reconciled yet.
+    await recordUnmatchedPayment({
+      razorpayPaymentId: paymentEntity.id,
+      razorpayPaymentLinkId: linkEntity.id,
+      amountPaise: BigInt(paymentEntity.amount),
+      rawPayload: body,
+    });
+    console.error(
+      `[razorpay webhook] No invoice found (active or historical) for payment link ${linkEntity.id} — ` +
+        `payment ${paymentEntity.id} persisted to the unmatched-provider-payments queue for manual review.`
+    );
     return;
   }
 

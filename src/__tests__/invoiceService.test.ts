@@ -31,6 +31,7 @@ const renderInvoicePdfMock = renderInvoicePdf as jest.Mock;
 const BASE_ORDER = {
   id: 'order-1',
   orderNumber: 'PB-ABCD1234',
+  customerId: 'customer-1',
   finalAmount: 1000,
   pickupDate: new Date('2026-07-20'),
   customer: {
@@ -59,12 +60,26 @@ const BASE_ORDER = {
 beforeEach(() => {
   mockReset(prismaMock);
   prismaMock.invoiceAdjustment.findMany.mockResolvedValue([]);
+  // Payment collection / customer advances rework — generateInvoice now
+  // always checks the customer's credit balance for a genuinely new
+  // invoice (getCustomerCreditBalance -> customerCredit.findMany), same
+  // "unconfigured mock -> undefined -> not iterable" trap this project
+  // already hit once before for getCustomerOutstandingSummary. Default to
+  // no credit on file; tests that DO want credit applied override this.
+  prismaMock.customerCredit.findMany.mockResolvedValue([]);
+  prismaMock.$transaction.mockImplementation(((cb: any) => cb(prismaMock)) as any);
   createPaymentLinkMock.mockReset();
   cancelPaymentLinkMock.mockReset();
   uploadInvoicePdfMock.mockReset();
   renderInvoicePdfMock.mockReset();
 
   createPaymentLinkMock.mockResolvedValue({ id: 'plink_1', shortUrl: 'https://rzp.io/l/plink_1' });
+  // Webhook historical-link resolution fix — generateInvoice now reads
+  // cancelPaymentLink's CancelResult (.success) to decide the
+  // PaymentLinkHistory row's finalStatus. Default to a clean success so
+  // every pre-existing test here (none of which are about an uncertain
+  // cancel) keeps working without each one configuring this itself.
+  cancelPaymentLinkMock.mockResolvedValue({ success: true, uncertain: false });
   uploadInvoicePdfMock.mockResolvedValue('https://storage.example/invoices/PB-INV-TEST.pdf');
   renderInvoicePdfMock.mockResolvedValue(Buffer.from('pdf-bytes'));
   prismaMock.invoice.upsert.mockImplementation(((args: any) =>
@@ -83,6 +98,91 @@ beforeEach(() => {
   // for the previous-dues snapshot lookup (getCustomerOutstandingSummary)
   // — overridden per-test below where previous dues are actually tested.
   prismaMock.invoice.findMany.mockResolvedValue([]);
+});
+
+// Payment collection / customer advances rework, Phase 4 — "New Invoice
+// Charges: ₹300 [here ₹1000]... Customer Advance Applied: −₹100 [here
+// −₹300]... Remaining Payable: ₹200 [here ₹700]. The new invoice's own
+// sales/tax amount must remain [unchanged]."
+describe('generateInvoice — customer advance auto-consumption', () => {
+  it('reduces the Razorpay link amount by available credit, applies it to the new invoice, but leaves the taxable amount unchanged', async () => {
+    prismaMock.order.findUnique.mockResolvedValue(BASE_ORDER as any);
+    prismaMock.customerCredit.findMany.mockResolvedValue([
+      { transactionType: 'issued', amountPaise: 30000n, reversalOf: null },
+    ] as any);
+    prismaMock.customerCredit.create.mockResolvedValue({} as any);
+
+    const result = await generateInvoice('order-1');
+
+    // Taxable sales value is the full ₹1000, completely unaffected.
+    expect(result.amount).toBe(1000);
+    // Only the Razorpay link's requested amount is reduced.
+    expect(createPaymentLinkMock).toHaveBeenCalledWith(expect.objectContaining({ amount: 700 }));
+    // The real, authoritative application — written AFTER the invoice has
+    // a real id, as its own immutable transaction row.
+    expect(prismaMock.customerCredit.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          customerId: 'customer-1',
+          transactionType: 'applied',
+          amountPaise: 30000n,
+          appliedToInvoiceId: 'invoice-1',
+          createdById: null,
+        }),
+      })
+    );
+    expect(result.creditApplied).toBe(300);
+  });
+
+  it('never applies more credit than the invoice actually needs, even if more is available', async () => {
+    prismaMock.order.findUnique.mockResolvedValue(BASE_ORDER as any); // ₹1000 charges
+    prismaMock.customerCredit.findMany.mockResolvedValue([
+      { transactionType: 'issued', amountPaise: 150000n, reversalOf: null }, // ₹1500 available
+    ] as any);
+    prismaMock.customerCredit.create.mockResolvedValue({} as any);
+
+    const result = await generateInvoice('order-1');
+
+    expect(result.creditApplied).toBe(1000); // capped at this invoice's own ₹1000 charges
+    expect(createPaymentLinkMock).not.toHaveBeenCalled(); // linkAmount reduced to 0 — fully covered
+  });
+
+  it('applies nothing when the customer has no available credit', async () => {
+    prismaMock.order.findUnique.mockResolvedValue(BASE_ORDER as any);
+
+    const result = await generateInvoice('order-1');
+
+    expect(result.creditApplied).toBe(0);
+    expect(prismaMock.customerCredit.create).not.toHaveBeenCalled();
+    expect(createPaymentLinkMock).toHaveBeenCalledWith(expect.objectContaining({ amount: 1000 }));
+  });
+
+  it('does not re-consume credit on a reissue of the SAME invoice (only a genuinely new invoice auto-consumes)', async () => {
+    prismaMock.order.findUnique.mockResolvedValue({
+      ...BASE_ORDER,
+      invoice: { id: 'invoice-1', invoiceNumber: 'PB-INV-AAAA1111', razorpayPaymentLinkId: 'plink_old', version: 1 },
+    } as any);
+    prismaMock.customerCredit.findMany.mockResolvedValue([
+      { transactionType: 'issued', amountPaise: 30000n, reversalOf: null },
+    ] as any);
+
+    const result = await generateInvoice('order-1');
+
+    expect(result.creditApplied).toBe(0);
+    expect(prismaMock.customerCredit.create).not.toHaveBeenCalled();
+  });
+
+  it('does not auto-consume credit for a monthly-billing order (settled via the ledger, not a payable invoice amount)', async () => {
+    prismaMock.order.findUnique.mockResolvedValue({ ...BASE_ORDER, billingMode: 'monthly_billing' } as any);
+    prismaMock.customerCredit.findMany.mockResolvedValue([
+      { transactionType: 'issued', amountPaise: 30000n, reversalOf: null },
+    ] as any);
+
+    const result = await generateInvoice('order-1');
+
+    expect(result.creditApplied).toBe(0);
+    expect(prismaMock.customerCredit.create).not.toHaveBeenCalled();
+  });
 });
 
 describe('generateInvoice — fresh invoice (no prior Invoice row)', () => {
@@ -287,6 +387,57 @@ describe('generateInvoice — reissue (prior Invoice row exists)', () => {
     await generateInvoice('order-1');
 
     expect(cancelPaymentLinkMock).toHaveBeenCalledWith('plink_old');
+  });
+
+  // Confirmed defect, fixed 2026-10-31 (webhook historical-link resolution
+  // audit): this reissue path used to cancel the old link with NO
+  // PaymentLinkHistory row at all — a late Razorpay webhook for that
+  // retired link had nothing to fall back to and would have landed in the
+  // unmatched-payments queue instead of resolving to the real invoice.
+  it('writes a PaymentLinkHistory row for the retired link, tagged reason "reissue"', async () => {
+    prismaMock.order.findUnique.mockResolvedValue({
+      ...BASE_ORDER,
+      invoice: { ...PREVIOUS_INVOICE, amount: 500, paymentLinkUrl: 'https://rzp.io/l/plink_old' },
+    } as any);
+
+    await generateInvoice('order-1');
+
+    expect(prismaMock.paymentLinkHistory.create).toHaveBeenCalledWith({
+      data: {
+        invoiceId: 'invoice-1',
+        razorpayPaymentLinkId: 'plink_old',
+        paymentLinkUrl: 'https://rzp.io/l/plink_old',
+        amountPaise: 50000n,
+        finalStatus: 'cancelled',
+        retiredReason: 'reissue',
+        retiredAt: expect.any(Date),
+      },
+    });
+  });
+
+  it('records finalStatus "cancel_uncertain" when the provider cancel result is uncertain, rather than claiming a clean cancellation', async () => {
+    cancelPaymentLinkMock.mockResolvedValue({ success: false, uncertain: true, error: 'timeout' });
+    prismaMock.order.findUnique.mockResolvedValue({
+      ...BASE_ORDER,
+      invoice: { ...PREVIOUS_INVOICE, amount: 500, paymentLinkUrl: 'https://rzp.io/l/plink_old' },
+    } as any);
+
+    await generateInvoice('order-1');
+
+    expect(prismaMock.paymentLinkHistory.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ finalStatus: 'cancel_uncertain' }) })
+    );
+  });
+
+  it('does not write a PaymentLinkHistory row when there was no previous link to cancel', async () => {
+    prismaMock.order.findUnique.mockResolvedValue({
+      ...BASE_ORDER,
+      invoice: { ...PREVIOUS_INVOICE, razorpayPaymentLinkId: null },
+    } as any);
+
+    await generateInvoice('order-1');
+
+    expect(prismaMock.paymentLinkHistory.create).not.toHaveBeenCalled();
   });
 
   it('bumps the version and suffixes the invoice number with -R{version}', async () => {

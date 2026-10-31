@@ -15,6 +15,10 @@ import {
   reverseAdjustmentHandler,
   listInvoiceAdjustmentsHandler,
 } from '../controllers/invoiceAdjustmentController';
+import {
+  listUnmatchedPaymentsHandler,
+  resolveUnmatchedPaymentHandler,
+} from '../controllers/unmatchedPaymentController';
 
 // All admin-only — Stage B of the Static Bank UPI Workflow (verifying a
 // staff-reported transfer against the real bank account) and reconciliation
@@ -34,6 +38,13 @@ router.patch('/reconciliation-exceptions/:id/resolve', resolveReconciliationExce
 
 router.post('/bank-statement/import', importBankStatementHandler);
 router.get('/bank-statement/unmatched', listUnmatchedBankTransactionsHandler);
+
+// Webhook historical-link resolution fix — a verified Razorpay receipt that
+// couldn't be tied to any invoice at all (neither the active link nor
+// payment_link_history matched). Should be unreachable in normal operation;
+// exists so it's never silently dropped if it ever is reached.
+router.get('/unmatched-provider-payments', listUnmatchedPaymentsHandler);
+router.patch('/unmatched-provider-payments/:id/resolve', resolveUnmatchedPaymentHandler);
 
 // Admin Payment Override — admin-only (this whole router already is), per
 // spec section 5's "Staff must not be able to perform the operation by

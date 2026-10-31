@@ -1209,6 +1209,101 @@ describe('recordPayment', () => {
 
     expect(notifyAdminsMock).not.toHaveBeenCalled();
   });
+
+  // Payment collection / customer advances rework (2026-10-31), Phase 2/3.
+  // Invoice: ₹400 outstanding throughout. Customer tenders ₹500 — ₹100
+  // excess, handled three different ways by explicit staff choice.
+  describe('excess-cash handling (amountTendered + excessHandling)', () => {
+    const mockOrderWithOutstanding400 = () => {
+      prismaMock.invoice.findUnique.mockResolvedValue({ id: 'invoice-1', orderId: 'order-1', amount: 400 } as any);
+      prismaMock.payment.findMany.mockResolvedValue([]);
+      prismaMock.order.findUnique.mockResolvedValue({
+        id: 'order-1',
+        orderNumber: 'PB-TEST',
+        customerId: 'customer-1',
+        staffId: 'staff-1',
+        finalAmount: 400,
+        billingMode: 'daily',
+        invoice: { id: 'invoice-1', amount: 400 },
+        customer: PAYMENT_CUSTOMER,
+      } as any);
+    };
+
+    it('rejects excessHandling without amountTendered', async () => {
+      mockOrderWithOutstanding400();
+      await expect(
+        recordPayment('order-1', 'cash', 'staff-1', 'staff', { excessHandling: 'advance' })
+      ).rejects.toMatchObject({ status: 400 });
+      expect(prismaMock.payment.create).not.toHaveBeenCalled();
+    });
+
+    // Option A — the business retains only the ₹400 owed; ₹500 tendered
+    // and ₹100 change are recorded as audit fields on the SAME Payment
+    // row, but the GROSS amount fed into the ledger is the ₹400 net
+    // figure — so no excess ever reaches the allocation math, and no
+    // advance/exception is created at all.
+    it('return_change: records net ₹400 retained, with tendered/change as audit fields, and creates no advance or exception', async () => {
+      mockOrderWithOutstanding400();
+      prismaMock.payment.create.mockResolvedValue({ id: 'payment-1', amountPaise: 40000n, allocatedPaise: 40000n } as any);
+
+      const result = await recordPayment('order-1', 'cash', 'staff-1', 'staff', {
+        amountTendered: 500,
+        excessHandling: 'return_change',
+      });
+
+      expect(prismaMock.payment.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ amount: 400, amountPaise: 40000n, amountTenderedPaise: 50000n, changeReturnedPaise: 10000n }),
+        })
+      );
+      expect(prismaMock.customerCredit.create).not.toHaveBeenCalled();
+      expect(prismaMock.paymentReconciliationException.create).not.toHaveBeenCalled();
+      expect(result.cashBreakdown).toEqual({ amountTendered: 500, amountApplied: 400, changeReturned: 100, advanceCreated: 0 });
+    });
+
+    // Option B — the FULL ₹500 is the gross receipt; ₹400 allocates to the
+    // invoice, ₹100 becomes a CustomerCredit instead of the default
+    // 'overpayment' exception.
+    it('advance: records the full ₹500 tendered, applies ₹400, and converts the ₹100 excess into a CustomerCredit', async () => {
+      mockOrderWithOutstanding400();
+      prismaMock.payment.create.mockResolvedValue({ id: 'payment-1', amountPaise: 50000n, allocatedPaise: 40000n } as any);
+      prismaMock.customerCredit.create.mockResolvedValue({} as any);
+
+      const result = await recordPayment('order-1', 'cash', 'staff-1', 'staff', {
+        amountTendered: 500,
+        excessHandling: 'advance',
+      });
+
+      expect(prismaMock.payment.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ amountPaise: 50000n, amountTenderedPaise: 50000n }) })
+      );
+      expect(prismaMock.customerCredit.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ customerId: 'customer-1', transactionType: 'issued', amountPaise: 10000n, sourcePaymentId: 'payment-1' }) })
+      );
+      expect(prismaMock.paymentReconciliationException.create).not.toHaveBeenCalled();
+      expect(result.cashBreakdown).toEqual({ amountTendered: 500, amountApplied: 400, changeReturned: 0, advanceCreated: 100 });
+    });
+
+    // Option C — same full-₹500 gross receipt, but the ₹100 excess becomes
+    // a PaymentReconciliationException flagged specifically as
+    // 'unapplied_cash_pending_review' (NOT the generic 'overpayment' label
+    // and NOT silently turned into an advance).
+    it('pending_review: records the full ₹500 tendered, applies ₹400, and flags the ₹100 excess for Admin review', async () => {
+      mockOrderWithOutstanding400();
+      prismaMock.payment.create.mockResolvedValue({ id: 'payment-1', amountPaise: 50000n, allocatedPaise: 40000n } as any);
+
+      const result = await recordPayment('order-1', 'cash', 'staff-1', 'staff', {
+        amountTendered: 500,
+        excessHandling: 'pending_review',
+      });
+
+      expect(prismaMock.paymentReconciliationException.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ exceptionType: 'unapplied_cash_pending_review', excessPaise: 10000n }) })
+      );
+      expect(prismaMock.customerCredit.create).not.toHaveBeenCalled();
+      expect(result.cashBreakdown).toEqual({ amountTendered: 500, amountApplied: 400, changeReturned: 0, advanceCreated: 0 });
+    });
+  });
 });
 
 // Webhook-driven counterpart to recordPayment — see CLAUDE.md "Razorpay

@@ -2,7 +2,9 @@ import 'express-async-errors';
 import express from 'express';
 import request from 'supertest';
 import { mockDeep, mockReset, DeepMockProxy } from 'jest-mock-extended';
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
+
+const { PrismaClientKnownRequestError } = Prisma;
 
 jest.mock('../prisma/client', () => ({
   __esModule: true,
@@ -129,16 +131,147 @@ describe('POST /razorpay — payment_link.paid', () => {
     expect(recordOnlinePaymentMock).toHaveBeenCalledWith('order-1', 'credit_card', 100, 'pay_1', 'wallet');
   });
 
-  it('does not call recordOnlinePayment when no matching invoice is found', async () => {
-    prismaMock.invoice.findFirst.mockResolvedValue(null);
+  // Confirmed defect, fixed 2026-10-31: the active-link lookup alone used to
+  // be the only resolution path — a late webhook for a link retired by an
+  // admin waiver, a reissue, or a cash/bank_upi settlement found no invoice
+  // and was silently dropped. This now falls back to PaymentLinkHistory
+  // (which retains the original link->invoice mapping) before giving up.
+  describe('historical-link fallback resolution', () => {
+    it('resolves the invoice via PaymentLinkHistory when the active-link lookup misses (late payment on a retired link)', async () => {
+      prismaMock.invoice.findFirst.mockResolvedValue(null);
+      prismaMock.paymentLinkHistory.findFirst.mockResolvedValue({ invoiceId: 'inv-1' } as any);
+      prismaMock.invoice.findUnique.mockResolvedValue({ id: 'inv-1', orderId: 'order-1' } as any);
+
+      const res = await request(app)
+        .post('/api/v1/webhooks/razorpay')
+        .set('x-razorpay-signature', 'sig123')
+        .send(paymentLinkPaidPayload);
+
+      expect(res.status).toBe(200);
+      expect(prismaMock.paymentLinkHistory.findFirst).toHaveBeenCalledWith({
+        where: { razorpayPaymentLinkId: 'plink_abc123', invoiceId: { not: null } },
+        orderBy: { retiredAt: 'desc' },
+      });
+      expect(prismaMock.invoice.findUnique).toHaveBeenCalledWith({ where: { id: 'inv-1' } });
+      expect(recordOnlinePaymentMock).toHaveBeenCalledWith('order-1', 'upi', 499, 'pay_xyz789', 'upi');
+      expect(prismaMock.unmatchedProviderPayment.create).not.toHaveBeenCalled();
+    });
+
+    // Dedicated coverage per retirement cause (2026-10-31 follow-up) — the
+    // resolution query itself filters only on razorpayPaymentLinkId and
+    // invoiceId being set; it must not care WHY the link was retired.
+    // Confirms this holds for all three real retiredReason values a late
+    // payment can plausibly land after: an invoice reissue
+    // (invoiceService.ts's generateInvoice), and a full/partial cash
+    // settlement (orderService.ts::recordPayment, via retireOrReplaceLink).
+    it.each(['reissue', 'cash_full', 'cash_partial'])(
+      'resolves correctly via PaymentLinkHistory regardless of retiredReason (%s)',
+      async (retiredReason) => {
+        prismaMock.invoice.findFirst.mockResolvedValue(null);
+        prismaMock.paymentLinkHistory.findFirst.mockResolvedValue({ invoiceId: 'inv-1', retiredReason } as any);
+        prismaMock.invoice.findUnique.mockResolvedValue({ id: 'inv-1', orderId: 'order-1' } as any);
+
+        const res = await request(app)
+          .post('/api/v1/webhooks/razorpay')
+          .set('x-razorpay-signature', 'sig123')
+          .send(paymentLinkPaidPayload);
+
+        expect(res.status).toBe(200);
+        expect(recordOnlinePaymentMock).toHaveBeenCalledWith('order-1', 'upi', 499, 'pay_xyz789', 'upi');
+        expect(prismaMock.unmatchedProviderPayment.create).not.toHaveBeenCalled();
+      }
+    );
+
+    it('persists to the unmatched-payments queue, without calling recordOnlinePayment, when neither the active link nor history resolves an invoice', async () => {
+      prismaMock.invoice.findFirst.mockResolvedValue(null);
+      prismaMock.paymentLinkHistory.findFirst.mockResolvedValue(null);
+
+      const res = await request(app)
+        .post('/api/v1/webhooks/razorpay')
+        .set('x-razorpay-signature', 'sig123')
+        .send(paymentLinkPaidPayload);
+
+      expect(res.status).toBe(200);
+      expect(recordOnlinePaymentMock).not.toHaveBeenCalled();
+      expect(prismaMock.unmatchedProviderPayment.create).toHaveBeenCalledWith({
+        data: {
+          razorpayPaymentId: 'pay_xyz789',
+          razorpayPaymentLinkId: 'plink_abc123',
+          amountPaise: 49900n,
+          rawPayload: paymentLinkPaidPayload,
+        },
+      });
+    });
+
+    it('does not duplicate the unmatched-payment row when the same unresolved payment is redelivered', async () => {
+      prismaMock.invoice.findFirst.mockResolvedValue(null);
+      prismaMock.paymentLinkHistory.findFirst.mockResolvedValue(null);
+      prismaMock.unmatchedProviderPayment.create.mockRejectedValue(
+        new PrismaClientKnownRequestError('Unique constraint failed', { code: 'P2002', clientVersion: '5.0.0' })
+      );
+
+      const res = await request(app)
+        .post('/api/v1/webhooks/razorpay')
+        .set('x-razorpay-signature', 'sig123')
+        .send(paymentLinkPaidPayload);
+
+      expect(res.status).toBe(200);
+    });
+
+    // "Do not acknowledge a webhook as successfully processed if a
+    // recoverable database failure prevented durable recording — allow safe
+    // retries." A genuine (non-duplicate) failure while persisting the
+    // unmatched payment must NOT ack 200.
+    it('does not return 200 when persisting an unresolvable payment fails for a reason other than a duplicate', async () => {
+      prismaMock.invoice.findFirst.mockResolvedValue(null);
+      prismaMock.paymentLinkHistory.findFirst.mockResolvedValue(null);
+      prismaMock.unmatchedProviderPayment.create.mockRejectedValue(new Error('connection reset'));
+
+      const res = await request(app)
+        .post('/api/v1/webhooks/razorpay')
+        .set('x-razorpay-signature', 'sig123')
+        .send(paymentLinkPaidPayload);
+
+      expect(res.status).toBe(500);
+    });
+  });
+
+  // Required: "extract and validate the actual Razorpay Payment ID and
+  // captured/settled status" — payment_link.paid should normally only fire
+  // once the payment is captured, but this is not trusted blindly.
+  it('ignores the event (no invoice lookup, no recording) when payment.status is present and not "captured"', async () => {
+    const res = await request(app)
+      .post('/api/v1/webhooks/razorpay')
+      .set('x-razorpay-signature', 'sig123')
+      .send({
+        event: 'payment_link.paid',
+        payload: {
+          payment_link: { entity: { id: 'plink_abc123' } },
+          payment: { entity: { id: 'pay_xyz789', method: 'upi', amount: 49900, status: 'authorized' } },
+        },
+      });
+
+    expect(res.status).toBe(200);
+    expect(prismaMock.invoice.findFirst).not.toHaveBeenCalled();
+    expect(recordOnlinePaymentMock).not.toHaveBeenCalled();
+  });
+
+  it('still proceeds normally when payment.status is "captured"', async () => {
+    prismaMock.invoice.findFirst.mockResolvedValue({ id: 'inv-1', orderId: 'order-1' } as any);
 
     const res = await request(app)
       .post('/api/v1/webhooks/razorpay')
       .set('x-razorpay-signature', 'sig123')
-      .send(paymentLinkPaidPayload);
+      .send({
+        event: 'payment_link.paid',
+        payload: {
+          payment_link: { entity: { id: 'plink_abc123' } },
+          payment: { entity: { id: 'pay_xyz789', method: 'upi', amount: 49900, status: 'captured' } },
+        },
+      });
 
     expect(res.status).toBe(200);
-    expect(recordOnlinePaymentMock).not.toHaveBeenCalled();
+    expect(recordOnlinePaymentMock).toHaveBeenCalledWith('order-1', 'upi', 499, 'pay_xyz789', 'upi');
   });
 
   it('still returns 200 when recordOnlinePayment reports a monthly_billing_anomaly (logged, not thrown)', async () => {

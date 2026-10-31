@@ -70,6 +70,8 @@ model User {
   vendorInvoicesPaid       VendorInvoice[] @relation("VendorInvoicePaidBy")
   vendorInvoicesVoided     VendorInvoice[] @relation("VendorInvoiceVoidedBy")
   vendorInvoiceAuditActions VendorInvoiceAudit[]
+  resolvedUnmatchedPayments UnmatchedProviderPayment[]
+  customerCreditsCreated CustomerCredit[]
 
   @@index([branchId], map: "idx_users_branch")
   @@map("users")
@@ -142,6 +144,8 @@ model Customer {
   reconciliationExceptions PaymentReconciliationException[]
   paymentRequests   PaymentRequest[]
   reminderLog       PaymentReminderLog[]
+  customerCredits   CustomerCredit[]
+  notificationOutboxEntries NotificationOutbox[]
 
   @@index([branchId, locationLabel], map: "idx_customers_branch")
   @@map("customers")
@@ -399,6 +403,17 @@ model Payment {
   verifiedAt        DateTime? @map("verified_at") @db.Timestamptz(6)
   // Values: pending | success | failed | refunded
   status          String   @default("pending") @db.VarChar(20)
+  // Payment collection / customer advances rework (2026-10-31) — cash only,
+  // both nullable since they're meaningless for razorpay/bank_upi. Keeps
+  // "money physically handed over" (amountTenderedPaise), "money the
+  // business actually retains" (amountPaise, unchanged meaning), and
+  // "change handed back" (changeReturnedPaise) as three distinct, never-
+  // interchangeable figures (spec Phase 8) — amountPaise itself is NEVER
+  // the tendered amount for a return-change payment; it's already the net
+  // retained figure, by design of how recordCashPaymentWithExcessHandling
+  // calls recordVerifiedPayment (see paymentLedgerService.ts).
+  amountTenderedPaise BigInt? @map("amount_tendered_paise")
+  changeReturnedPaise BigInt? @map("change_returned_paise")
   // Nullable: a staff/admin-recorded payment (orderService.ts::recordPayment)
   // always has a human actor here, but a Razorpay-webhook-driven payment
   // (webhookController.ts, customer paid online, nobody at Peach & Blue
@@ -414,6 +429,7 @@ model Payment {
   notes           String?
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   matchedBankTransaction BankTransaction?
+  customerCreditsSourced CustomerCredit[]
   // NEW (outstanding-dues rework) — set instead of invoiceId when this
   // payment came in through a combined PaymentRequest (multiple invoices
   // at once) rather than directly against one invoice. Mutually exclusive
@@ -609,6 +625,12 @@ model PaymentLinkHistory {
 
   @@index([invoiceId], map: "idx_link_history_invoice")
   @@index([paymentRequestId], map: "idx_link_history_payment_request")
+  // Webhook historical-link resolution fix (2026-10-31) — the fallback
+  // lookup in webhookController.ts::resolveInvoiceForLink now queries this
+  // table directly by razorpayPaymentLinkId whenever the active-link lookup
+  // on Invoice misses (a retired/replaced link, e.g. after an admin waiver,
+  // reissue, or cash/bank_upi settlement that cancelled the old link).
+  @@index([razorpayPaymentLinkId], map: "idx_link_history_link_id")
   @@map("payment_link_history")
 }
 
@@ -685,6 +707,45 @@ model PaymentReconciliationException {
   @@index([paymentRequestId], map: "idx_reconciliation_payment_request")
   @@index([status], map: "idx_reconciliation_status")
   @@map("payment_reconciliation_exceptions")
+}
+
+// Webhook historical-link resolution fix (2026-10-31) — a durable queue for
+// a verified Razorpay receipt whose payment-link id matches NEITHER an
+// Invoice's current razorpayPaymentLinkId NOR any historical row in
+// PaymentLinkHistory. Should be unreachable in normal operation (Peach &
+// Blue controls every link it ever creates and always records one of these
+// two mappings), but "do not discard a verified receipt if the invoice
+// cannot be resolved — persist it in a durable unmatched-payment
+// reconciliation queue for investigation" is an explicit requirement, not
+// an edge case to silently log-and-drop. Distinct from
+// PaymentReconciliationException, which always requires a resolved
+// customerId/invoiceId — this model exists specifically for the case where
+// even that much isn't known yet.
+model UnmatchedProviderPayment {
+  id                    String    @id @default(uuid()) @db.Uuid
+  provider              String    @default("razorpay") @map("provider") @db.VarChar(20)
+  // Unique — the real dedup key. A redelivered webhook for a payment that's
+  // already queued here must not create a second row (spec: "do not create
+  // a second receipt for a repeated webhook with the same Razorpay Payment
+  // ID" applies here too, not just to the normal resolved-invoice path).
+  razorpayPaymentId     String    @unique @map("razorpay_payment_id") @db.VarChar(100)
+  razorpayPaymentLinkId String?   @map("razorpay_payment_link_id") @db.VarChar(100)
+  amountPaise           BigInt    @map("amount_paise")
+  // Full webhook payload, for whoever investigates this — the payment/link
+  // ids above are pulled out for querying, but the raw body has everything
+  // else (method, email, contact, notes) a human would need to trace this
+  // back to a real order/customer manually.
+  rawPayload            Json      @map("raw_payload")
+  // Values: unresolved | resolved | ignored
+  status                String    @default("unresolved") @map("status") @db.VarChar(20)
+  resolutionNotes       String?   @map("resolution_notes")
+  resolvedBy            User?     @relation(fields: [resolvedById], references: [id])
+  resolvedById          String?   @map("resolved_by") @db.Uuid
+  resolvedAt            DateTime? @map("resolved_at") @db.Timestamptz(6)
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([status], map: "idx_unmatched_payment_status")
+  @@map("unmatched_provider_payments")
 }
 
 // Imported bank-statement rows for the static-QR UPI workflow's
@@ -810,6 +871,7 @@ model Invoice {
   linkTransitions PaymentLinkTransition[]
   reconciliationExceptions PaymentReconciliationException[]
   adjustments  InvoiceAdjustment[]
+  customerCreditsApplied CustomerCredit[]
 
   @@map("invoices")
 }
@@ -939,6 +1001,113 @@ model VendorInvoiceAudit {
 
   @@index([vendorInvoiceId], map: "idx_vendor_invoice_audit_invoice")
   @@map("vendor_invoice_audit")
+}
+
+// Payment collection / customer advances rework (2026-10-31), Phase 4 — an
+// append-only transaction log, NOT a mutable balance field. Same "derive,
+// don't duplicate" principle this codebase already uses for
+// internalStatus/getDisplayName — a customer's available credit is always
+// SUM(amountPaise WHERE transactionType = 'issued') - SUM(... = 'applied'
+// OR 'refunded'), computed under a row-lock (see
+// customerCreditService.ts::lockCustomerCreditForUpdate) the same way
+// lockInvoiceForUpdate already protects invoice outstanding, so a
+// concurrent apply/refund can't double-spend the same balance.
+//
+// One row per event, never rewritten — `applied`'s row IS the immutable
+// per-invoice snapshot of what was deducted at generation time (same
+// immutability principle as InvoicePreviousDuesLine; no separate snapshot
+// table needed since appliedToInvoiceId already anchors it).
+model CustomerCredit {
+  id            String   @id @default(uuid()) @db.Uuid
+  customer      Customer @relation(fields: [customerId], references: [id])
+  customerId    String   @map("customer_id") @db.Uuid
+  // Values: issued | applied | refunded | reversed
+  //   issued   — created from an excess cash payment (Phase 3 Option B) or
+  //              an admin's "convert to advance" resolution of a pending-
+  //              review exception.
+  //   applied  — consumed against a new invoice at generation time (Phase
+  //              4), amountPaise negative-in-effect but stored positive
+  //              with appliedToInvoiceId set — balance math subtracts it.
+  //   refunded — an authorized refund of previously-issued credit back to
+  //              the customer (Phase 4: "must be recorded as an actual
+  //              refund transaction with appropriate authorization").
+  //   reversed — undoes a mistaken `issued`/`applied` row (never deletes
+  //              the original), same non-destructive pattern as
+  //              InvoiceAdjustment's reversal.
+  transactionType String @map("transaction_type") @db.VarChar(20)
+  amountPaise   BigInt   @map("amount_paise")
+  // Which Payment physically produced an `issued` row (the excess cash
+  // receipt) — null for `applied`/`refunded`/`reversed`.
+  sourcePayment   Payment? @relation(fields: [sourcePaymentId], references: [id])
+  sourcePaymentId String?  @map("source_payment_id") @db.Uuid
+  // Which NEW invoice consumed this credit — set only for `applied`.
+  appliedToInvoice   Invoice? @relation(fields: [appliedToInvoiceId], references: [id])
+  appliedToInvoiceId String?  @map("applied_to_invoice_id") @db.Uuid
+  // Which reconciliation exception this `issued` row resolved, when the
+  // credit came from an admin converting a pending-review excess rather
+  // than a staff-chosen advance at the counter. Null for every other case.
+  resolvedExceptionId String? @map("resolved_exception_id") @db.Uuid
+  // Self-relation, `transactionType: 'reversed'` only — points at the
+  // original `issued`/`applied`/`refunded` row being undone. The balance
+  // calculation (customerCreditService.ts::getCustomerCreditBalance) looks
+  // up that row's own type to determine the reversal's sign (undoing an
+  // `issued` row subtracts; undoing an `applied` row adds back), rather
+  // than hardcoding one fixed sign for every reversal — the ORIGINAL row
+  // is never mutated or deleted either way, per the non-destructive
+  // pattern this codebase already uses for InvoiceAdjustment.
+  reversalOf    CustomerCredit?  @relation("CustomerCreditReversal", fields: [reversalOfId], references: [id])
+  reversalOfId  String?  @map("reversal_of_id") @db.Uuid
+  reversals     CustomerCredit[] @relation("CustomerCreditReversal")
+  reason        String?
+  // Nullable — same convention as Payment.recordedById (CLAUDE.md: "a
+  // staff-recorded payment always has a human actor... a webhook-driven
+  // one genuinely doesn't. null means 'the system'"). The auto-consumption
+  // at invoice generation (invoiceService.ts) has no human actor at all.
+  createdBy     User?    @relation(fields: [createdById], references: [id])
+  createdById   String?  @map("created_by") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([customerId, createdAt], map: "idx_customer_credit_customer")
+  @@index([appliedToInvoiceId], map: "idx_customer_credit_invoice")
+  @@map("customer_credits")
+}
+
+// Payment collection / customer advances rework, Phase 6 — a minimal
+// durable retry mechanism for a WhatsApp send that failed, sized to what
+// the spec actually asks for ("do not roll back a successfully recorded
+// payment if WhatsApp delivery fails... use a durable notification outbox
+// or equivalent retry mechanism") rather than a general-purpose queue.
+// CommunicationLog (status: sent | failed) already records the outcome;
+// this is additive — a row here exists ONLY for a failed send that still
+// needs retrying, and is deleted once it succeeds or is abandoned.
+model NotificationOutbox {
+  id            String   @id @default(uuid()) @db.Uuid
+  customer      Customer? @relation(fields: [customerId], references: [id])
+  customerId    String?  @map("customer_id") @db.Uuid
+  // Null when the failed send was an admin notification (no Customer row
+  // to point at) — recipientPhoneNumber carries the real target either way.
+  recipientPhoneNumber String @map("recipient_phone_number") @db.VarChar(20)
+  fromNumber    String   @map("from_number") @db.VarChar(20)
+  templateName  String   @map("template_name") @db.VarChar(100)
+  templateLanguage String @default("en") @map("template_language") @db.VarChar(10)
+  bodyVariables String[] @map("body_variables")
+  buttonUrlParam String? @map("button_url_param")
+  // Some templates (e.g. delivery_confirmation) have a MANDATORY header
+  // component — the message is silently dropped by Meta without it (same
+  // confirmed failure mode as every other missing-component bug this
+  // project has already hit). Stored so a retry is a faithful resend, not
+  // a degraded one missing a required component.
+  headerMediaUrl String? @map("header_media_url")
+  headerType    String? @map("header_type") @db.VarChar(10)
+  // Values: pending | sent | abandoned
+  status        String   @default("pending") @db.VarChar(20)
+  attempts      Int      @default(0)
+  lastError     String?  @map("last_error")
+  nextRetryAt   DateTime @default(now()) @map("next_retry_at") @db.Timestamptz(6)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([status, nextRetryAt], map: "idx_notification_outbox_retry")
+  @@map("notification_outbox")
 }
 
 model CommunicationLog {

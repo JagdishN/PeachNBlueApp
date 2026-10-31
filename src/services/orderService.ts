@@ -14,6 +14,7 @@ import { extractPaymentLinkSuffix } from '../utils/paymentLink';
 import { getTurnaroundLabel } from '../utils/turnaround';
 import { getInvoicePaymentSummary, recordVerifiedPayment, paiseToDisplayAmount, InvoicePaymentSummary } from './paymentLedgerService';
 import { retireOrReplaceLink, LinkTransitionReason } from './paymentLinkLifecycle';
+import { fromPaise, toPaise } from '../utils/money';
 
 // delivery_confirmation's header_1 (image) — real gap found and confirmed
 // 2026-09-03 via a live send comparison: MSG91 returns status: "success"
@@ -607,12 +608,37 @@ const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
 export interface RecordPaymentOptions {
   amount?: number;
   idempotencyKey?: string;
+  // Payment collection / customer advances rework (2026-10-31), Phase 2/3 —
+  // both OPTIONAL and only meaningful together. When neither is given,
+  // recordPayment behaves EXACTLY as it did before this rework: `amount`
+  // (or the full outstanding balance, if omitted) is applied as-is, and
+  // any amount beyond outstanding becomes a generic 'overpayment'
+  // exception — unchanged, full backward compatibility.
+  //
+  // When both ARE given, amountTendered is what the customer physically
+  // handed over and excessHandling is the staff's explicit choice for
+  // anything beyond the invoice's outstanding balance:
+  //   'return_change'  — Option A: apply only what's owed, change handed
+  //                       back is recorded but never becomes an advance
+  //                       or an exception (net retained = outstanding).
+  //   'advance'        — Option B: apply what's owed, the rest becomes a
+  //                       CustomerCredit for this customer.
+  //   'pending_review' — Option C: apply what's owed, the rest becomes a
+  //                       PaymentReconciliationException
+  //                       ('unapplied_cash_pending_review') for Admin to
+  //                       resolve — never silently turned into an advance.
+  amountTendered?: number;
+  excessHandling?: 'return_change' | 'advance' | 'pending_review';
 }
 
 export interface RecordPaymentResult {
   order: unknown;
   paymentSummary: InvoicePaymentSummary;
   overpayment: boolean;
+  // Present only for a cash payment that used the new tendered/excess-
+  // handling fields — undefined for the legacy call shape, so existing
+  // mobile clients that don't read this see no behavior change.
+  cashBreakdown?: { amountTendered: number; amountApplied: number; changeReturned: number; advanceCreated: number };
 }
 
 export const recordPayment = async (
@@ -701,17 +727,74 @@ export const recordPayment = async (
     throw err;
   }
 
+  if (options.excessHandling && options.amountTendered === undefined) {
+    const err = new Error('amountTendered is required when excessHandling is specified.');
+    (err as any).status = 400;
+    throw err;
+  }
+
+  // Payment collection / customer advances rework, Phase 2/3 — defaults to
+  // the exact pre-existing behavior (grossAmountForLedger === amount, no
+  // tendered/change tracking, no excessHandling override) unless the
+  // caller opted into the new fields.
+  let grossAmountForLedger = amount;
+  let amountTenderedPaise: bigint | null = null;
+  let changeReturnedPaise: bigint | null = null;
+  let excessHandlingOption: Parameters<typeof recordVerifiedPayment>[1]['excessHandling'];
+
+  if (options.excessHandling && options.amountTendered !== undefined) {
+    if (!(options.amountTendered > 0)) {
+      const err = new Error('amountTendered must be greater than zero.');
+      (err as any).status = 400;
+      throw err;
+    }
+    const tenderedPaise = toPaise(options.amountTendered);
+    amountTenderedPaise = tenderedPaise;
+
+    if (options.excessHandling === 'return_change') {
+      // Option A: net amount actually RETAINED by the business is capped
+      // at outstanding — "Net cash collected: ₹400... cash reports reflect
+      // ₹400 retained, not ₹500." No excess ever reaches
+      // recordVerifiedPayment's allocation math for this branch, by
+      // construction, so no advance/exception is possible here.
+      const outstandingPaise = summaryBefore.outstandingPaise;
+      const netPaise = tenderedPaise < outstandingPaise ? tenderedPaise : outstandingPaise;
+      changeReturnedPaise = tenderedPaise > netPaise ? tenderedPaise - netPaise : 0n;
+      grossAmountForLedger = fromPaise(netPaise);
+    } else if (options.excessHandling === 'advance') {
+      // Option B: the FULL tendered amount is the gross receipt — whatever
+      // exceeds outstanding becomes a CustomerCredit instead of the
+      // default 'overpayment' exception.
+      grossAmountForLedger = options.amountTendered;
+      excessHandlingOption = {
+        kind: 'customer_credit',
+        createdById: recordedById,
+        reason: `Excess cash from order ${order.orderNumber}, recorded as a customer advance by staff at payment time.`,
+      };
+    } else {
+      // Option C: same full-tendered gross receipt, but the excess is
+      // explicitly flagged for Admin review rather than silently becoming
+      // either a plain advance or a generic overpayment label.
+      grossAmountForLedger = options.amountTendered;
+      excessHandlingOption = { kind: 'reconciliation_exception', exceptionType: 'unapplied_cash_pending_review' };
+    }
+  }
+
   // Deliberately NOT capped to the outstanding balance — spec 6: "Do not
   // silently cap or discard money actually received above the outstanding
   // amount. Record excess collection as an exception." An amount greater
   // than what's owed is accepted here and flows into the overpayment path
-  // inside recordVerifiedPayment/paymentLedgerService.
-  const { summary, excessPaise } = await prisma.$transaction(async (tx) =>
+  // inside recordVerifiedPayment/paymentLedgerService, unless excessHandling
+  // above has already routed it elsewhere.
+  const { summary, excessPaise, payment: ledgerPayment } = await prisma.$transaction(async (tx) =>
     recordVerifiedPayment(tx, {
       invoiceId: order.invoice!.id,
       orderId,
       customerId: order.customerId,
-      grossAmount: amount,
+      grossAmount: grossAmountForLedger,
+      amountTenderedPaise,
+      changeReturnedPaise,
+      excessHandling: excessHandlingOption,
       paymentType: 'order_payment',
       paymentMethod,
       paymentSource: 'cash',
@@ -719,6 +802,12 @@ export const recordPayment = async (
       idempotencyKey: options.idempotencyKey ?? null,
     })
   );
+
+  // What actually got applied to the invoice THIS time — used both for the
+  // WhatsApp notification below (never the tendered amount, per the
+  // interim-template decision — see msg91Templates.ts) and the
+  // cashBreakdown returned to the caller.
+  const amountApplied = fromPaise(ledgerPayment.allocatedPaise);
 
   // Payment-link lifecycle: cancel the now-stale Razorpay link and, if a
   // balance remains, replace it with a link for exactly that remaining
@@ -742,13 +831,22 @@ export const recordPayment = async (
   // same admin-reuse pattern as the pickup/delivery notifications. Amount
   // in the notification reflects what was ACTUALLY collected THIS TIME
   // (which may be partial), not necessarily the full payable total.
+  // Payment collection / customer advances rework — interim decision
+  // (2026-10-31, confirmed): the real approved payment_receipt template
+  // still only has 4 fixed variables (name, amount, order#, method), no
+  // slot for a tendered/applied/advance breakdown. Sends the APPLIED
+  // amount, never the tendered one, so nothing false is communicated via
+  // WhatsApp while a richer template (see msg91Templates.ts's
+  // paymentReceiptWithAdvance, not yet submitted to Meta) is pending
+  // approval. The full breakdown is still visible in-app (cashBreakdown
+  // below) and in CustomerCredit/PaymentReconciliationException records.
   await sendNotification(
     order.customer,
     'payment_receipt',
     {
       name: MSG91_TEMPLATES.paymentReceipt.name,
       language: MSG91_TEMPLATES.paymentReceipt.language,
-      bodyVariables: [order.customer.fullName, String(amount), order.orderNumber, PAYMENT_METHOD_LABELS[paymentMethod]],
+      bodyVariables: [order.customer.fullName, String(amountApplied), order.orderNumber, PAYMENT_METHOD_LABELS[paymentMethod]],
     },
     orderId
   );
@@ -763,7 +861,7 @@ export const recordPayment = async (
         language: MSG91_TEMPLATES.paymentReceipt.language,
         bodyVariables: [
           order.customer.locationLabel,
-          String(amount),
+          String(amountApplied),
           order.orderNumber,
           PAYMENT_METHOD_LABELS[paymentMethod],
         ],
@@ -772,7 +870,19 @@ export const recordPayment = async (
     );
   }
 
-  return { order: updatedOrder, paymentSummary: summary, overpayment: excessPaise > 0n };
+  return {
+    order: updatedOrder,
+    paymentSummary: summary,
+    overpayment: excessPaise > 0n,
+    cashBreakdown: options.excessHandling
+      ? {
+          amountTendered: options.amountTendered ?? amount,
+          amountApplied,
+          changeReturned: changeReturnedPaise ? fromPaise(changeReturnedPaise) : 0,
+          advanceCreated: options.excessHandling === 'advance' ? fromPaise(excessPaise) : 0,
+        }
+      : undefined,
+  };
 };
 
 export type OnlinePaymentResult =

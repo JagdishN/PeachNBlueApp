@@ -136,6 +136,46 @@ export const MSG91_TEMPLATES = {
   // {{2}} statement month/period, {{3}} total due.
   monthlyStatementReady: { name: 'monthly_statement_ready', variableCount: 3, status: 'approved' as const, language: 'en' },
 
+  // NOT YET CREATED/SUBMITTED — payment collection / customer advances
+  // rework (2026-10-31), Phase 6. The real approved paymentReceipt above
+  // only has 4 fixed variables (name, amount, order#, method), with no
+  // slot for a tendered/applied/advance/outstanding breakdown — the richer
+  // messages this spec's examples show (e.g. "Payment Received: ₹500,
+  // Applied to Invoice: ₹400, Customer Advance: ₹100") genuinely cannot be
+  // sent through it. INTERIM DECISION (confirmed 2026-10-31): ship the
+  // cash/advance ledger logic now using the existing approved
+  // paymentReceipt template (applied amount only, never the tendered
+  // amount — see orderService.ts::recordPayment), and submit this
+  // placeholder to Meta whenever convenient rather than blocking on
+  // approval. Proposed shape, NOT yet real/approved — correct this entry
+  // (name/variableCount/order) once Meta actually approves it, same
+  // process every other template here already went through:
+  // {{1}} customer name, {{2}} invoice number, {{3}} invoice amount,
+  // {{4}} amount received (tendered), {{5}} applied to invoice,
+  // {{6}} customer advance, {{7}} outstanding.
+  paymentReceiptWithAdvance: {
+    name: 'payment_receipt_with_advance',
+    variableCount: 7,
+    status: 'not_created' as const,
+    language: 'en',
+  },
+
+  // NOT YET CREATED/SUBMITTED — same reasoning as paymentReceiptWithAdvance
+  // above, for the Admin-facing notification's richer "Recorded By /
+  // Recorded At" detail the spec's example shows. Admin notifications
+  // currently reuse a customer-facing template's slots (see
+  // notifyAdminsOfPickup precedent) — this placeholder is for whenever a
+  // genuinely admin-specific template is wanted instead. Proposed shape:
+  // {{1}} invoice number, {{2}} customer name, {{3}} payment method,
+  // {{4}} cash collected, {{5}} applied to invoice, {{6}} customer
+  // advance, {{7}} outstanding, {{8}} recorded by, {{9}} recorded at.
+  adminPaymentNotificationWithAdvance: {
+    name: 'admin_payment_notification_with_advance',
+    variableCount: 9,
+    status: 'not_created' as const,
+    language: 'en',
+  },
+
   // adminPickupNotification (a separate placeholder template,
   // 'pb_admin_pickup_notification', never created/approved) was removed
   // 2026-09-03 per explicit client decision: the admin pickup notice now

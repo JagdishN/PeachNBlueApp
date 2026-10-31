@@ -115,7 +115,7 @@ export const updateStatusHandler = async (req: AuthRequest, res: Response): Prom
 // second real receipt. Response now also carries `paymentSummary`
 // (outstanding balance, etc.) and an `overpayment` flag for the UI.
 export const recordPaymentHandler = async (req: AuthRequest, res: Response): Promise<void> => {
-  const { paymentMethod, amount, idempotencyKey } = req.body;
+  const { paymentMethod, amount, idempotencyKey, amountTendered, excessHandling } = req.body;
 
   if (!paymentMethod) {
     res.status(400).json({ error: 'paymentMethod is required' });
@@ -125,10 +125,24 @@ export const recordPaymentHandler = async (req: AuthRequest, res: Response): Pro
     res.status(400).json({ error: 'amount, if provided, must be a positive number' });
     return;
   }
+  // Payment collection / customer advances rework — both optional, only
+  // meaningful together; orderService.recordPayment itself validates the
+  // pairing (400s if excessHandling is given without amountTendered).
+  if (amountTendered !== undefined && (typeof amountTendered !== 'number' || amountTendered <= 0)) {
+    res.status(400).json({ error: 'amountTendered, if provided, must be a positive number' });
+    return;
+  }
+  const validExcessHandling = ['return_change', 'advance', 'pending_review'];
+  if (excessHandling !== undefined && !validExcessHandling.includes(excessHandling)) {
+    res.status(400).json({ error: `excessHandling, if provided, must be one of: ${validExcessHandling.join(', ')}` });
+    return;
+  }
 
   const result = await orderService.recordPayment(req.params.id, paymentMethod, req.auth!.userId, req.auth!.role, {
     amount,
     idempotencyKey,
+    amountTendered,
+    excessHandling,
   });
 
   res.status(200).json({
@@ -140,6 +154,7 @@ export const recordPaymentHandler = async (req: AuthRequest, res: Response): Pro
       status: result.paymentSummary.status,
     },
     overpayment: result.overpayment,
+    cashBreakdown: result.cashBreakdown,
   });
 };
 

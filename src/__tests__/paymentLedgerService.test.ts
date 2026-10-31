@@ -170,6 +170,247 @@ describe('recordVerifiedPayment', () => {
     );
   });
 
+  // Payment collection / customer advances rework — excessHandling defaults
+  // to undefined (the two tests above), preserving the exact prior
+  // behavior. Explicitly passing { kind: 'customer_credit' } routes the
+  // SAME excess to a CustomerCredit instead, in the SAME transaction as
+  // the Payment row — no reconciliation exception at all for this case.
+  it('excessHandling: customer_credit — routes the excess to a CustomerCredit instead of a reconciliation exception', async () => {
+    baseSetup(500);
+    prismaMock.payment.create.mockResolvedValue({ id: 'payment-1', amountPaise: 60000n, allocatedPaise: 50000n } as any);
+    prismaMock.payment.findMany.mockResolvedValueOnce([]).mockResolvedValue([
+      { id: 'payment-1', paymentSource: 'cash', amountPaise: 60000n, allocatedPaise: 50000n },
+    ] as any);
+    prismaMock.customerCredit.create.mockResolvedValue({} as any);
+
+    const result = await recordVerifiedPayment(prismaMock, {
+      invoiceId: 'inv-1',
+      orderId: 'order-1',
+      customerId: 'customer-1',
+      grossAmount: 600,
+      paymentType: 'order_payment',
+      paymentMethod: 'cash',
+      paymentSource: 'cash',
+      recordedById: 'staff-1',
+      excessHandling: { kind: 'customer_credit', createdById: 'staff-1', reason: 'Excess cash' },
+    });
+
+    expect(result.excessPaise).toBe(10000n);
+    expect(prismaMock.customerCredit.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ customerId: 'customer-1', transactionType: 'issued', amountPaise: 10000n, sourcePaymentId: 'payment-1', createdById: 'staff-1' }),
+      })
+    );
+    expect(prismaMock.paymentReconciliationException.create).not.toHaveBeenCalled();
+  });
+
+  it('excessHandling: reconciliation_exception with a custom exceptionType — overrides the default "overpayment" label', async () => {
+    baseSetup(500);
+    prismaMock.payment.create.mockResolvedValue({ id: 'payment-1', amountPaise: 60000n, allocatedPaise: 50000n } as any);
+    prismaMock.payment.findMany.mockResolvedValueOnce([]).mockResolvedValue([
+      { id: 'payment-1', paymentSource: 'cash', amountPaise: 60000n, allocatedPaise: 50000n },
+    ] as any);
+
+    await recordVerifiedPayment(prismaMock, {
+      invoiceId: 'inv-1',
+      orderId: 'order-1',
+      customerId: 'customer-1',
+      grossAmount: 600,
+      paymentType: 'order_payment',
+      paymentMethod: 'cash',
+      paymentSource: 'cash',
+      recordedById: 'staff-1',
+      excessHandling: { kind: 'reconciliation_exception', exceptionType: 'unapplied_cash_pending_review' },
+    });
+
+    expect(prismaMock.paymentReconciliationException.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ exceptionType: 'unapplied_cash_pending_review' }) })
+    );
+    expect(prismaMock.customerCredit.create).not.toHaveBeenCalled();
+  });
+
+  it('stores amountTenderedPaise/changeReturnedPaise on the Payment row when given', async () => {
+    baseSetup(500);
+    prismaMock.payment.create.mockResolvedValue({ id: 'payment-1', amountPaise: 40000n, allocatedPaise: 40000n } as any);
+    prismaMock.payment.findMany.mockResolvedValueOnce([]).mockResolvedValue([
+      { id: 'payment-1', paymentSource: 'cash', amountPaise: 40000n, allocatedPaise: 40000n },
+    ] as any);
+
+    await recordVerifiedPayment(prismaMock, {
+      invoiceId: 'inv-1',
+      orderId: 'order-1',
+      customerId: 'customer-1',
+      grossAmount: 400,
+      paymentType: 'order_payment',
+      paymentMethod: 'cash',
+      paymentSource: 'cash',
+      recordedById: 'staff-1',
+      amountTenderedPaise: 50000n,
+      changeReturnedPaise: 10000n,
+    });
+
+    expect(prismaMock.payment.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ amountTenderedPaise: 50000n, changeReturnedPaise: 10000n }) })
+    );
+  });
+
+  // Webhook historical-link resolution fix, requirement #10: "for an
+  // invoice already closed through an Admin waiver, preserve the waiver and
+  // record the late receipt as an exception rather than silently reopening
+  // or overwriting the invoice." The invoice has NO real payments at all —
+  // it's "paid" purely because an active InvoiceAdjustment already covers
+  // the full amount (this is what getInvoicePaymentSummary's waivedPaise
+  // does) — so outstandingBeforePaise is already 0 when this late Razorpay
+  // receipt is recorded.
+  it('records a late payment arriving after a waiver already closed the invoice as a full overpayment exception, without touching the waiver', async () => {
+    baseSetup(500);
+    prismaMock.invoiceAdjustment.findMany.mockResolvedValue([{ amountPaise: 50000n }] as any);
+    prismaMock.payment.create.mockResolvedValue({ id: 'payment-1', amountPaise: 50000n, allocatedPaise: 0n } as any);
+    prismaMock.payment.findMany.mockResolvedValueOnce([]).mockResolvedValue([
+      { id: 'payment-1', paymentSource: 'razorpay', amountPaise: 50000n, allocatedPaise: 0n },
+    ] as any);
+
+    const result = await recordVerifiedPayment(prismaMock, {
+      invoiceId: 'inv-1',
+      orderId: 'order-1',
+      customerId: 'customer-1',
+      grossAmount: 500,
+      paymentType: 'order_payment',
+      paymentMethod: 'credit_card',
+      paymentSource: 'razorpay',
+      razorpayPaymentId: 'pay_late_1',
+    });
+
+    // Nothing allocated — the waiver already covers the whole ₹500, so the
+    // entire late receipt becomes excess, not a second allocation.
+    expect(result.excessPaise).toBe(50000n);
+    expect(prismaMock.payment.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ amountPaise: 50000n, allocatedPaise: 0n }) })
+    );
+    expect(prismaMock.paymentReconciliationException.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ invoiceId: 'inv-1', exceptionType: 'overpayment', excessPaise: 50000n }),
+      })
+    );
+    // Invoice stays settled via the waiver, not reopened to "partially_paid"
+    // or anything else — status is still derived from waivedPaise, which
+    // this payment never touches.
+    expect(prismaMock.invoice.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'inv-1' }, data: { invoicePaymentStatus: 'paid' } })
+    );
+    // The waiver itself must never be mutated by a late payment landing.
+    expect(prismaMock.invoiceAdjustment.update).not.toHaveBeenCalled();
+    expect(prismaMock.invoiceAdjustment.delete).not.toHaveBeenCalled();
+  });
+
+  // Webhook historical-link resolution fix — dedicated coverage per
+  // retirement cause (2026-10-31 follow-up), proving the SAME allocation
+  // logic produces the correct result for each real-world situation a late
+  // Razorpay payment can land in. The webhook/resolution layer itself
+  // doesn't branch on retiredReason (see webhookController.test.ts's
+  // "resolves correctly regardless of retirement reason" block) — these
+  // three differ only in the invoice's state at the moment the late
+  // payment is recorded, which IS reason-specific.
+  describe('late payment scenarios by retirement cause', () => {
+    // After a reissue, the invoice's required amount can be HIGHER than
+    // what the old (pre-reissue) link was originally created for. A late
+    // payment for the OLD amount must allocate against the CURRENT
+    // (post-reissue) outstanding, not the stale pre-reissue figure.
+    it('reissue: a late payment for the pre-reissue amount allocates fully against the new, higher outstanding', async () => {
+      baseSetup(700); // post-reissue amount, no payments yet
+      prismaMock.payment.create.mockResolvedValue({ id: 'payment-1', amountPaise: 50000n, allocatedPaise: 50000n } as any);
+      prismaMock.payment.findMany
+        .mockResolvedValueOnce([])
+        .mockResolvedValue([{ paymentSource: 'razorpay', amountPaise: 50000n, allocatedPaise: 50000n }] as any);
+
+      const result = await recordVerifiedPayment(prismaMock, {
+        invoiceId: 'inv-1',
+        orderId: 'order-1',
+        customerId: 'customer-1',
+        grossAmount: 500, // the OLD (pre-reissue) invoice amount, paid late
+        paymentType: 'order_payment',
+        paymentMethod: 'credit_card',
+        paymentSource: 'razorpay',
+        razorpayPaymentId: 'pay_late_reissue',
+      });
+
+      expect(result.excessPaise).toBe(0n);
+      expect(result.summary.status).toBe('partially_paid');
+      expect(result.summary.outstandingPaise).toBe(20000n); // 700 - 500
+      expect(prismaMock.paymentReconciliationException.create).not.toHaveBeenCalled();
+    });
+
+    // Full cash settlement already brought outstanding to 0 before the
+    // late Razorpay webhook arrives — same "already paid" shape as the
+    // waiver case above, but caused by a real second payment rather than a
+    // non-payment waiver.
+    it('full cash settlement: a late payment after the invoice was already fully paid in cash is recorded as a full overpayment exception', async () => {
+      baseSetup(500);
+      prismaMock.payment.create.mockResolvedValue({ id: 'payment-2', amountPaise: 50000n, allocatedPaise: 0n } as any);
+      prismaMock.payment.findMany
+        .mockResolvedValueOnce([{ paymentSource: 'cash', amountPaise: 50000n, allocatedPaise: 50000n }] as any)
+        .mockResolvedValue([
+          { paymentSource: 'cash', amountPaise: 50000n, allocatedPaise: 50000n },
+          { id: 'payment-2', paymentSource: 'razorpay', amountPaise: 50000n, allocatedPaise: 0n },
+        ] as any);
+
+      const result = await recordVerifiedPayment(prismaMock, {
+        invoiceId: 'inv-1',
+        orderId: 'order-1',
+        customerId: 'customer-1',
+        grossAmount: 500,
+        paymentType: 'order_payment',
+        paymentMethod: 'credit_card',
+        paymentSource: 'razorpay',
+        razorpayPaymentId: 'pay_late_cash_full',
+      });
+
+      expect(result.excessPaise).toBe(50000n);
+      expect(result.summary.status).toBe('paid'); // stays paid via the cash payment, not reopened
+      expect(prismaMock.paymentReconciliationException.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ exceptionType: 'overpayment', excessPaise: 50000n }) })
+      );
+    });
+
+    // Partial cash + link replacement: the late Razorpay payment is for the
+    // OLD link's full original amount (₹880), but ₹300 of that was already
+    // collected in cash in the meantime — the late payment must be split:
+    // part allocated to the real remaining balance, part surfaced as
+    // excess, in the SAME recording. No other test in this file exercises
+    // allocatedPaise > 0 AND excessPaise > 0 from one late/historical
+    // payment simultaneously.
+    it('partial cash + link replacement: a late payment for the old link\'s full amount is split between real allocation and excess', async () => {
+      baseSetup(880);
+      prismaMock.payment.create.mockResolvedValue({ id: 'payment-2', amountPaise: 88000n, allocatedPaise: 58000n } as any);
+      prismaMock.payment.findMany
+        .mockResolvedValueOnce([{ paymentSource: 'cash', amountPaise: 30000n, allocatedPaise: 30000n }] as any)
+        .mockResolvedValue([
+          { paymentSource: 'cash', amountPaise: 30000n, allocatedPaise: 30000n },
+          { id: 'payment-2', paymentSource: 'razorpay', amountPaise: 88000n, allocatedPaise: 58000n },
+        ] as any);
+
+      const result = await recordVerifiedPayment(prismaMock, {
+        invoiceId: 'inv-1',
+        orderId: 'order-1',
+        customerId: 'customer-1',
+        grossAmount: 880, // the OLD link's full original amount, paid late
+        paymentType: 'order_payment',
+        paymentMethod: 'credit_card',
+        paymentSource: 'razorpay',
+        razorpayPaymentId: 'pay_late_cash_partial',
+      });
+
+      expect(prismaMock.payment.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ amountPaise: 88000n, allocatedPaise: 58000n }) })
+      );
+      expect(result.excessPaise).toBe(30000n); // the ₹300 double-collected with cash
+      expect(result.summary.status).toBe('paid'); // 30000 (cash) + 58000 (allocated) = 88000 required
+      expect(prismaMock.paymentReconciliationException.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ exceptionType: 'overpayment', excessPaise: 30000n }) })
+      );
+    });
+  });
+
   it('leaves a partial payment correctly marked partially_paid with the right outstanding amount', async () => {
     baseSetup(880);
     prismaMock.payment.create.mockResolvedValue({ id: 'payment-1', amountPaise: 30000n, allocatedPaise: 30000n } as any);

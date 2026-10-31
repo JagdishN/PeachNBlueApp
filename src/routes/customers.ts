@@ -17,6 +17,12 @@ import {
 import { getCustomerOutstandingHandler, recordCustomerPaymentHandler } from '../controllers/outstandingController';
 import { sendPaymentReminderHandler, listReminderHistoryHandler } from '../controllers/reminderController';
 import { getCustomerStatementHandler } from '../controllers/reportingController';
+import {
+  getCustomerCreditBalanceHandler,
+  getCustomerCreditHistoryHandler,
+  refundCustomerCreditHandler,
+  reverseCustomerCreditHandler,
+} from '../controllers/customerCreditController';
 
 const router = Router();
 
@@ -43,5 +49,13 @@ router.post('/:id/payments', requireRole(['staff', 'admin']), recordCustomerPaym
 router.post('/:id/send-reminder', requireRole(['admin']), sendPaymentReminderHandler);
 router.get('/:id/reminder-history', requireRole(['admin']), listReminderHistoryHandler);
 router.get('/:id/statement', requireRole(['admin']), getCustomerStatementHandler);
+
+// Payment collection / customer advances rework, Phase 7 — "make balances
+// visible to Admin and authorized Staff" (read), Admin-only for the actual
+// refund/reversal actions (Phase 4/8: financial corrections stay Admin-only).
+router.get('/:id/credit-balance', requireRole(['staff', 'admin']), getCustomerCreditBalanceHandler);
+router.get('/:id/credit-history', requireRole(['staff', 'admin']), getCustomerCreditHistoryHandler);
+router.post('/:id/credit-refund', requireRole(['admin']), refundCustomerCreditHandler);
+router.post('/:id/credit-transactions/:transactionId/reverse', requireRole(['admin']), reverseCustomerCreditHandler);
 
 export default router;

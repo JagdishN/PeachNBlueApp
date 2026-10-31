@@ -1,6 +1,7 @@
 import { Prisma, PrismaClient } from '@prisma/client';
 import prisma from '../prisma/client';
 import { toPaise, fromPaise, addPaise, clampNonNegative } from '../utils/money';
+import { issueCredit } from './customerCreditService';
 
 export type Tx = Prisma.TransactionClient | PrismaClient;
 
@@ -124,16 +125,23 @@ export const allocateAgainstOutstanding = (grossPaise: bigint, outstandingBefore
 
 // Creates (or updates, for the overpayment-resolution flow) the reconciliation
 // exception row for an overpayment — spec section 9's required fields.
+// `exceptionType` defaults to 'overpayment' (every existing caller's exact
+// prior behavior); payment collection / customer advances rework, Phase 3
+// Option C, overrides it to 'unapplied_cash_pending_review' for a staff-
+// chosen "let admin decide" excess — same shape (collected/allocated/
+// excess + resolution fields), a different, more specific label so an
+// admin reviewing the list can tell "staff flagged this deliberately" from
+// "something unexpected landed on an already-settled invoice."
 export const recordOverpaymentException = async (
   tx: Tx,
-  params: { invoiceId: string; customerId: string; excessPaise: bigint; relatedPaymentIds: string[] }
+  params: { invoiceId: string; customerId: string; excessPaise: bigint; relatedPaymentIds: string[]; exceptionType?: string }
 ): Promise<void> => {
   const summary = await getInvoicePaymentSummary(tx, params.invoiceId);
   await tx.paymentReconciliationException.create({
     data: {
       invoiceId: params.invoiceId,
       customerId: params.customerId,
-      exceptionType: 'overpayment',
+      exceptionType: params.exceptionType ?? 'overpayment',
       collectedPaise: summary.collectedPaise,
       allocatedPaise: summary.allocatedPaise,
       excessPaise: params.excessPaise,
@@ -160,6 +168,22 @@ export interface RecordVerifiedPaymentInput {
   isDuplicateUtrSuspected?: boolean;
   idempotencyKey?: string | null;
   notes?: string | null;
+  // Payment collection / customer advances rework — cash-only, audit-only
+  // fields (schema.prisma's Payment comment). Never used for allocation
+  // math; amountPaise/grossAmount above is still the figure
+  // allocateAgainstOutstanding works against.
+  amountTenderedPaise?: bigint | null;
+  changeReturnedPaise?: bigint | null;
+  // How to handle any excess beyond outstanding. Omitted (undefined)
+  // preserves the EXACT prior behavior — a generic 'overpayment'
+  // PaymentReconciliationException — so every existing caller (bank_upi,
+  // razorpay webhook, admin flows) is completely unaffected by this
+  // addition. Phase 3's Option B/C give recordPayment's new excess-
+  // handling choice a way to route the same excess money differently
+  // without duplicating the allocation logic above it.
+  excessHandling?:
+    | { kind: 'reconciliation_exception'; exceptionType?: string }
+    | { kind: 'customer_credit'; createdById: string; reason?: string | null };
 }
 
 export interface RecordVerifiedPaymentResult {
@@ -203,6 +227,8 @@ export const recordVerifiedPayment = async (
       amount: fromPaise(grossPaise),
       amountPaise: grossPaise,
       allocatedPaise,
+      amountTenderedPaise: input.amountTenderedPaise ?? null,
+      changeReturnedPaise: input.changeReturnedPaise ?? null,
       paymentType: input.paymentType,
       paymentMethod: input.paymentMethod,
       paymentSource: input.paymentSource,
@@ -224,16 +250,31 @@ export const recordVerifiedPayment = async (
     await recalculateInvoiceStatus(tx, input.invoiceId, input.orderId);
 
     if (excessPaise > 0n) {
-      const allVerified = await tx.payment.findMany({
-        where: { invoiceId: input.invoiceId, verificationStatus: 'verified' },
-        select: { id: true },
-      });
-      await recordOverpaymentException(tx, {
-        invoiceId: input.invoiceId,
-        customerId: input.customerId,
-        excessPaise,
-        relatedPaymentIds: allVerified.map((p) => p.id),
-      });
+      if (input.excessHandling?.kind === 'customer_credit') {
+        // Phase 3 Option B / an admin's "convert to advance" resolution —
+        // the excess becomes a customer credit instead of a reconciliation
+        // exception, in the SAME transaction as the Payment row above so
+        // the two are durably atomic together.
+        await issueCredit(tx, {
+          customerId: input.customerId,
+          amountPaise: excessPaise,
+          sourcePaymentId: payment.id,
+          reason: input.excessHandling.reason ?? null,
+          createdById: input.excessHandling.createdById,
+        });
+      } else {
+        const allVerified = await tx.payment.findMany({
+          where: { invoiceId: input.invoiceId, verificationStatus: 'verified' },
+          select: { id: true },
+        });
+        await recordOverpaymentException(tx, {
+          invoiceId: input.invoiceId,
+          customerId: input.customerId,
+          excessPaise,
+          relatedPaymentIds: allVerified.map((p) => p.id),
+          exceptionType: input.excessHandling?.kind === 'reconciliation_exception' ? input.excessHandling.exceptionType : undefined,
+        });
+      }
     }
   }
 

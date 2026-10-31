@@ -1,6 +1,7 @@
 import { CommunicationMessageType } from '../types/enums';
 import prisma from '../prisma/client';
 import { sendWhatsAppTemplate, formatMsg91Error, resolveWhatsappFrom } from '../lib/msg91Client';
+import { enqueueFailedSend } from './notificationOutboxService';
 
 interface NotifiableCustomer {
   id: string;
@@ -87,13 +88,37 @@ export const sendNotification = async (
     )
   );
 
-  results.forEach((result, i) => {
-    if (result.status === 'rejected') {
-      console.error(
-        `Failed to send ${messageType} via WhatsApp to customer ${customer.id} (${targets[i]}): ${formatMsg91Error(result.reason)}`
-      );
-    }
-  });
+  // Payment collection / customer advances rework, Phase 6 — a failed
+  // per-recipient send is no longer just logged and forgotten. Queuing
+  // here (rather than at each of this function's many call sites) means
+  // every existing notification type gets durable retry for free. Never
+  // throws/blocks on the enqueue itself failing — a lost retry opportunity
+  // is strictly better than this function throwing and potentially
+  // rolling back whatever financial action already completed before it.
+  await Promise.all(
+    results.map(async (result, i) => {
+      if (result.status === 'rejected') {
+        console.error(
+          `Failed to send ${messageType} via WhatsApp to customer ${customer.id} (${targets[i]}): ${formatMsg91Error(result.reason)}`
+        );
+        try {
+          await enqueueFailedSend({
+            customerId: customer.id,
+            recipientPhoneNumber: targets[i],
+            fromNumber,
+            templateName: template.name,
+            templateLanguage: template.language ?? 'en',
+            bodyVariables: template.bodyVariables,
+            buttonUrlParam: template.buttonUrlParam,
+            headerMediaUrl: template.headerMediaUrl,
+            headerType: template.headerType,
+          });
+        } catch (enqueueErr) {
+          console.error(`Failed to queue retry for customer ${customer.id} (${targets[i]}):`, enqueueErr);
+        }
+      }
+    })
+  );
 
   const status: 'sent' | 'failed' = results.some((r) => r.status === 'fulfilled') ? 'sent' : 'failed';
 
@@ -144,11 +169,32 @@ export const notifyAdmins = async (
     )
   );
 
-  results.forEach((result, i) => {
-    if (result.status === 'rejected') {
-      console.error(
-        `Failed to send admin notification via WhatsApp to admin ${admins[i].id}: ${formatMsg91Error(result.reason)}`
-      );
-    }
-  });
+  // Same durable-retry treatment as sendNotification above — customerId is
+  // null here (an admin User row, not a Customer), per Phase 6's "send
+  // Admin notifications only to configured authorized Admin recipients"
+  // scope, not a different mechanism.
+  await Promise.all(
+    results.map(async (result, i) => {
+      if (result.status === 'rejected') {
+        console.error(
+          `Failed to send admin notification via WhatsApp to admin ${admins[i].id}: ${formatMsg91Error(result.reason)}`
+        );
+        try {
+          await enqueueFailedSend({
+            customerId: null,
+            recipientPhoneNumber: admins[i].phoneNumber,
+            fromNumber,
+            templateName: template.name,
+            templateLanguage: template.language ?? 'en',
+            bodyVariables: template.bodyVariables,
+            buttonUrlParam: template.buttonUrlParam,
+            headerMediaUrl: template.headerMediaUrl,
+            headerType: template.headerType,
+          });
+        } catch (enqueueErr) {
+          console.error(`Failed to queue retry for admin ${admins[i].id}:`, enqueueErr);
+        }
+      }
+    })
+  );
 };

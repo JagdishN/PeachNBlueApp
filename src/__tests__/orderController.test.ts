@@ -26,6 +26,7 @@ import prisma from '../prisma/client';
 import { errorHandler } from '../middleware/errorHandler';
 import { JWT_SECRET } from '../config';
 import orderRoutes from '../routes/orders';
+import * as orderService from '../services/orderService';
 
 const prismaMock = prisma as unknown as DeepMockProxy<PrismaClient>;
 
@@ -43,6 +44,9 @@ beforeEach(() => {
   // Default: no admins found for the pickup-notification lookup that
   // createOrder now runs (CLAUDE.md order workflow item 4a).
   prismaMock.user.findMany.mockResolvedValue([]);
+  // Default: no active waivers — getInvoicePaymentSummary (used by the new
+  // PATCH /:id/payment tests below) reduces over this unconditionally.
+  prismaMock.invoiceAdjustment.findMany.mockResolvedValue([]);
 });
 
 // CLAUDE.md "Staff-scoped order visibility": a staff caller must not be able
@@ -131,5 +135,62 @@ describe('PATCH /:id/assign — admin-only staff (re)assignment', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.order.staffId).toBe('staff-2');
+  });
+});
+
+// Payment collection / customer advances rework (2026-10-31) — the
+// controller must actually forward amountTendered/excessHandling through
+// to orderService.recordPayment (a confirmed gap found while building
+// this: the handler destructured only paymentMethod/amount/idempotencyKey,
+// silently dropping the two new fields even after the service itself
+// supported them).
+describe('PATCH /:id/payment — amountTendered/excessHandling validation', () => {
+  it('rejects a non-positive amountTendered', async () => {
+    const res = await request(app)
+      .patch('/api/v1/orders/order-1/payment')
+      .set('Authorization', `Bearer ${token('staff', 'branch-1', 'staff-1')}`)
+      .send({ paymentMethod: 'cash', amountTendered: 0, excessHandling: 'advance' });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects an invalid excessHandling value', async () => {
+    const res = await request(app)
+      .patch('/api/v1/orders/order-1/payment')
+      .set('Authorization', `Bearer ${token('staff', 'branch-1', 'staff-1')}`)
+      .send({ paymentMethod: 'cash', amountTendered: 500, excessHandling: 'bogus' });
+
+    expect(res.status).toBe(400);
+  });
+
+  // Spies on the service directly rather than exercising the full
+  // retireOrReplaceLink/Razorpay stack (already thoroughly covered at the
+  // service level in orderService.test.ts's own excess-handling tests) —
+  // this test's only job is confirming the CONTROLLER forwards the two new
+  // body fields through and passes the result's cashBreakdown back.
+  it('forwards amountTendered/excessHandling to orderService.recordPayment and returns cashBreakdown', async () => {
+    const recordPaymentSpy = jest.spyOn(orderService, 'recordPayment').mockResolvedValue({
+      order: {} as any,
+      paymentSummary: { outstandingPaise: 0n, collectedPaise: 50000n, allocatedPaise: 40000n, status: 'paid' } as any,
+      overpayment: false,
+      cashBreakdown: { amountTendered: 500, amountApplied: 400, changeReturned: 0, advanceCreated: 100 },
+    });
+
+    const res = await request(app)
+      .patch('/api/v1/orders/order-1/payment')
+      .set('Authorization', `Bearer ${token('staff', 'branch-1', 'staff-1')}`)
+      .send({ paymentMethod: 'cash', amountTendered: 500, excessHandling: 'advance', idempotencyKey: 'idem-1' });
+
+    expect(res.status).toBe(200);
+    expect(recordPaymentSpy).toHaveBeenCalledWith(
+      'order-1',
+      'cash',
+      'staff-1',
+      'staff',
+      expect.objectContaining({ amountTendered: 500, excessHandling: 'advance', idempotencyKey: 'idem-1' })
+    );
+    expect(res.body.cashBreakdown).toEqual({ amountTendered: 500, amountApplied: 400, changeReturned: 0, advanceCreated: 100 });
+
+    recordPaymentSpy.mockRestore();
   });
 });
