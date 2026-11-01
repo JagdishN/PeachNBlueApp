@@ -67,7 +67,7 @@ export const listPendingBankUpiPaymentsHandler = async (req: AuthRequest, res: R
 };
 
 export const getInvoicePaymentSummaryHandler = async (req: AuthRequest, res: Response): Promise<void> => {
-  const summary = await bankUpiService.getInvoicePaymentSummaryForOrder(req.params.id);
+  const { summary, invoice } = await bankUpiService.getInvoicePaymentSummaryForOrder(req.params.id);
   res.status(200).json({
     paymentSummary: {
       required: Number(summary.requiredPaise) / 100,
@@ -77,6 +77,9 @@ export const getInvoicePaymentSummaryHandler = async (req: AuthRequest, res: Res
       unallocatedExcess: Number(summary.unallocatedExcessPaise) / 100,
       status: summary.status,
       byMethod: Object.fromEntries(Object.entries(summary.byMethod).map(([k, v]) => [k, Number(v) / 100])),
+      razorpayPaymentLinkId: invoice.razorpayPaymentLinkId,
+      paymentLinkUrl: invoice.paymentLinkUrl,
+      paymentLinkStatus: invoice.paymentLinkStatus,
     },
   });
 };

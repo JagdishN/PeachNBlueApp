@@ -24,7 +24,7 @@ beforeEach(() => {
 });
 
 describe('createPaymentLink', () => {
-  it('converts the amount to paise, disables native partial payments, and returns id + shortUrl', async () => {
+  it('converts the amount to paise, disables native partial payments, and returns success + id + shortUrl', async () => {
     createMock.mockResolvedValue({ id: 'plink_123', short_url: 'https://rzp.io/l/plink_123' });
 
     const result = await createPaymentLink({
@@ -41,7 +41,27 @@ describe('createPaymentLink', () => {
     expect(createMock).toHaveBeenCalledWith(
       expect.objectContaining({ amount: 24950, currency: 'INR', accept_partial: false })
     );
-    expect(result).toEqual({ id: 'plink_123', shortUrl: 'https://rzp.io/l/plink_123' });
+    expect(result).toEqual({ success: true, link: { id: 'plink_123', shortUrl: 'https://rzp.io/l/plink_123' } });
+  });
+
+  // Real bug fixed (2026-11-01): a Razorpay failure here used to throw
+  // straight out of this function — uncaught all the way through
+  // retireOrReplaceLink and orderService.ts::recordPayment to the Express
+  // handler, surfacing as a bare 500 to staff even though, by that point,
+  // the cash payment that triggered it was already durably committed. Must
+  // never throw, same as cancelPaymentLink below.
+  it('does not throw when the Razorpay API call rejects, and reports the failure instead', async () => {
+    createMock.mockRejectedValue(new Error('Razorpay: invalid request'));
+
+    const result = await createPaymentLink({
+      amount: 500,
+      orderNumber: 'PB-ABCD1234',
+      orderId: 'order-1',
+      customerName: 'Test Customer',
+      customerPhone: '9999999999',
+    });
+
+    expect(result).toEqual({ success: false, link: null, error: 'Razorpay: invalid request' });
   });
 });
 

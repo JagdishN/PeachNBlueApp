@@ -1,6 +1,19 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import * as orderService from '../services/orderService';
+import { verifyPaymentLinkForOrder, resendPaymentLinkForOrder } from '../services/paymentLinkVerification';
+
+const serializePaymentSummary = (summary: {
+  outstandingPaise: bigint;
+  collectedPaise: bigint;
+  allocatedPaise: bigint;
+  status: string;
+}) => ({
+  outstanding: Number(summary.outstandingPaise) / 100,
+  collected: Number(summary.collectedPaise) / 100,
+  allocated: Number(summary.allocatedPaise) / 100,
+  status: summary.status,
+});
 
 export const createOrderHandler = async (req: AuthRequest, res: Response): Promise<void> => {
   const { customerName, customerPhoneNumber, locationLabel, branchId, pickupDate, items, staffId } = req.body;
@@ -155,6 +168,43 @@ export const recordPaymentHandler = async (req: AuthRequest, res: Response): Pro
     },
     overpayment: result.overpayment,
     cashBreakdown: result.cashBreakdown,
+  });
+};
+
+// Priority 1 (2026-11-01) — backs the mobile Razorpay panel's "Payment
+// Received" button. Never self-declared by staff: checks already-recorded
+// webhook receipts first, falls back to a live Razorpay check, and only
+// ever updates payment/invoice state — never order.internalStatus/delivery.
+export const verifyPaymentLinkHandler = async (req: AuthRequest, res: Response): Promise<void> => {
+  const state = await verifyPaymentLinkForOrder(req.params.id, req.auth!.role, req.auth!.userId);
+  res.status(200).json({
+    paymentSummary: {
+      ...serializePaymentSummary(state.summary),
+      razorpayPaymentLinkId: state.razorpayPaymentLinkId,
+      paymentLinkUrl: state.paymentLinkUrl,
+      paymentLinkStatus: state.paymentLinkStatus,
+    },
+    reconciledNow: state.reconciledNow,
+  });
+};
+
+// Backs the mobile Razorpay panel's "Resend Link" button. Reuses a still-
+// valid existing link where possible; only reissues when genuinely
+// necessary (see paymentLinkVerification.ts::resendPaymentLink).
+export const resendPaymentLinkHandler = async (req: AuthRequest, res: Response): Promise<void> => {
+  const result = await resendPaymentLinkForOrder(req.params.id, req.auth!.role, req.auth!.userId);
+  if (!result.completed) {
+    res.status(502).json({
+      error: 'Could not resend the payment link — see the Payment Reconciliation screen for details.',
+      razorpayPaymentLinkId: result.razorpayPaymentLinkId,
+      paymentLinkUrl: result.paymentLinkUrl,
+    });
+    return;
+  }
+  res.status(200).json({
+    reused: result.reused,
+    razorpayPaymentLinkId: result.razorpayPaymentLinkId,
+    paymentLinkUrl: result.paymentLinkUrl,
   });
 };
 

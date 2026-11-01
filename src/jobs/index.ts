@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import { generateMonthlyStatements } from '../services/ledgerService';
 import { recoverStuckTransitions } from '../services/paymentLinkLifecycle';
+import { checkPaymentLinkConsistency } from '../services/paymentLinkConsistency';
 
 export const registerJobs = (): void => {
   // 1st of every month, 09:00 server time — see ledgerService.ts's
@@ -20,5 +21,14 @@ export const registerJobs = (): void => {
   // progress normally.
   cron.schedule('*/10 * * * *', () => {
     recoverStuckTransitions().catch((err) => console.error('Payment-link transition recovery job failed:', err));
+  });
+
+  // Hourly — payment-safety corrections (2026-11-01): catches a payment-link
+  // state inconsistent with an invoice's outstanding balance even when no
+  // PaymentLinkTransition was ever created at all (a gap recoverStuckTransitions
+  // above can't see, since it only looks at existing transition rows). Read +
+  // flag only — never waives, never creates/cancels a link on its own.
+  cron.schedule('0 * * * *', () => {
+    checkPaymentLinkConsistency().catch((err) => console.error('Payment-link consistency check job failed:', err));
   });
 };

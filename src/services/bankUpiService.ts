@@ -164,5 +164,17 @@ export const getInvoicePaymentSummaryForOrder = async (orderId: string) => {
     (err as any).status = 404;
     throw err;
   }
-  return getInvoicePaymentSummary(prisma, order.invoice.id);
+  const summary = await getInvoicePaymentSummary(prisma, order.invoice.id);
+  // Mobile Razorpay panel (Priority 1, 2026-11-01) — the only place
+  // razorpayPaymentLinkId/paymentLinkUrl/paymentLinkStatus reach the mobile
+  // client at all; GET /orders/:id never included the invoice relation.
+  return {
+    summary,
+    invoice: {
+      id: order.invoice.id,
+      razorpayPaymentLinkId: order.invoice.razorpayPaymentLinkId,
+      paymentLinkUrl: order.invoice.paymentLinkUrl,
+      paymentLinkStatus: order.invoice.paymentLinkStatus,
+    },
+  };
 };

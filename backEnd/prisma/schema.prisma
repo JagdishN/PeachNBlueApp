@@ -689,7 +689,9 @@ model PaymentReconciliationException {
   customer            Customer  @relation(fields: [customerId], references: [id])
   customerId          String    @map("customer_id") @db.Uuid
   // Values: overpayment | duplicate_utr | cancellation_uncertain |
-  // monthly_billing_anomaly
+  // monthly_billing_anomaly | unapplied_cash_pending_review |
+  // link_creation_failed | payment_link_inconsistent (last two added
+  // 2026-11-01 — see manual-migrations/2026-11-01_link_creation_failed_exception_type.sql)
   exceptionType       String    @map("exception_type") @db.VarChar(30)
   collectedPaise      BigInt    @map("collected_paise")
   allocatedPaise      BigInt    @map("allocated_paise")

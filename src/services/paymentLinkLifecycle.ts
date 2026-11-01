@@ -144,13 +144,67 @@ export const retireOrReplaceLink = async (
   }
 
   const remainingAmount = paiseToDisplayAmount(summary.outstandingPaise);
-  const newLink = await createPaymentLink({
+  const newLinkResult = await createPaymentLink({
     amount: remainingAmount,
     orderNumber: invoice.order.orderNumber,
     orderId: invoice.orderId,
     customerName: invoice.order.customer.fullName,
     customerPhone: invoice.order.customer.phoneNumber,
   });
+
+  // Real bug fixed (2026-11-01): createPaymentLink used to throw straight
+  // through this function on any real Razorpay failure — by this point the
+  // triggering Payment (the cash/bank_upi collection that called us) is
+  // ALREADY durably committed in its own transaction, so that throw never
+  // undid the payment, it just turned a successful payment into a bare 500
+  // for staff. No invoice update needed here: the invoice was already left
+  // in a correct, consistent "no active link" state by the cancel step
+  // above (or never had one, if oldLinkId was null) — there's nothing stale
+  // to clear. Matches this function's own documented contract: a failure
+  // here is reported the same way a failed cancel already is — completed:
+  // false, a flagged PaymentLinkTransition, never a thrown exception.
+  if (!newLinkResult.success || !newLinkResult.link) {
+    await prisma.paymentLinkTransition.update({
+      where: { id: transition.id },
+      data: {
+        status: 'failed_needs_review',
+        errorDetail: newLinkResult.error ?? 'Payment link creation failed',
+      },
+    });
+
+    // Payment-safety corrections (2026-11-01) — this branch is the one a
+    // cash/bank_upi payment leaving a remaining balance actually exercises,
+    // and until now it had no Admin-visible surface at all (only the "old
+    // link cancel failed" branch above creates a reconciliation exception).
+    // Own, separate try/catch: a failure persisting THIS record must never
+    // itself become a new way to fail the caller's real operation (e.g. the
+    // cash payment that triggered this call, already durably committed
+    // before retireOrReplaceLink is ever reached).
+    try {
+      await prisma.paymentReconciliationException.create({
+        data: {
+          invoiceId,
+          customerId: invoice.order.customerId,
+          exceptionType: 'link_creation_failed',
+          collectedPaise: 0n,
+          allocatedPaise: 0n,
+          excessPaise: 0n,
+          relatedPaymentIds: [],
+          status: 'open',
+          resolutionNotes: `Replacement payment link creation failed for invoice ${invoiceId} (reason: ${reason}): ${newLinkResult.error ?? 'unknown error'}. Use "Resend Link" once the underlying issue is resolved.`,
+        },
+      });
+    } catch (exceptionErr) {
+      console.error(
+        `[paymentLinkLifecycle] Failed to persist link_creation_failed exception for invoice ${invoiceId}, transition ${transition.id}:`,
+        exceptionErr
+      );
+    }
+
+    return { completed: false, newPaymentLinkId: null, newPaymentLinkUrl: null };
+  }
+
+  const newLink = newLinkResult.link;
 
   await prisma.invoice.update({
     where: { id: invoiceId },
@@ -175,8 +229,17 @@ export const retireOrReplaceLink = async (
 // invoice's CURRENT razorpayPaymentLinkId rather than trusting the stuck
 // row's stale oldPaymentLinkId, so a crash after the old link was already
 // cancelled won't try to cancel it again).
+// Payment-safety corrections (2026-11-01) — a transition retried every 10
+// minutes with no upper bound could loop silently forever against a
+// persistent Razorpay outage, never reaching failed_needs_review (and so
+// never getting an Admin-visible exception) because it never completes a
+// clean attempt to report failure from. Anything still non-terminal past
+// this many minutes stops being silently retried and is escalated instead.
+const MAX_STUCK_MINUTES_BEFORE_ESCALATION = 120;
+
 export const recoverStuckTransitions = async (staleMinutes = 15): Promise<{ recovered: number; stillStuck: number }> => {
   const staleBefore = new Date(Date.now() - staleMinutes * 60 * 1000);
+  const escalateBefore = new Date(Date.now() - MAX_STUCK_MINUTES_BEFORE_ESCALATION * 60 * 1000);
   const stuck = await prisma.paymentLinkTransition.findMany({
     where: { status: { in: ['pending', 'cancelling_old_link', 'creating_new_link'] }, updatedAt: { lt: staleBefore } },
   });
@@ -193,6 +256,37 @@ export const recoverStuckTransitions = async (staleMinutes = 15): Promise<{ reco
     if (!row.invoiceId) {
       continue;
     }
+
+    if (row.createdAt < escalateBefore) {
+      // Bounded retries: stop silently re-attempting a transition that's
+      // been non-terminal for over 2 hours — escalate it explicitly rather
+      // than let it loop every 10 minutes indefinitely with no human ever
+      // being told.
+      try {
+        await prisma.paymentLinkTransition.update({
+          where: { id: row.id },
+          data: { status: 'failed_needs_review', errorDetail: `Stuck in '${row.status}' for over ${MAX_STUCK_MINUTES_BEFORE_ESCALATION} minutes — escalated without further automatic retries.` },
+        });
+        await prisma.paymentReconciliationException.create({
+          data: {
+            invoiceId: row.invoiceId,
+            customerId: (await prisma.invoice.findUnique({ where: { id: row.invoiceId }, select: { order: { select: { customerId: true } } } }))?.order.customerId ?? '',
+            exceptionType: 'link_creation_failed',
+            collectedPaise: 0n,
+            allocatedPaise: 0n,
+            excessPaise: 0n,
+            relatedPaymentIds: [],
+            status: 'open',
+            resolutionNotes: `Payment-link transition ${row.id} (reason: ${row.reason}) has been stuck in '${row.status}' for over ${MAX_STUCK_MINUTES_BEFORE_ESCALATION} minutes and was escalated instead of retried further. Check Razorpay directly before using "Resend Link".`,
+          },
+        });
+      } catch (escalationErr) {
+        console.error(`[paymentLinkLifecycle] Failed to escalate long-stuck transition ${row.id}:`, escalationErr);
+      }
+      stillStuck += 1;
+      continue;
+    }
+
     try {
       await retireOrReplaceLink(row.invoiceId, row.reason as LinkTransitionReason, row.triggeredById);
       recovered += 1;

@@ -35,6 +35,7 @@ import { createOrder, listOrders, getOrder, updateStatus, assignStaff, recordPay
 import { generateInvoice } from '../services/invoiceService';
 import { sendNotification, notifyAdmins } from '../services/notificationService';
 import { recordCharge } from '../services/ledgerService';
+import { retireOrReplaceLink } from '../services/paymentLinkLifecycle';
 import { MSG91_TEMPLATES } from '../constants/msg91Templates';
 
 const prismaMock = prisma as unknown as DeepMockProxy<PrismaClient>;
@@ -42,6 +43,7 @@ const generateInvoiceMock = generateInvoice as jest.Mock;
 const sendNotificationMock = sendNotification as jest.Mock;
 const notifyAdminsMock = notifyAdmins as jest.Mock;
 const recordChargeMock = recordCharge as jest.Mock;
+const retireOrReplaceLinkMock = retireOrReplaceLink as jest.Mock;
 
 const FIXED_PIECE_GARMENT = {
   id: 'g-shirt',
@@ -1098,6 +1100,95 @@ describe('recordPayment', () => {
     expect(prismaMock.payment.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ amount: 300, amountPaise: 30000n }) })
     );
+  });
+
+  // Real bug fixed (2026-11-01): a full cash payment that leaves the
+  // Razorpay link-replacement step unable to complete (e.g. createPaymentLink
+  // failing against the real Razorpay API) used to surface as a bare 500,
+  // even though the Payment row above was already durably committed before
+  // retireOrReplaceLink was ever called. recordPayment must still return
+  // its normal successful result — it never branches on `.completed`, by
+  // design (see paymentLinkLifecycle.ts's own doc comment: "callers must
+  // NOT treat false as a hard failure of the payment itself").
+  it('still returns a successful result for a full cash payment even when the link-replacement step could not complete', async () => {
+    mockFreshInvoice(500);
+    prismaMock.order.findUnique.mockResolvedValue({
+      id: 'order-1',
+      orderNumber: 'PB-TEST',
+      customerId: 'customer-1',
+      staffId: 'staff-1',
+      finalAmount: 500,
+      billingMode: 'daily',
+      invoice: { id: 'invoice-1', amount: 500 },
+      customer: { id: 'customer-1', discountEnabled: false, discountPercent: 0, branch: {} },
+    } as any);
+    prismaMock.payment.create.mockResolvedValue({ id: 'payment-1', amountPaise: 50000n, allocatedPaise: 50000n } as any);
+    retireOrReplaceLinkMock.mockResolvedValueOnce({ completed: false, newPaymentLinkId: null, newPaymentLinkUrl: null });
+
+    const result = await recordPayment('order-1', 'cash', 'staff-1', 'staff', { amount: 500 });
+
+    expect(prismaMock.payment.create).toHaveBeenCalledTimes(1);
+    expect(result.order).toBeDefined();
+    expect(result.overpayment).toBe(false);
+  });
+
+  // Payment-safety corrections (2026-11-01) — the narrower, actually-most-
+  // plausible root cause behind real "Internal Server Error" reports on a
+  // committed cash payment: unlike the test above (retireOrReplaceLink
+  // cleanly returning completed:false), this covers it REJECTING/throwing
+  // outright (e.g. one of its own direct Prisma writes hitting a transient
+  // DB error) — which, before this fix, had no error boundary around it at
+  // all and would propagate straight through recordPayment as an uncaught
+  // 500, even though the Payment row was already durably committed.
+  it('still returns a successful result, and opens a reconciliation exception, when retireOrReplaceLink itself throws', async () => {
+    mockFreshInvoice(500);
+    prismaMock.order.findUnique.mockResolvedValue({
+      id: 'order-1',
+      orderNumber: 'PB-TEST',
+      customerId: 'customer-1',
+      staffId: 'staff-1',
+      finalAmount: 500,
+      billingMode: 'daily',
+      invoice: { id: 'invoice-1', amount: 500 },
+      customer: { id: 'customer-1', discountEnabled: false, discountPercent: 0, branch: {} },
+    } as any);
+    prismaMock.payment.create.mockResolvedValue({ id: 'payment-1', amountPaise: 50000n, allocatedPaise: 50000n } as any);
+    retireOrReplaceLinkMock.mockRejectedValueOnce(new Error('connection terminated unexpectedly'));
+    prismaMock.paymentReconciliationException.create.mockResolvedValue({} as any);
+
+    const result = await recordPayment('order-1', 'cash', 'staff-1', 'staff', { amount: 500 });
+
+    expect(prismaMock.payment.create).toHaveBeenCalledTimes(1);
+    expect(result.order).toBeDefined();
+    expect(prismaMock.paymentReconciliationException.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ invoiceId: 'invoice-1', exceptionType: 'link_creation_failed', relatedPaymentIds: ['payment-1'] }),
+      })
+    );
+  });
+
+  // A failure persisting that same safety-net exception must also never
+  // escape — this is a secondary write about an already-committed payment,
+  // not the payment itself.
+  it('still returns a successful result even when persisting the link_creation_failed exception also fails', async () => {
+    mockFreshInvoice(500);
+    prismaMock.order.findUnique.mockResolvedValue({
+      id: 'order-1',
+      orderNumber: 'PB-TEST',
+      customerId: 'customer-1',
+      staffId: 'staff-1',
+      finalAmount: 500,
+      billingMode: 'daily',
+      invoice: { id: 'invoice-1', amount: 500 },
+      customer: { id: 'customer-1', discountEnabled: false, discountPercent: 0, branch: {} },
+    } as any);
+    prismaMock.payment.create.mockResolvedValue({ id: 'payment-1', amountPaise: 50000n, allocatedPaise: 50000n } as any);
+    retireOrReplaceLinkMock.mockRejectedValueOnce(new Error('connection terminated unexpectedly'));
+    prismaMock.paymentReconciliationException.create.mockRejectedValue(new Error('DB unavailable'));
+
+    await expect(recordPayment('order-1', 'cash', 'staff-1', 'staff', { amount: 500 })).resolves.toMatchObject({
+      overpayment: false,
+    });
   });
 
   // Payment-safety review section 6 — a repeated submission with the same

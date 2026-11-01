@@ -8,6 +8,8 @@ import {
   updateStatusHandler,
   recordPaymentHandler,
   assignStaffHandler,
+  verifyPaymentLinkHandler,
+  resendPaymentLinkHandler,
 } from '../controllers/orderController';
 import { reportBankUpiPaymentHandler, getInvoicePaymentSummaryHandler } from '../controllers/bankUpiController';
 
@@ -28,5 +30,10 @@ router.patch('/:id/assign', requireRole(['admin']), assignStaffHandler);
 // rules as PATCH /:id/payment (enforced inside the service layer).
 router.post('/:id/bank-upi-report', reportBankUpiPaymentHandler);
 router.get('/:id/payment-summary', getInvoicePaymentSummaryHandler);
+// Priority 1 (2026-11-01) — mobile Razorpay panel's "Payment Received"/
+// "Resend Link" actions. Same auth tier as PATCH /:id/payment (ownership
+// enforced inside the service layer, same as every other payment action).
+router.post('/:id/payment-link/verify', verifyPaymentLinkHandler);
+router.post('/:id/payment-link/resend', resendPaymentLinkHandler);
 
 export default router;

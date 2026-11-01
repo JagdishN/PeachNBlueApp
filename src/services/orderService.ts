@@ -809,64 +809,115 @@ export const recordPayment = async (
   // cashBreakdown returned to the caller.
   const amountApplied = fromPaise(ledgerPayment.allocatedPaise);
 
-  // Payment-link lifecycle: cancel the now-stale Razorpay link and, if a
-  // balance remains, replace it with a link for exactly that remaining
-  // amount — deliberately AFTER the payment above is already durably
-  // committed (paymentLinkLifecycle.ts documents why this ordering is
-  // safer: a crash/failure here never loses the money that was recorded).
-  const reason: LinkTransitionReason = summary.outstandingPaise > 0n ? 'cash_partial' : 'cash_full';
-  await retireOrReplaceLink(order.invoice.id, reason, recordedById);
-
   const updatedOrder = await prisma.order.findUnique({
     where: { id: orderId },
     include: { customer: { select: customerSelectForRole(role) }, orderItems: true },
   });
 
-  // Client request (2026-10-30): now that payment is a decoupled action
-  // (not always implied by the delivered transition), a staff-recorded
-  // cash/UPI/card payment previously sent NO confirmation to anyone — only
-  // the Razorpay-webhook path (recordOnlinePayment below) ever sent
-  // payment_receipt, and only to the customer. Both now get notified here
-  // too, mirroring recordOnlinePayment's existing customer send plus the
-  // same admin-reuse pattern as the pickup/delivery notifications. Amount
-  // in the notification reflects what was ACTUALLY collected THIS TIME
-  // (which may be partial), not necessarily the full payable total.
-  // Payment collection / customer advances rework — interim decision
-  // (2026-10-31, confirmed): the real approved payment_receipt template
-  // still only has 4 fixed variables (name, amount, order#, method), no
-  // slot for a tendered/applied/advance breakdown. Sends the APPLIED
-  // amount, never the tendered one, so nothing false is communicated via
-  // WhatsApp while a richer template (see msg91Templates.ts's
-  // paymentReceiptWithAdvance, not yet submitted to Meta) is pending
-  // approval. The full breakdown is still visible in-app (cashBreakdown
-  // below) and in CustomerCredit/PaymentReconciliationException records.
-  await sendNotification(
-    order.customer,
-    'payment_receipt',
-    {
-      name: MSG91_TEMPLATES.paymentReceipt.name,
-      language: MSG91_TEMPLATES.paymentReceipt.language,
-      bodyVariables: [order.customer.fullName, String(amountApplied), order.orderNumber, PAYMENT_METHOD_LABELS[paymentMethod]],
-    },
-    orderId
-  );
+  // Payment-safety corrections (2026-11-01) — everything from here on is a
+  // side effect of a payment ALREADY durably committed above. None of it
+  // may turn that success into a reported failure: real production ₹500
+  // cash-payment "Internal Server Error" reports are most plausibly
+  // explained by exactly this — retireOrReplaceLink makes its own direct
+  // DB writes outside the transaction above, and used to be able to throw
+  // straight through this function with no error boundary, surfacing a 500
+  // even though the money was already correctly recorded. Wrapped so a
+  // failure here is logged (and, for the link lifecycle, durably flagged
+  // for Admin via a reconciliation exception) but never re-thrown.
+  const reason: LinkTransitionReason = summary.outstandingPaise > 0n ? 'cash_partial' : 'cash_full';
+  try {
+    // Payment-link lifecycle: cancel the now-stale Razorpay link and, if a
+    // balance remains, replace it with a link for exactly that remaining
+    // amount — deliberately AFTER the payment above is already durably
+    // committed (paymentLinkLifecycle.ts documents why this ordering is
+    // safer: a crash/failure here never loses the money that was recorded).
+    await retireOrReplaceLink(order.invoice.id, reason, recordedById);
+  } catch (linkErr) {
+    console.error(
+      `[recordPayment] retireOrReplaceLink threw for invoice ${order.invoice.id} (order ${orderId}, payment ${ledgerPayment.id}) — payment already committed, link refresh failed:`,
+      linkErr
+    );
+    // Own, separate try/catch — a failure persisting THIS record must
+    // never itself become a new way to fail the caller's real operation.
+    // Covers the gap retireOrReplaceLink's own internal exception (new-link-
+    // creation-failed branch) can't: this one fires even if the throw
+    // happened before retireOrReplaceLink wrote anything of its own, e.g.
+    // its very first PaymentLinkTransition insert.
+    try {
+      await prisma.paymentReconciliationException.create({
+        data: {
+          invoiceId: order.invoice.id,
+          customerId: order.customerId,
+          exceptionType: 'link_creation_failed',
+          collectedPaise: 0n,
+          allocatedPaise: 0n,
+          excessPaise: 0n,
+          relatedPaymentIds: [ledgerPayment.id],
+          status: 'open',
+          resolutionNotes: `Cash/UPI payment ${ledgerPayment.id} for order ${orderId} was recorded successfully, but refreshing the Razorpay payment link afterward failed: ${linkErr instanceof Error ? linkErr.message : String(linkErr)}. Use "Resend Link" once resolved.`,
+        },
+      });
+    } catch (exceptionErr) {
+      console.error(
+        `[recordPayment] Also failed to persist the link_creation_failed exception for invoice ${order.invoice.id}, payment ${ledgerPayment.id}:`,
+        exceptionErr
+      );
+    }
+  }
 
-  const paymentAdmins = await findBranchAdmins(order.customer.branchId, recordedById);
-
-  if (paymentAdmins.length > 0) {
-    await notifyAdmins(
-      paymentAdmins,
+  try {
+    // Client request (2026-10-30): now that payment is a decoupled action
+    // (not always implied by the delivered transition), a staff-recorded
+    // cash/UPI/card payment previously sent NO confirmation to anyone —
+    // only the Razorpay-webhook path (recordOnlinePayment below) ever sent
+    // payment_receipt, and only to the customer. Both now get notified
+    // here too, mirroring recordOnlinePayment's existing customer send
+    // plus the same admin-reuse pattern as the pickup/delivery
+    // notifications. Amount in the notification reflects what was
+    // ACTUALLY collected THIS TIME (which may be partial), not necessarily
+    // the full payable total.
+    // Payment collection / customer advances rework — interim decision
+    // (2026-10-31, confirmed): the real approved payment_receipt template
+    // still only has 4 fixed variables (name, amount, order#, method), no
+    // slot for a tendered/applied/advance breakdown. Sends the APPLIED
+    // amount, never the tendered one, so nothing false is communicated via
+    // WhatsApp while a richer template (see msg91Templates.ts's
+    // paymentReceiptWithAdvance, not yet submitted to Meta) is pending
+    // approval. The full breakdown is still visible in-app (cashBreakdown
+    // below) and in CustomerCredit/PaymentReconciliationException records.
+    await sendNotification(
+      order.customer,
+      'payment_receipt',
       {
         name: MSG91_TEMPLATES.paymentReceipt.name,
         language: MSG91_TEMPLATES.paymentReceipt.language,
-        bodyVariables: [
-          order.customer.locationLabel,
-          String(amountApplied),
-          order.orderNumber,
-          PAYMENT_METHOD_LABELS[paymentMethod],
-        ],
+        bodyVariables: [order.customer.fullName, String(amountApplied), order.orderNumber, PAYMENT_METHOD_LABELS[paymentMethod]],
       },
-      resolveWhatsappFrom(order.customer.branch.whatsappNumber)
+      orderId
+    );
+
+    const paymentAdmins = await findBranchAdmins(order.customer.branchId, recordedById);
+
+    if (paymentAdmins.length > 0) {
+      await notifyAdmins(
+        paymentAdmins,
+        {
+          name: MSG91_TEMPLATES.paymentReceipt.name,
+          language: MSG91_TEMPLATES.paymentReceipt.language,
+          bodyVariables: [
+            order.customer.locationLabel,
+            String(amountApplied),
+            order.orderNumber,
+            PAYMENT_METHOD_LABELS[paymentMethod],
+          ],
+        },
+        resolveWhatsappFrom(order.customer.branch.whatsappNumber)
+      );
+    }
+  } catch (notifyErr) {
+    console.error(
+      `[recordPayment] Notification step failed for order ${orderId}, payment ${ledgerPayment.id} — payment already committed:`,
+      notifyErr
     );
   }
 

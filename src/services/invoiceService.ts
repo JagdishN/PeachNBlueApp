@@ -200,7 +200,11 @@ export const generateInvoice = async (orderId: string): Promise<GeneratedInvoice
   // the (possibly revised) amount in full — same reasoning as the
   // monthly-billing case just above: don't ask the customer to pay again
   // for money already collected.
-  const paymentLink =
+  // createPaymentLink never throws (see razorpayClient.ts — a real bug fixed
+  // 2026-11-01) — a real Razorpay failure here is treated the same as the
+  // "no link needed" cases just above: the PDF/QR invoice still goes out
+  // with no live payable link, rather than crashing order creation/reissue.
+  const paymentLinkResult =
     isMonthlyBilling || linkAmount <= 0
       ? null
       : await createPaymentLink({
@@ -210,6 +214,7 @@ export const generateInvoice = async (orderId: string): Promise<GeneratedInvoice
           customerName: order.customer.fullName,
           customerPhone: order.customer.phoneNumber,
         });
+  const paymentLink = paymentLinkResult?.success ? paymentLinkResult.link : null;
 
   if (previousInvoice?.razorpayPaymentLinkId) {
     // Best-effort — CLAUDE.md: the part that actually prevents a

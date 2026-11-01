@@ -73,7 +73,10 @@ beforeEach(() => {
   uploadInvoicePdfMock.mockReset();
   renderInvoicePdfMock.mockReset();
 
-  createPaymentLinkMock.mockResolvedValue({ id: 'plink_1', shortUrl: 'https://rzp.io/l/plink_1' });
+  createPaymentLinkMock.mockResolvedValue({
+    success: true,
+    link: { id: 'plink_1', shortUrl: 'https://rzp.io/l/plink_1' },
+  });
   // Webhook historical-link resolution fix — generateInvoice now reads
   // cancelPaymentLink's CancelResult (.success) to decide the
   // PaymentLinkHistory row's finalStatus. Default to a clean success so
@@ -182,6 +185,26 @@ describe('generateInvoice — customer advance auto-consumption', () => {
 
     expect(result.creditApplied).toBe(0);
     expect(prismaMock.customerCredit.create).not.toHaveBeenCalled();
+  });
+});
+
+// Real bug fixed (2026-11-01): createPaymentLink used to throw on a real
+// Razorpay failure — uncaught straight out of generateInvoice, crashing
+// order creation (fire-and-forget, so this surfaced as a silently swallowed
+// rejection) or, for a reissue, the awaited admin action that triggered it.
+describe('generateInvoice — Razorpay link creation fails', () => {
+  it('still produces an invoice with no payment link, rather than throwing', async () => {
+    prismaMock.order.findUnique.mockResolvedValue(BASE_ORDER as any);
+    createPaymentLinkMock.mockResolvedValue({ success: false, link: null, error: 'Razorpay: invalid request' });
+
+    const result = await generateInvoice('order-1');
+
+    expect(result.paymentLinkUrl).toBeNull();
+    expect(prismaMock.invoice.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ razorpayPaymentLinkId: null, paymentLinkUrl: null }),
+      })
+    );
   });
 });
 

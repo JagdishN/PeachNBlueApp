@@ -21,7 +21,10 @@ const RAZORPAY_METHOD_MAP: Record<string, PaymentMethod> = {
   upi: 'upi',
 };
 
-const mapRazorpayMethod = (method: string | undefined): PaymentMethod => {
+// Exported (2026-11-01) — the new payment-link verify/consistency-check
+// service reuses this exact mapping rather than keeping a second copy that
+// could drift from the webhook's own.
+export const mapRazorpayMethod = (method: string | undefined): PaymentMethod => {
   if (method && RAZORPAY_METHOD_MAP[method]) {
     return RAZORPAY_METHOD_MAP[method];
   }
